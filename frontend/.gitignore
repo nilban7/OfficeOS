@@ -1,0 +1,33 @@
+# Next.js dependencies and build outputs
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# Environment variables (never commit local environment secrets)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Testing & coverage
+coverage/
+.nyc_output/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# IDE / OS files
+.DS_Store
+*.pem
+.idea/
+.vscode/
