@@ -44,28 +44,32 @@ export function OrgSwitcher() {
             Organizations
           </div>
           <div className="space-y-0.5">
-            {organizations.map((org) => {
-              const isSelected = org.id === currentOrganization?.id;
-              return (
-                <button
-                  key={org.id}
-                  type="button"
-                  onClick={() => {
-                    selectOrganization(org.id);
-                    setIsOpen(false);
-                  }}
-                  className={cn(
-                    "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors",
-                    isSelected
-                      ? "bg-primary-50 text-primary-700 font-medium"
-                      : "text-slate-700 hover:bg-slate-100"
-                  )}
-                >
-                  <span className="truncate">{org.name}</span>
-                  {isSelected && <Check className="h-4 w-4 text-primary-600" />}
-                </button>
-              );
-            })}
+            {organizations.length === 0 ? (
+              <div className="px-2 py-2 text-xs text-slate-500">No organizations found</div>
+            ) : (
+              organizations.map((org) => {
+                const isSelected = org.id === currentOrganization?.id;
+                return (
+                  <button
+                    key={org.id}
+                    type="button"
+                    onClick={() => {
+                      selectOrganization(org.id);
+                      setIsOpen(false);
+                    }}
+                    className={cn(
+                      "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors",
+                      isSelected
+                        ? "bg-primary-50 text-primary-700 font-medium"
+                        : "text-slate-700 hover:bg-slate-100"
+                    )}
+                  >
+                    <span className="truncate">{org.name}</span>
+                    {isSelected && <Check className="h-4 w-4 text-primary-600" />}
+                  </button>
+                );
+              })
+            )}
           </div>
         </div>
       )}

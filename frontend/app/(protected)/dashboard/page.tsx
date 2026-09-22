@@ -22,7 +22,8 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const { currentOrganization, membership } = useOrganization();
 
-  const greetingName = user?.fullName || user?.email?.split("@")[0] || "Team Member";
+  const greetingName =
+    user?.firstName || user?.fullName || user?.email?.split("@")[0] || "Team Member";
 
   return (
     <div className="space-y-8">
