@@ -3,9 +3,18 @@
  * Represents Supabase Auth state and user sessions.
  */
 
+export interface BackendUserProfile {
+  id: string;
+  email: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+}
+
 export interface AuthUser {
   id: string;
   email: string;
+  firstName?: string;
+  lastName?: string;
   fullName?: string;
   avatarUrl?: string;
   createdAt: string;

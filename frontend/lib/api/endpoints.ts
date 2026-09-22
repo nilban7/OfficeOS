@@ -3,9 +3,11 @@
  */
 
 export const API_ENDPOINTS = {
-  auth: {
-    me: "/auth/me",
-    permissions: "/auth/permissions",
+  health: "/health",
+  me: {
+    profile: "/me",
+    organizations: "/me/organizations",
+    permissions: "/me/permissions",
   },
   organizations: {
     list: "/organizations",

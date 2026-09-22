@@ -27,13 +27,17 @@ export type Permission =
   | "settings:read"
   | "settings:manage";
 
+export interface PermissionData {
+  code: string;
+}
+
 export interface Organization {
   id: string;
   name: string;
   slug: string;
   logoUrl?: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface OrganizationMembership {

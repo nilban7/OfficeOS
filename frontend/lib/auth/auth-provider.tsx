@@ -3,10 +3,13 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from "react";
 import type { User, Session } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/client";
+import { API_ENDPOINTS } from "@/lib/api/endpoints";
 import type {
   AuthState,
   AuthUser,
   AuthSession,
+  BackendUserProfile,
   SignInCredentials,
   ResetPasswordCredentials,
   UpdatePasswordCredentials,
@@ -52,6 +55,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function syncBackendProfile() {
+      if (!session?.accessToken) return;
+      try {
+        const profile = await apiClient.get<BackendUserProfile>(API_ENDPOINTS.me.profile);
+        if (isMounted && profile) {
+          setUser((prev) => {
+            if (!prev) return prev;
+            const fullName =
+              profile.first_name || profile.last_name
+                ? [profile.first_name, profile.last_name].filter(Boolean).join(" ")
+                : prev.fullName;
+
+            return {
+              ...prev,
+              firstName: profile.first_name || undefined,
+              lastName: profile.last_name || undefined,
+              fullName: fullName || prev.fullName,
+              email: profile.email || prev.email,
+            };
+          });
+        }
+      } catch {
+        // Safe fallback: keep base Supabase Auth identity if backend profile fetch fails
+      }
+    }
+
+    if (session?.accessToken) {
+      void syncBackendProfile();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [session?.accessToken]);
 
   useEffect(() => {
     let isMounted = true;

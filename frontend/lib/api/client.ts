@@ -44,13 +44,14 @@ export class ApiClient {
   }
 
   /**
-   * Internal request executor handling headers, timeouts, response envelopes, and error mapping.
+   * Internal request executor handling headers, timeouts, response envelopes, 401 retry, and error mapping.
    */
   private async request<T>(
     path: string,
     method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
     body?: unknown,
-    options?: RequestOptions
+    options?: RequestOptions,
+    isRetry: boolean = false
   ): Promise<T> {
     const url = this.buildUrl(path, options?.params);
     const token = await this.getAuthToken();
@@ -81,6 +82,20 @@ export class ApiClient {
         signal: controller.signal,
       });
 
+      // Handle 401 Unauthorized: attempt single session refresh and retry once
+      if (response.status === 401 && !isRetry && token) {
+        try {
+          const supabase = getSupabaseBrowserClient();
+          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+          if (!refreshError && refreshData?.session?.access_token) {
+            clearTimeout(timeoutId);
+            return await this.request<T>(path, method, body, options, true);
+          }
+        } catch {
+          // Proceed to standard error handling if refresh fails
+        }
+      }
+
       const contentType = response.headers.get("content-type");
       const isJson = contentType && contentType.includes("application/json");
 
@@ -105,7 +120,15 @@ export class ApiClient {
                 : Array.isArray(fastApiError.detail)
                   ? fastApiError.detail.map((d) => d.msg).join(", ")
                   : "Validation Error";
-            throw new ApiException(detailMsg, response.status, `HTTP_${response.status}`);
+            const defaultCode =
+              response.status === 401
+                ? "UNAUTHORIZED"
+                : response.status === 403
+                  ? "FORBIDDEN"
+                  : response.status === 400
+                    ? "BAD_REQUEST"
+                    : `HTTP_${response.status}`;
+            throw new ApiException(detailMsg, response.status, defaultCode);
           }
         }
 
@@ -113,7 +136,13 @@ export class ApiClient {
         throw new ApiException(
           rawText || `Request failed with status ${response.status}`,
           response.status,
-          `HTTP_${response.status}`
+          response.status === 401
+            ? "UNAUTHORIZED"
+            : response.status === 403
+              ? "FORBIDDEN"
+              : response.status === 400
+                ? "BAD_REQUEST"
+                : `HTTP_${response.status}`
         );
       }
 

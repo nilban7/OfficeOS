@@ -31,7 +31,11 @@ export function UserNav() {
     router.push(ROUTES.LOGIN);
   };
 
-  const displayName = user?.fullName || user?.email?.split("@")[0] || "User";
+  const displayName =
+    user?.fullName ||
+    [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
+    user?.email?.split("@")[0] ||
+    "User";
   const userInitial = displayName.charAt(0).toUpperCase();
 
   return (
