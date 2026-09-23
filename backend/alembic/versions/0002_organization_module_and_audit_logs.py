@@ -112,47 +112,75 @@ def upgrade() -> None:
     op.execute("ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE audit_logs FORCE ROW LEVEL SECURITY")
 
-    # 3. RLS policies
+    # 3. Security Definer Helper Functions for RLS (avoids recursive evaluation on organization_memberships & profiles)
+    op.execute("""
+        CREATE OR REPLACE FUNCTION public.is_org_member(p_org_id uuid, p_auth_user_id uuid)
+        RETURNS boolean
+        LANGUAGE sql
+        SECURITY DEFINER
+        SET search_path = public, pg_temp
+        STABLE
+        AS $$
+          SELECT EXISTS (
+            SELECT 1
+            FROM public.organization_memberships m
+            JOIN public.profiles p ON p.id = m.profile_id
+            WHERE m.organization_id = p_org_id
+              AND p.auth_user_id = p_auth_user_id
+              AND m.status = 'active'
+          );
+        $$;
+    """)
+    op.execute("REVOKE ALL ON FUNCTION public.is_org_member(uuid, uuid) FROM PUBLIC")
+    op.execute("GRANT EXECUTE ON FUNCTION public.is_org_member(uuid, uuid) TO authenticated, service_role, anon")
+
+    op.execute("""
+        CREATE OR REPLACE FUNCTION public.is_org_profile(p_org_id uuid, p_profile_id uuid)
+        RETURNS boolean
+        LANGUAGE sql
+        SECURITY DEFINER
+        SET search_path = public, pg_temp
+        STABLE
+        AS $$
+          SELECT EXISTS (
+            SELECT 1
+            FROM public.organization_memberships m
+            WHERE m.organization_id = p_org_id
+              AND m.profile_id = p_profile_id
+              AND m.status = 'active'
+          );
+        $$;
+    """)
+    op.execute("REVOKE ALL ON FUNCTION public.is_org_profile(uuid, uuid) FROM PUBLIC")
+    op.execute("GRANT EXECUTE ON FUNCTION public.is_org_profile(uuid, uuid) TO authenticated, service_role, anon")
+
     user_context = "COALESCE(current_setting('app.user_id', true), '') <> ''"
     org_context = "COALESCE(current_setting('app.organization_id', true), '') <> ''"
-    member = (
-        "EXISTS (SELECT 1 FROM organization_memberships m "
-        "JOIN profiles p ON p.id = m.profile_id "
-        "WHERE m.organization_id = {org} "
-        "AND p.auth_user_id::text = current_setting('app.user_id', true) "
-        "AND m.status = 'active')"
-    )
+    org_setting_uuid = "(NULLIF(current_setting('app.organization_id', true), ''))::uuid"
+    user_setting_uuid = "(NULLIF(current_setting('app.user_id', true), ''))::uuid"
 
-    # audit_logs policy: active members of the tenant can select audit logs
-    audit_member_clause = member.format(org="audit_logs.organization_id")
+    # audit_logs policy: active members of the tenant can access audit logs
     op.execute(
-        f"CREATE POLICY audit_logs_member ON audit_logs USING ("
+        f"CREATE POLICY audit_logs_member ON audit_logs FOR ALL USING ("
         f"{user_context} AND {org_context} "
-        f"AND organization_id::text = current_setting('app.organization_id', true) "
-        f"AND {audit_member_clause})"
+        f"AND organization_id = {org_setting_uuid} "
+        f"AND public.is_org_member(organization_id, {user_setting_uuid}))"
     )
 
     # memberships_organization_view policy: active members can view all memberships in their tenant
-    memberships_member_clause = member.format(org="organization_memberships.organization_id")
     op.execute(
         f"CREATE POLICY memberships_organization_view ON organization_memberships FOR SELECT USING ("
         f"{user_context} AND {org_context} "
-        f"AND organization_id::text = current_setting('app.organization_id', true) "
-        f"AND {memberships_member_clause})"
+        f"AND organization_id = {org_setting_uuid} "
+        f"AND public.is_org_member(organization_id, {user_setting_uuid}))"
     )
 
     # profiles_organization_member policy: active members can view coworker profiles in their tenant
-    org_setting_uuid = "current_setting('app.organization_id', true)::uuid"
-    profiles_member_clause = member.format(org=org_setting_uuid)
     op.execute(
         f"CREATE POLICY profiles_organization_member ON profiles FOR SELECT USING ("
         f"{user_context} AND {org_context} "
-        f"AND EXISTS ("
-        f"  SELECT 1 FROM organization_memberships m "
-        f"  WHERE m.organization_id::text = current_setting('app.organization_id', true) "
-        f"  AND m.profile_id = profiles.id"
-        f") "
-        f"AND {profiles_member_clause})"
+        f"AND public.is_org_member({org_setting_uuid}, {user_setting_uuid}) "
+        f"AND public.is_org_profile({org_setting_uuid}, profiles.id))"
     )
 
     # 4. Seed Canonical Permissions
@@ -187,10 +215,12 @@ def downgrade() -> None:
     # 2. Delete the seeded permissions
     op.execute(f"DELETE FROM permissions WHERE code IN ({perm_codes_str})")
 
-    # 3. Drop policies
+    # 3. Drop policies and helper functions
     op.execute("DROP POLICY IF EXISTS profiles_organization_member ON profiles")
     op.execute("DROP POLICY IF EXISTS memberships_organization_view ON organization_memberships")
     op.execute("DROP POLICY IF EXISTS audit_logs_member ON audit_logs")
+    op.execute("DROP FUNCTION IF EXISTS public.is_org_profile(uuid, uuid)")
+    op.execute("DROP FUNCTION IF EXISTS public.is_org_member(uuid, uuid)")
 
     # 4. Drop audit_logs table
     op.drop_table("audit_logs")
