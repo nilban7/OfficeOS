@@ -1,3 +1,4 @@
+from app.models.audit import AuditLog
 from app.models.identity import (
     Branch,
     MembershipRole,
@@ -11,6 +12,7 @@ from app.models.identity import (
 )
 
 __all__ = [
+    "AuditLog",
     "Branch",
     "MembershipRole",
     "Organization",

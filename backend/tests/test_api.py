@@ -1,9 +1,7 @@
-import base64
 import time
 import uuid
 from unittest.mock import AsyncMock, MagicMock
 
-import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi.security import HTTPAuthorizationCredentials
@@ -14,84 +12,14 @@ from app.core.security import clear_jwks_clients, get_jwks_client, verify_access
 from app.dependencies.tenant import get_identity_session
 from app.main import app
 from app.models.identity import Organization, OrganizationMembership, Profile
-
-# Generate ECC P-256 test key pairs
-TEST_PRIVATE_KEY = ec.generate_private_key(ec.SECP256R1())
-TEST_PUBLIC_KEY = TEST_PRIVATE_KEY.public_key()
-TEST_KID = "test-key-id-1"
-
-UNTRUSTED_PRIVATE_KEY = ec.generate_private_key(ec.SECP256R1())
-
-
-def public_key_to_jwk(public_key: ec.EllipticCurvePublicKey, kid: str) -> dict:
-    public_numbers = public_key.public_numbers()
-
-    def int_to_b64(val: int) -> str:
-        return base64.urlsafe_b64encode(val.to_bytes(32, byteorder="big")).decode("utf-8").rstrip("=")
-
-    return {
-        "kty": "EC",
-        "crv": "P-256",
-        "x": int_to_b64(public_numbers.x),
-        "y": int_to_b64(public_numbers.y),
-        "use": "sig",
-        "alg": "ES256",
-        "kid": kid,
-    }
-
-
-TEST_JWK = public_key_to_jwk(TEST_PUBLIC_KEY, TEST_KID)
-
-
-@pytest.fixture(autouse=True)
-def setup_test_jwks(monkeypatch: pytest.MonkeyPatch):
-    clear_jwks_clients()
-    settings = get_settings()
-    jwks_url = settings.supabase_jwks_url or "https://test.supabase.co/auth/v1/.well-known/jwks.json"
-    client = get_jwks_client(jwks_url)
-
-    def fake_fetch_data():
-        data = {"keys": [TEST_JWK]}
-        if client.jwk_set_cache is not None:
-            client.jwk_set_cache.put(data)
-        client._last_successful_fetch = time.monotonic()
-        return data
-
-    monkeypatch.setattr(client, "fetch_data", fake_fetch_data)
-    yield
-    clear_jwks_clients()
-
-
-def create_test_token(
-    user_id: str | None = None,
-    *,
-    private_key: ec.EllipticCurvePrivateKey = TEST_PRIVATE_KEY,
-    kid: str | None = TEST_KID,
-    algorithm: str = "ES256",
-    issuer: str = "https://test.supabase.co/auth/v1",
-    audience: str = "authenticated",
-    claims_extra: dict | None = None,
-    include_sub: bool = True,
-) -> str:
-    payload: dict[str, object] = {
-        "email": "tester@example.com",
-        "aud": audience,
-        "iss": issuer,
-        "iat": int(time.time()),
-        "exp": int(time.time()) + 3600,
-    }
-    if include_sub:
-        payload["sub"] = user_id or str(uuid.uuid4())
-    if claims_extra:
-        payload.update(claims_extra)
-
-    headers: dict[str, str] = {}
-    if kid is not None:
-        headers["kid"] = kid
-
-    if algorithm.startswith("HS"):
-        return jwt.encode(payload, "test-secret-value-with-32-bytes!!", algorithm=algorithm, headers=headers)
-    return jwt.encode(payload, private_key, algorithm=algorithm, headers=headers)
+from tests.auth_helpers import (
+    TEST_JWK,
+    TEST_KID,
+    TEST_PRIVATE_KEY,
+    UNTRUSTED_PRIVATE_KEY,
+    create_test_token,
+    public_key_to_jwk,
+)
 
 
 @pytest.mark.asyncio
