@@ -21,6 +21,8 @@ export type CanonicalPermission =
   | "organizations.settings_manage"
   | "branches.view"
   | "branches.manage"
+  | "departments.view"
+  | "departments.manage"
   | "roles.view"
   | "members.view"
   | "members.manage"
