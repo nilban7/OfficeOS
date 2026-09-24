@@ -27,4 +27,5 @@ export const ROUTES = {
   DOCUMENTS: "/documents",
   NOTIFICATIONS: "/notifications",
   SETTINGS: "/settings",
+  SETTINGS_ORGANIZATION: "/settings/organization",
 } as const;
