@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Annotated
 from uuid import UUID
 
@@ -9,6 +10,7 @@ from app.core.database import get_db_session, set_transaction_context, set_user_
 from app.core.security import AuthenticatedUser
 from app.dependencies.auth import get_current_user
 from app.models.identity import OrganizationMembership, Profile
+from app.services.identity import get_user_permissions
 
 
 async def get_tenant_session(
@@ -48,3 +50,19 @@ async def get_identity_session(
 ) -> AsyncSession:
     await set_user_context(session, current_user.id)
     return session
+
+
+def require_permission(permission_code: str) -> Callable[..., AsyncSession]:
+    async def permission_dependency(
+        current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+        session: Annotated[AsyncSession, Depends(get_tenant_session)],
+    ) -> AsyncSession:
+        user_permissions = await get_user_permissions(session, current_user)
+        if permission_code not in user_permissions:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission '{permission_code}' is required for this operation",
+            )
+        return session
+
+    return permission_dependency

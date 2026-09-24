@@ -21,7 +21,13 @@ def error_response(status_code: int, code: str, message: str, details: object = 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(_: Request, exc: HTTPException) -> JSONResponse:
     message = exc.detail if isinstance(exc.detail, str) else "Request failed"
-    code_by_status = {401: "UNAUTHENTICATED", 403: "FORBIDDEN", 404: "NOT_FOUND", 400: "BAD_REQUEST"}
+    code_by_status = {
+        400: "BAD_REQUEST",
+        401: "UNAUTHENTICATED",
+        403: "FORBIDDEN",
+        404: "NOT_FOUND",
+        409: "CONFLICT",
+    }
     return error_response(exc.status_code, code_by_status.get(exc.status_code, "REQUEST_FAILED"), message)
 
 
