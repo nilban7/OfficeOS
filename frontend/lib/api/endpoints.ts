@@ -13,6 +13,13 @@ export const API_ENDPOINTS = {
     list: "/organizations",
     detail: (id: string) => `/organizations/${id}`,
     members: (id: string) => `/organizations/${id}/members`,
+    current: "/organizations/current",
+    currentSettings: "/organizations/current/settings",
+    currentBranches: "/organizations/current/branches",
+    currentBranch: (id: string) => `/organizations/current/branches/${id}`,
+    currentRoles: "/organizations/current/roles",
+    currentMembers: "/organizations/current/members",
+    currentMember: (id: string) => `/organizations/current/members/${id}`,
   },
   employees: {
     list: "/employees",

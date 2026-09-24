@@ -95,7 +95,7 @@ export function useOrganization() {
               organizationId: orgId,
               organization: currentOrganization,
               userId: session?.user?.id || "",
-              role: "org_admin",
+              role: null,
               permissions: codes,
               isActive: true,
               createdAt: new Date().toISOString(),
