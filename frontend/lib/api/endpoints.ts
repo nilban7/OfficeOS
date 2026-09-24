@@ -21,9 +21,14 @@ export const API_ENDPOINTS = {
     currentMembers: "/organizations/current/members",
     currentMember: (id: string) => `/organizations/current/members/${id}`,
   },
+  departments: {
+    list: "/departments",
+    detail: (id: string) => `/departments/${id}`,
+  },
   employees: {
     list: "/employees",
     detail: (id: string) => `/employees/${id}`,
+    managers: "/employees/managers",
   },
   attendance: {
     list: "/attendance",
