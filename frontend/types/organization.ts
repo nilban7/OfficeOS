@@ -102,6 +102,22 @@ export interface BranchResponse {
   updated_at: string;
 }
 
+export type Branch = BranchResponse;
+
+export interface BranchCreate {
+  name: string;
+  code: string;
+  address?: string | null;
+  is_active?: boolean;
+}
+
+export interface BranchUpdate {
+  name?: string;
+  code?: string;
+  address?: string | null;
+  is_active?: boolean;
+}
+
 export interface RoleResponse {
   id: string;
   organization_id?: string | null;

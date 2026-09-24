@@ -28,4 +28,5 @@ export const ROUTES = {
   NOTIFICATIONS: "/notifications",
   SETTINGS: "/settings",
   SETTINGS_ORGANIZATION: "/settings/organization",
+  SETTINGS_ORGANIZATION_BRANCHES: "/settings/organization/branches",
 } as const;
