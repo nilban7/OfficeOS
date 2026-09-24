@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   Building2,
   Clock,
@@ -24,6 +25,7 @@ import { ErrorState } from "@/components/feedback/error-state";
 import { useOrganization } from "@/hooks/use-organization";
 import { apiClient } from "@/lib/api/client";
 import { API_ENDPOINTS } from "@/lib/api/endpoints";
+import { ROUTES } from "@/constants/routes";
 import { ApiException } from "@/types/api";
 import type {
   OrganizationProfile,
@@ -319,6 +321,24 @@ export default function OrganizationSettingsPage() {
             Refresh
           </Button>
         </div>
+      </div>
+
+      {/* Sub-Navigation Tabs */}
+      <div className="flex items-center space-x-2 border-b border-slate-200 pb-3 text-sm font-medium">
+        <Link
+          href={ROUTES.SETTINGS_ORGANIZATION}
+          className="rounded-lg bg-primary-50 px-3 py-1.5 text-primary-700 font-semibold shadow-sm flex items-center space-x-2"
+        >
+          <Sliders className="h-4 w-4 text-primary-600" />
+          <span>Profile & Settings</span>
+        </Link>
+        <Link
+          href={ROUTES.SETTINGS_ORGANIZATION_BRANCHES}
+          className="rounded-lg px-3 py-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors flex items-center space-x-2"
+        >
+          <Building2 className="h-4 w-4 text-slate-400" />
+          <span>Branches</span>
+        </Link>
       </div>
 
       {/* Grid: Profile & Settings Sections */}
