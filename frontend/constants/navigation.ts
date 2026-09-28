@@ -44,13 +44,13 @@ export const MAIN_NAVIGATION: NavSection[] = [
         title: "Employees",
         href: ROUTES.EMPLOYEES,
         icon: Users,
-        requiredPermissions: ["employee:read"],
+        requiredPermissions: ["employees.view", "employee:read"],
       },
       {
         title: "Attendance",
         href: ROUTES.ATTENDANCE,
         icon: Clock,
-        requiredPermissions: ["attendance:read"],
+        requiredPermissions: ["attendance.view", "attendance:read"],
       },
       {
         title: "Leave Management",

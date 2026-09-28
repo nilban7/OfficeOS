@@ -1,3 +1,4 @@
+from app.models.attendance import AttendanceRecord
 from app.models.audit import AuditLog
 from app.models.employee import Department, Employee
 from app.models.identity import (
@@ -13,6 +14,7 @@ from app.models.identity import (
 )
 
 __all__ = [
+    "AttendanceRecord",
     "AuditLog",
     "Branch",
     "Department",
