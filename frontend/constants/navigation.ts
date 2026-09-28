@@ -56,7 +56,7 @@ export const MAIN_NAVIGATION: NavSection[] = [
         title: "Leave Management",
         href: ROUTES.LEAVE,
         icon: CalendarDays,
-        requiredPermissions: ["leave:read"],
+        requiredPermissions: ["leave.view", "leave:read"],
       },
       {
         title: "Training",

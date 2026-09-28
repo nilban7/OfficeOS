@@ -12,6 +12,7 @@ from app.models.identity import (
     Role,
     RolePermission,
 )
+from app.models.leave import Holiday, LeaveRequest, LeaveType
 
 __all__ = [
     "AttendanceRecord",
@@ -19,6 +20,9 @@ __all__ = [
     "Branch",
     "Department",
     "Employee",
+    "Holiday",
+    "LeaveRequest",
+    "LeaveType",
     "MembershipRole",
     "Organization",
     "OrganizationMembership",
