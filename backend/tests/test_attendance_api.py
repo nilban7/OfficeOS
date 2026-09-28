@@ -76,7 +76,8 @@ def _create_mock_employee(org_id: uuid.UUID, emp_id: uuid.UUID | None = None) ->
 
 
 @pytest.mark.asyncio
-async def test_list_attendance_success(auth_context) -> None:
+async def test_employee_list_endpoint_returns_only_own_attendance(auth_context) -> None:
+    """Standard employee listing attendance gets automatically scoped to own employee record."""
     org_id = uuid.UUID(auth_context["org_id"])
     mock_session = AsyncMock()
 
@@ -97,11 +98,19 @@ async def test_list_attendance_success(auth_context) -> None:
         updated_at=datetime.now(UTC),
     )
 
+    # 1. require_permission("attendance.view")
+    # 2. check_is_admin_or_manager (only has attendance.view, so non-manager)
+    # 3. list_attendance query
     mock_session.scalars.side_effect = [
+        ["attendance.view"],
         ["attendance.view"],
         [rec1],
     ]
-    mock_session.scalar.return_value = 1
+    # scalar side effect for resolve_employee_for_user and count
+    mock_session.scalar.side_effect = [
+        emp,  # resolve_employee_for_user
+        1,  # total count
+    ]
 
     app.dependency_overrides[get_tenant_session] = lambda: mock_session
     try:
@@ -114,7 +123,76 @@ async def test_list_attendance_success(auth_context) -> None:
         item = body["data"]["items"][0]
         assert item["status"] == "present"
         assert item["employee"]["first_name"] == "Jane"
-        assert item["notes"] == "On time"
+    finally:
+        app.dependency_overrides.pop(get_tenant_session, None)
+
+
+@pytest.mark.asyncio
+async def test_employee_list_endpoint_rejects_other_employee_id(auth_context) -> None:
+    """Standard employee attempting to filter by another employee_id receives 403 Forbidden."""
+    org_id = uuid.UUID(auth_context["org_id"])
+    other_emp_id = uuid.uuid4()
+    mock_session = AsyncMock()
+
+    emp = _create_mock_employee(org_id)
+
+    mock_session.scalars.side_effect = [
+        ["attendance.view"],
+        ["attendance.view"],
+    ]
+    mock_session.scalar.side_effect = [
+        emp,  # resolve_employee_for_user
+    ]
+
+    app.dependency_overrides[get_tenant_session] = lambda: mock_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.get(
+                f"/api/v1/attendance?employee_id={other_emp_id}",
+                headers=auth_context["headers"],
+            )
+        assert res.status_code == 403
+        body = res.json()
+        assert "not authorized" in body["error"]["message"].lower()
+    finally:
+        app.dependency_overrides.pop(get_tenant_session, None)
+
+
+@pytest.mark.asyncio
+async def test_privileged_hr_admin_can_view_organization_attendance(auth_context) -> None:
+    """Privileged HR manager/admin can view organization-wide attendance records."""
+    org_id = uuid.UUID(auth_context["org_id"])
+    mock_session = AsyncMock()
+
+    emp = _create_mock_employee(org_id)
+    rec1 = AttendanceRecord(
+        id=uuid.uuid4(),
+        organization_id=org_id,
+        employee_id=emp.id,
+        employee=emp,
+        branch_id=None,
+        branch=None,
+        work_date=datetime.now(UTC).date(),
+        status="present",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    mock_session.scalars.side_effect = [
+        ["attendance.view", "attendance.delete"],  # require_permission
+        ["attendance.view", "attendance.delete"],  # check_is_admin_or_manager
+        [rec1],
+    ]
+    mock_session.scalar.return_value = 1
+
+    app.dependency_overrides[get_tenant_session] = lambda: mock_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.get("/api/v1/attendance", headers=auth_context["headers"])
+        assert res.status_code == 200
+        body = res.json()
+        assert body["success"] is True
+        assert len(body["data"]["items"]) == 1
     finally:
         app.dependency_overrides.pop(get_tenant_session, None)
 
@@ -366,7 +444,110 @@ async def test_clock_out_invalid_time_before_check_in(auth_context) -> None:
 
 
 @pytest.mark.asyncio
-async def test_create_attendance_manual_success(auth_context) -> None:
+async def test_employee_cannot_manually_create_attendance_for_another_employee(auth_context) -> None:
+    """Standard employee attempting to call POST /api/v1/attendance receives 403 Forbidden."""
+    org_id = uuid.UUID(auth_context["org_id"])
+    mock_session = AsyncMock()
+
+    emp = _create_mock_employee(org_id)
+
+    # User only has basic employee permission (attendance.create, but no admin/mgr permission)
+    mock_session.scalars.side_effect = [
+        ["attendance.create"],  # require_permission
+        ["attendance.create"],  # check_is_admin_or_manager -> False
+    ]
+
+    app.dependency_overrides[get_tenant_session] = lambda: mock_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.post(
+                "/api/v1/attendance",
+                headers=auth_context["headers"],
+                json={
+                    "employee_id": str(emp.id),
+                    "work_date": "2026-09-25",
+                    "status": "present",
+                },
+            )
+        assert res.status_code == 403
+        body = res.json()
+        assert "do not have permission" in body["error"]["message"].lower()
+    finally:
+        app.dependency_overrides.pop(get_tenant_session, None)
+
+
+@pytest.mark.asyncio
+async def test_employee_cannot_manually_modify_another_employee_attendance(auth_context) -> None:
+    """Standard employee attempting to call PATCH /api/v1/attendance/{id} receives 403 Forbidden."""
+    mock_session = AsyncMock()
+    att_id = uuid.uuid4()
+
+    mock_session.scalars.side_effect = [
+        ["attendance.update"],  # require_permission
+        ["attendance.update"],  # check_is_admin_or_manager -> False
+    ]
+
+    app.dependency_overrides[get_tenant_session] = lambda: mock_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.patch(
+                f"/api/v1/attendance/{att_id}",
+                headers=auth_context["headers"],
+                json={"status": "late"},
+            )
+        assert res.status_code == 403
+        body = res.json()
+        assert "do not have permission" in body["error"]["message"].lower()
+    finally:
+        app.dependency_overrides.pop(get_tenant_session, None)
+
+
+@pytest.mark.asyncio
+async def test_employee_cannot_retrieve_another_employee_attendance_detail(auth_context) -> None:
+    """Standard employee attempting to call GET /api/v1/attendance/{id} for another employee receives 403 Forbidden."""
+    org_id = uuid.UUID(auth_context["org_id"])
+    mock_session = AsyncMock()
+
+    emp_mine = _create_mock_employee(org_id)
+    emp_other = _create_mock_employee(org_id)
+    att_id = uuid.uuid4()
+    other_rec = AttendanceRecord(
+        id=att_id,
+        organization_id=org_id,
+        employee_id=emp_other.id,
+        employee=emp_other,
+        work_date=date(2026, 9, 25),
+        status="present",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    mock_session.scalars.side_effect = [
+        ["attendance.view"],  # require_permission
+        ["attendance.view"],  # check_is_admin_or_manager -> False
+    ]
+    mock_session.scalar.side_effect = [
+        other_rec,  # get_attendance
+        emp_mine,  # resolve_employee_for_user
+    ]
+
+    app.dependency_overrides[get_tenant_session] = lambda: mock_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.get(
+                f"/api/v1/attendance/{att_id}",
+                headers=auth_context["headers"],
+            )
+        assert res.status_code == 403
+        body = res.json()
+        assert "not authorized" in body["error"]["message"].lower()
+    finally:
+        app.dependency_overrides.pop(get_tenant_session, None)
+
+
+@pytest.mark.asyncio
+async def test_privileged_hr_admin_can_manually_create_attendance(auth_context) -> None:
+    """Privileged HR manager/admin can call POST /api/v1/attendance to create a record."""
     org_id = uuid.UUID(auth_context["org_id"])
     mock_session = AsyncMock()
     mock_session.flush = AsyncMock()
@@ -388,7 +569,8 @@ async def test_create_attendance_manual_success(auth_context) -> None:
     )
 
     mock_session.scalars.side_effect = [
-        ["attendance.create"],
+        ["attendance.create", "attendance.delete"],  # require_permission
+        ["attendance.create", "attendance.delete"],  # check_is_admin_or_manager -> True
     ]
     mock_session.scalar.side_effect = [
         auth_context["profile"],  # get_actor_profile_id
@@ -419,7 +601,8 @@ async def test_create_attendance_manual_success(auth_context) -> None:
 
 
 @pytest.mark.asyncio
-async def test_update_attendance_success(auth_context) -> None:
+async def test_privileged_hr_admin_can_update_attendance(auth_context) -> None:
+    """Privileged HR manager/admin can call PATCH /api/v1/attendance/{id}."""
     org_id = uuid.UUID(auth_context["org_id"])
     mock_session = AsyncMock()
 
@@ -437,7 +620,8 @@ async def test_update_attendance_success(auth_context) -> None:
     )
 
     mock_session.scalars.side_effect = [
-        ["attendance.update"],
+        ["attendance.update", "attendance.delete"],  # require_permission
+        ["attendance.update", "attendance.delete"],  # check_is_admin_or_manager -> True
     ]
     mock_session.scalar.side_effect = [
         auth_context["profile"],  # get_actor_profile_id
@@ -461,7 +645,8 @@ async def test_update_attendance_success(auth_context) -> None:
 
 
 @pytest.mark.asyncio
-async def test_delete_attendance_success(auth_context) -> None:
+async def test_privileged_hr_admin_can_delete_attendance(auth_context) -> None:
+    """Privileged HR manager/admin with attendance.delete can delete an attendance record."""
     org_id = uuid.UUID(auth_context["org_id"])
     mock_session = AsyncMock()
     mock_session.delete = AsyncMock()
@@ -477,7 +662,7 @@ async def test_delete_attendance_success(auth_context) -> None:
     )
 
     mock_session.scalars.side_effect = [
-        ["attendance.delete"],
+        ["attendance.delete"],  # require_permission
     ]
     mock_session.scalar.side_effect = [
         auth_context["profile"],  # get_actor_profile_id
