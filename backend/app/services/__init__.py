@@ -1,3 +1,15 @@
+from app.services.client import (
+    archive_client,
+    create_client,
+    create_contact,
+    delete_contact,
+    get_client,
+    get_contact,
+    list_clients,
+    list_contacts,
+    update_client,
+    update_contact,
+)
 from app.services.identity import get_profile, get_user_organizations, get_user_permissions
 from app.services.organization import (
     add_member_by_email,
@@ -20,9 +32,15 @@ from app.services.organization import (
 
 __all__ = [
     "add_member_by_email",
+    "archive_client",
     "create_branch",
+    "create_client",
+    "create_contact",
     "deactivate_branch",
+    "delete_contact",
     "get_branch",
+    "get_client",
+    "get_contact",
     "get_organization_profile",
     "get_organization_settings",
     "get_profile",
@@ -30,11 +48,15 @@ __all__ = [
     "get_user_permissions",
     "list_audit_logs",
     "list_branches",
+    "list_clients",
+    "list_contacts",
     "list_members",
     "list_roles",
     "record_audit_log",
     "remove_member",
     "update_branch",
+    "update_client",
+    "update_contact",
     "update_member",
     "update_organization_profile",
     "update_organization_settings",

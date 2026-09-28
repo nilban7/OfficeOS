@@ -1,3 +1,14 @@
+from app.schemas.client import (
+    ClientBase,
+    ClientCreate,
+    ClientDetailResponse,
+    ClientResponse,
+    ClientUpdate,
+    ContactBase,
+    ContactCreate,
+    ContactResponse,
+    ContactUpdate,
+)
 from app.schemas.common import ApiError, ApiErrorDetail, ApiSuccess
 from app.schemas.identity import MeData, MembershipOrganizationRow, OrganizationData, PermissionData
 from app.schemas.organization import (
@@ -24,6 +35,15 @@ __all__ = [
     "BranchCreate",
     "BranchResponse",
     "BranchUpdate",
+    "ClientBase",
+    "ClientCreate",
+    "ClientDetailResponse",
+    "ClientResponse",
+    "ClientUpdate",
+    "ContactBase",
+    "ContactCreate",
+    "ContactResponse",
+    "ContactUpdate",
     "MeData",
     "MemberAddRequest",
     "MemberProfile",

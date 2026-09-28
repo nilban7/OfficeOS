@@ -49,6 +49,15 @@ export const API_ENDPOINTS = {
     list: "/leave-requests",
     balance: "/leave-requests/summary",
   },
+  clients: {
+    list: "/clients",
+    create: "/clients",
+    detail: (id: string) => `/clients/${id}`,
+    update: (id: string) => `/clients/${id}`,
+    delete: (id: string) => `/clients/${id}`,
+    contacts: (clientId: string) => `/clients/${clientId}/contacts`,
+    contactDetail: (clientId: string, contactId: string) => `/clients/${clientId}/contacts/${contactId}`,
+  },
   projects: {
     list: "/projects",
     detail: (id: string) => `/projects/${id}`,
