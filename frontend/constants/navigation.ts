@@ -77,6 +77,7 @@ export const MAIN_NAVIGATION: NavSection[] = [
         title: "Clients",
         href: ROUTES.CLIENTS,
         icon: Briefcase,
+        requiredPermissions: ["clients.view"],
       },
       {
         title: "Projects",
