@@ -222,8 +222,9 @@ describe("ClientDetailPage Component", () => {
 
   it("opens Edit Contact modal and updates contact details", async () => {
     const user = userEvent.setup();
+    const contact0 = mockContacts[0]!;
     const updatedContact: ClientContact = {
-      ...mockContacts[0],
+      ...contact0,
       designation: "Chief Information Officer",
     };
 
@@ -236,7 +237,8 @@ describe("ClientDetailPage Component", () => {
     });
 
     const editBtns = screen.getAllByTitle("Edit Contact");
-    await user.click(editBtns[0]);
+    expect(editBtns[0]).toBeDefined();
+    await user.click(editBtns[0]!);
 
     const modal = screen.getByRole("dialog");
     expect(within(modal).getByRole("heading", { name: /edit contact/i })).toBeInTheDocument();
@@ -251,7 +253,7 @@ describe("ClientDetailPage Component", () => {
     await waitFor(() => {
       expect(apiClient.patch).toHaveBeenCalledWith(
         expect.stringContaining(
-          `/clients/${mockClientDetail.id}/contacts/${mockContacts[0].id}`
+          `/clients/${mockClientDetail.id}/contacts/${contact0.id}`
         ),
         expect.objectContaining({
           designation: "Chief Information Officer",
@@ -263,8 +265,9 @@ describe("ClientDetailPage Component", () => {
 
   it("opens Delete Contact modal and deletes contact", async () => {
     const user = userEvent.setup();
+    const contact1 = mockContacts[1]!;
     vi.mocked(apiClient.delete).mockResolvedValue({
-      id: mockContacts[1].id,
+      id: contact1.id,
       message: "Client contact deleted successfully",
     });
 
@@ -275,7 +278,8 @@ describe("ClientDetailPage Component", () => {
     });
 
     const deleteBtns = screen.getAllByTitle("Delete Contact");
-    await user.click(deleteBtns[1]); // John Smith
+    expect(deleteBtns[1]).toBeDefined();
+    await user.click(deleteBtns[1]!); // John Smith
 
     const modal = screen.getByRole("dialog");
     expect(within(modal).getByRole("heading", { name: /delete contact/i })).toBeInTheDocument();
@@ -289,7 +293,7 @@ describe("ClientDetailPage Component", () => {
     await waitFor(() => {
       expect(apiClient.delete).toHaveBeenCalledWith(
         expect.stringContaining(
-          `/clients/${mockClientDetail.id}/contacts/${mockContacts[1].id}`
+          `/clients/${mockClientDetail.id}/contacts/${contact1.id}`
         ),
         expect.objectContaining({ organizationId: "org-uuid-1" })
       );
@@ -298,8 +302,9 @@ describe("ClientDetailPage Component", () => {
 
   it("allows setting a contact as primary via edit modal", async () => {
     const user = userEvent.setup();
+    const contact1 = mockContacts[1]!;
     vi.mocked(apiClient.patch).mockResolvedValue({
-      ...mockContacts[1],
+      ...contact1,
       is_primary: true,
     });
 
@@ -310,7 +315,8 @@ describe("ClientDetailPage Component", () => {
     });
 
     const editBtns = screen.getAllByTitle("Edit Contact");
-    await user.click(editBtns[1]); // John Smith
+    expect(editBtns[1]).toBeDefined();
+    await user.click(editBtns[1]!); // John Smith
 
     const modal = screen.getByRole("dialog");
     expect(within(modal).getByRole("heading", { name: /edit contact/i })).toBeInTheDocument();
@@ -324,7 +330,7 @@ describe("ClientDetailPage Component", () => {
     await waitFor(() => {
       expect(apiClient.patch).toHaveBeenCalledWith(
         expect.stringContaining(
-          `/clients/${mockClientDetail.id}/contacts/${mockContacts[1].id}`
+          `/clients/${mockClientDetail.id}/contacts/${contact1.id}`
         ),
         expect.objectContaining({
           is_primary: true,

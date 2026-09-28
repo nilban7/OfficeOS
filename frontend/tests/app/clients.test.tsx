@@ -298,8 +298,9 @@ describe("ClientsPage Component", () => {
 
   it("opens Edit Client modal and submits updates", async () => {
     const user = userEvent.setup();
+    const client0 = mockClients[0]!;
     const updatedClient: Client = {
-      ...mockClients[0],
+      ...client0,
       name: "Global Tech Corporation",
     };
 
@@ -312,7 +313,8 @@ describe("ClientsPage Component", () => {
     });
 
     const editBtns = screen.getAllByTitle("Edit Client");
-    await user.click(editBtns[0]);
+    expect(editBtns[0]).toBeDefined();
+    await user.click(editBtns[0]!);
 
     const modal = screen.getByRole("dialog");
     expect(within(modal).getByRole("heading", { name: /edit client/i })).toBeInTheDocument();
@@ -326,7 +328,7 @@ describe("ClientsPage Component", () => {
 
     await waitFor(() => {
       expect(apiClient.patch).toHaveBeenCalledWith(
-        expect.stringContaining(`/clients/${mockClients[0].id}`),
+        expect.stringContaining(`/clients/${client0.id}`),
         expect.objectContaining({
           name: "Global Tech Corporation",
         }),
@@ -337,8 +339,9 @@ describe("ClientsPage Component", () => {
 
   it("opens Archive modal and archives client on confirmation", async () => {
     const user = userEvent.setup();
+    const client0 = mockClients[0]!;
     vi.mocked(apiClient.delete).mockResolvedValue({
-      id: mockClients[0].id,
+      id: client0.id,
       status: "archived",
       message: "Client successfully archived",
     });
@@ -350,7 +353,8 @@ describe("ClientsPage Component", () => {
     });
 
     const archiveBtns = screen.getAllByTitle("Archive Client");
-    await user.click(archiveBtns[0]);
+    expect(archiveBtns[0]).toBeDefined();
+    await user.click(archiveBtns[0]!);
 
     const modal = screen.getByRole("dialog");
     expect(within(modal).getByRole("heading", { name: "Archive Client" })).toBeInTheDocument();
@@ -363,7 +367,7 @@ describe("ClientsPage Component", () => {
 
     await waitFor(() => {
       expect(apiClient.delete).toHaveBeenCalledWith(
-        expect.stringContaining(`/clients/${mockClients[0].id}`),
+        expect.stringContaining(`/clients/${client0.id}`),
         expect.objectContaining({ organizationId: "org-uuid-1" })
       );
     });
