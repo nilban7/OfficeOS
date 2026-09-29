@@ -83,7 +83,7 @@ export const MAIN_NAVIGATION: NavSection[] = [
         title: "Projects",
         href: ROUTES.PROJECTS,
         icon: Layers,
-        requiredPermissions: ["project:read"],
+        requiredPermissions: ["projects.view", "project:read"],
       },
       {
         title: "Procurement",

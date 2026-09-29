@@ -163,3 +163,6 @@ export interface PaginatedEmployees {
   items: Employee[];
   meta: PaginationMeta;
 }
+
+export type EmployeeListResponse = PaginatedEmployees;
+

@@ -14,6 +14,7 @@ from app.models.identity import (
     RolePermission,
 )
 from app.models.leave import Holiday, LeaveRequest, LeaveType
+from app.models.project import Project, ProjectMember
 
 __all__ = [
     "AttendanceRecord",
@@ -32,6 +33,8 @@ __all__ = [
     "OrganizationSetting",
     "Permission",
     "Profile",
+    "Project",
+    "ProjectMember",
     "Role",
     "RolePermission",
 ]

@@ -60,7 +60,12 @@ export const API_ENDPOINTS = {
   },
   projects: {
     list: "/projects",
+    create: "/projects",
     detail: (id: string) => `/projects/${id}`,
+    update: (id: string) => `/projects/${id}`,
+    delete: (id: string) => `/projects/${id}`,
+    members: (projectId: string) => `/projects/${projectId}/members`,
+    memberDetail: (projectId: string, memberId: string) => `/projects/${projectId}/members/${memberId}`,
   },
   finance: {
     overview: "/finance/overview",

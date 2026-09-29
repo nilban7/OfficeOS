@@ -26,6 +26,17 @@ from app.schemas.organization import (
     OrganizationSettingsUpdate,
     RoleResponse,
 )
+from app.schemas.project import (
+    ProjectBase,
+    ProjectCreate,
+    ProjectDetailResponse,
+    ProjectMemberBase,
+    ProjectMemberCreate,
+    ProjectMemberResponse,
+    ProjectMemberUpdate,
+    ProjectResponse,
+    ProjectUpdate,
+)
 
 __all__ = [
     "ApiError",
@@ -56,5 +67,14 @@ __all__ = [
     "OrganizationSettingsResponse",
     "OrganizationSettingsUpdate",
     "PermissionData",
+    "ProjectBase",
+    "ProjectCreate",
+    "ProjectDetailResponse",
+    "ProjectMemberBase",
+    "ProjectMemberCreate",
+    "ProjectMemberResponse",
+    "ProjectMemberUpdate",
+    "ProjectResponse",
+    "ProjectUpdate",
     "RoleResponse",
 ]
