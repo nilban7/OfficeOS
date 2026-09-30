@@ -28,7 +28,10 @@ export const ROUTES = {
   DOCUMENTS: "/documents",
   NOTIFICATIONS: "/notifications",
   AUDIT_LOGS: "/audit-logs",
+  AI: "/ai",
+  AUTOMATIONS: "/automations",
   SETTINGS: "/settings",
+  SETTINGS_AI: "/settings/ai",
   SETTINGS_ORGANIZATION: "/settings/organization",
   SETTINGS_ORGANIZATION_BRANCHES: "/settings/organization/branches",
 } as const;

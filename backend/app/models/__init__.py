@@ -1,6 +1,8 @@
+from app.models.ai import AIConfiguration, AIConversation, AIMessage
 from app.models.asset import Asset, AssetAssignment
 from app.models.attendance import AttendanceRecord
 from app.models.audit import AuditLog
+from app.models.automation import Automation, AutomationExecution
 from app.models.client import Client, ClientContact
 from app.models.document import Document, DocumentPermission, DocumentVersion
 from app.models.employee import Department, Employee
@@ -26,10 +28,15 @@ from app.models.project import Project, ProjectMember
 from app.models.training import TrainingEnrollment, TrainingProgram, TrainingSession
 
 __all__ = [
+    "AIConfiguration",
+    "AIConversation",
+    "AIMessage",
     "Asset",
     "AssetAssignment",
     "AttendanceRecord",
     "AuditLog",
+    "Automation",
+    "AutomationExecution",
     "Branch",
     "Client",
     "ClientContact",

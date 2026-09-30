@@ -248,4 +248,21 @@ export const API_ENDPOINTS = {
     documents: "/reports/documents",
     auditActivity: "/reports/audit-activity",
   },
+  ai: {
+    configuration: "/ai/configuration",
+    conversations: "/ai/conversations",
+    conversationDetail: (id: string) => `/ai/conversations/${id}`,
+    messages: (id: string) => `/ai/conversations/${id}/messages`,
+    query: "/ai/query",
+  },
+  automations: {
+    list: "/automations",
+    create: "/automations",
+    detail: (id: string) => `/automations/${id}`,
+    update: (id: string) => `/automations/${id}`,
+    delete: (id: string) => `/automations/${id}`,
+    toggle: (id: string) => `/automations/${id}/toggle`,
+    execute: (id: string) => `/automations/${id}/execute`,
+    executions: (id: string) => `/automations/${id}/executions`,
+  },
 } as const;
