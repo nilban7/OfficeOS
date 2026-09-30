@@ -52,10 +52,12 @@ export default function DashboardPage() {
               <span>View Reports</span>
             </Button>
           </Link>
-          <Button size="sm">
-            <Plus className="mr-1.5 h-4 w-4" />
-            Quick Action
-          </Button>
+          <Link href={ROUTES.OPERATIONS}>
+            <Button size="sm" className="flex items-center gap-1.5">
+              <Plus className="mr-1.5 h-4 w-4" />
+              <span>New Task</span>
+            </Button>
+          </Link>
         </div>
       </div>
 

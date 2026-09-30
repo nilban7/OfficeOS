@@ -22,6 +22,8 @@ from dotenv import dotenv_values
 env_vars = dotenv_values(".env")
 if rls_db_url := env_vars.get("RLS_TEST_DATABASE_URL"):
     os.environ["RLS_TEST_DATABASE_URL"] = rls_db_url
+elif db_url := env_vars.get("DATABASE_URL"):
+    os.environ["RLS_TEST_DATABASE_URL"] = db_url
 
 os.environ["DATABASE_URL"] = os.environ.get(
     "DATABASE_URL", "postgresql+asyncpg://test:test@localhost:5432/officeos_test"
