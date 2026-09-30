@@ -1,8 +1,9 @@
 from datetime import datetime
-from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.schemas.audit import AuditLogResponse
 
 
 class OrganizationProfileResponse(BaseModel):
@@ -106,16 +107,18 @@ class MemberUpdateRequest(BaseModel):
     status: str | None = Field(None, pattern="^(active|invited|suspended)$")
 
 
-class AuditLogResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID
-    organization_id: UUID
-    actor_id: UUID | None = None
-    actor_email: str | None = None
-    action: str
-    entity_type: str
-    entity_id: UUID | None = None
-    details: dict[str, Any] | None = None
-    ip_address: str | None = None
-    created_at: datetime
+__all__ = [
+    "AuditLogResponse",
+    "BranchCreate",
+    "BranchResponse",
+    "BranchUpdate",
+    "MemberAddRequest",
+    "MemberProfile",
+    "MemberResponse",
+    "MemberUpdateRequest",
+    "OrganizationProfileResponse",
+    "OrganizationProfileUpdate",
+    "OrganizationSettingsResponse",
+    "OrganizationSettingsUpdate",
+    "RoleResponse",
+]
