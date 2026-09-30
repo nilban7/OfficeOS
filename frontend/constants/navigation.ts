@@ -1,5 +1,6 @@
 import {
   LayoutDashboard,
+  BarChart3,
   Building2,
   Users,
   Clock,
@@ -29,6 +30,12 @@ export const MAIN_NAVIGATION: NavSection[] = [
         title: "Dashboard",
         href: ROUTES.DASHBOARD,
         icon: LayoutDashboard,
+      },
+      {
+        title: "Reports & Analytics",
+        href: ROUTES.REPORTS,
+        icon: BarChart3,
+        requiredPermissions: ["reports.view", "org:read"],
       },
     ],
   },

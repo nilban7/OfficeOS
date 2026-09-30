@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   Users,
   Clock,
@@ -10,6 +11,7 @@ import {
   Plus,
   ShieldCheck,
   Server,
+  BarChart3,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { env } from "@/lib/config/env";
+import { ROUTES } from "@/constants/routes";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -43,9 +46,12 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center space-x-2.5">
-          <Button size="sm" variant="outline">
-            View Reports
-          </Button>
+          <Link href={ROUTES.REPORTS}>
+            <Button size="sm" variant="outline" className="flex items-center gap-1.5">
+              <BarChart3 className="h-4 w-4 text-slate-600" />
+              <span>View Reports</span>
+            </Button>
+          </Link>
           <Button size="sm">
             <Plus className="mr-1.5 h-4 w-4" />
             Quick Action

@@ -49,7 +49,15 @@ export type CanonicalPermission =
   | "finance:read"
   | "finance:manage"
   | "settings:read"
-  | "settings:manage";
+  | "settings:manage"
+  | "reports.view"
+  | "reports.workforce"
+  | "reports.attendance"
+  | "reports.leave"
+  | "reports.procurement"
+  | "reports.maintenance"
+  | "reports.finance"
+  | "reports.audit";
 
 export type Permission = CanonicalPermission | string;
 
