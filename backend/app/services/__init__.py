@@ -93,6 +93,7 @@ from app.services.project import (
     update_project,
     update_project_member,
 )
+from app.services.saas import SaaSAdminService
 from app.services.training import TrainingService
 
 __all__ = [
@@ -102,6 +103,7 @@ __all__ = [
     "InternshipService",
     "NotificationService",
     "OperationService",
+    "SaaSAdminService",
     "TrainingService",
     "add_member_by_email",
     "add_project_member",

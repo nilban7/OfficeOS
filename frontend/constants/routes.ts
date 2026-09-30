@@ -34,4 +34,13 @@ export const ROUTES = {
   SETTINGS_AI: "/settings/ai",
   SETTINGS_ORGANIZATION: "/settings/organization",
   SETTINGS_ORGANIZATION_BRANCHES: "/settings/organization/branches",
-} as const;
+
+  // Platform / SaaS Administration Routes
+  ADMIN: "/admin",
+  ADMIN_ORGANIZATIONS: "/admin/organizations",
+  ADMIN_USAGE: "/admin/usage",
+  ADMIN_HEALTH: "/admin/health",
+  ADMIN_AUDIT_LOGS: "/admin/audit-logs",
+  ADMIN_SETTINGS: "/admin/settings",
+  ADMIN_ANNOUNCEMENTS: "/admin/announcements",
+};

@@ -20,6 +20,10 @@ import {
   Settings,
   Bot,
   Workflow,
+  Server,
+  HeartPulse,
+  Megaphone,
+  SlidersHorizontal,
 } from "lucide-react";
 import { ROUTES } from "./routes";
 import type { NavSection } from "@/types/navigation";
@@ -166,6 +170,53 @@ export const MAIN_NAVIGATION: NavSection[] = [
         href: ROUTES.SETTINGS,
         icon: Settings,
         requiredPermissions: ["settings:read"],
+      },
+    ],
+  },
+  {
+    title: "Platform Administration",
+    items: [
+      {
+        title: "SaaS Overview",
+        href: ROUTES.ADMIN,
+        icon: Server,
+        requiredPermissions: ["saas.view"],
+      },
+      {
+        title: "Organizations",
+        href: ROUTES.ADMIN_ORGANIZATIONS,
+        icon: Building2,
+        requiredPermissions: ["saas.view"],
+      },
+      {
+        title: "Platform Usage",
+        href: ROUTES.ADMIN_USAGE,
+        icon: BarChart3,
+        requiredPermissions: ["saas.view"],
+      },
+      {
+        title: "System Health",
+        href: ROUTES.ADMIN_HEALTH,
+        icon: HeartPulse,
+        requiredPermissions: ["saas.view"],
+      },
+      {
+        title: "Platform Audit",
+        href: ROUTES.ADMIN_AUDIT_LOGS,
+        icon: ShieldCheck,
+        requiredPermissions: ["saas.view"],
+      },
+      {
+        title: "Announcements",
+        href: ROUTES.ADMIN_ANNOUNCEMENTS,
+        icon: Megaphone,
+        requiredPermissions: ["saas.view"],
+      },
+      {
+        title: "Platform Settings",
+        href: ROUTES.ADMIN_SETTINGS,
+        icon: SlidersHorizontal,
+        requiredPermissions: ["saas.manage"],
       },
     ],
   },

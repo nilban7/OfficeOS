@@ -1,6 +1,8 @@
 from fastapi import APIRouter
 
+from app.api.v1.admin import router as admin_router
 from app.api.v1.ai import router as ai_router
+from app.api.v1.announcements import router as announcements_router
 from app.api.v1.assets import router as assets_router
 from app.api.v1.attendance import router as attendance_router
 from app.api.v1.audit_logs import router as audit_logs_router
@@ -57,4 +59,6 @@ router.include_router(preferences_router)
 router.include_router(audit_logs_router)
 router.include_router(reports_router)
 router.include_router(ai_router)
-router.include_router(automations_router)
+router.include_router(automations_router)
+router.include_router(admin_router)
+router.include_router(announcements_router)
