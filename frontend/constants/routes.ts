@@ -11,6 +11,7 @@ export const ROUTES = {
 
   // Protected Routes
   DASHBOARD: "/dashboard",
+  REPORTS: "/reports",
   ORGANIZATION: "/organization",
   EMPLOYEES: "/employees",
   ATTENDANCE: "/attendance",

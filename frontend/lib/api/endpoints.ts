@@ -232,4 +232,20 @@ export const API_ENDPOINTS = {
   settings: {
     general: "/settings/general",
   },
+  reports: {
+    overview: "/reports/overview",
+    workforce: "/reports/workforce",
+    attendance: "/reports/attendance",
+    leave: "/reports/leave",
+    projects: "/reports/projects",
+    procurement: "/reports/procurement",
+    assets: "/reports/assets",
+    maintenance: "/reports/maintenance",
+    training: "/reports/training",
+    internships: "/reports/internships",
+    operations: "/reports/operations",
+    finance: "/reports/finance",
+    documents: "/reports/documents",
+    auditActivity: "/reports/audit-activity",
+  },
 } as const;
