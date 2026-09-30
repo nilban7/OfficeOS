@@ -40,6 +40,19 @@ async def get_tenant_session(
     if membership is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Organization access denied")
 
+    # Check organization suspension
+    from app.dependencies.saas import is_system_admin_user
+    from app.models.identity import Organization
+
+    org = await session.scalar(select(Organization).where(Organization.id == organization_id))
+    if org and (not getattr(org, "is_active", True) or getattr(org, "status", "active") == "suspended"):
+        is_sys_admin = await is_system_admin_user(session, current_user)
+        if not is_sys_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Organization is suspended",
+            )
+
     await set_transaction_context(session, current_user.id, str(organization_id))
     return session
 

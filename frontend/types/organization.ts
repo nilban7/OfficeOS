@@ -66,7 +66,9 @@ export type CanonicalPermission =
   | "automations.update"
   | "automations.delete"
   | "automations.execute"
-  | "automations.manage";
+  | "automations.manage"
+  | "saas.view"
+  | "saas.manage";
 
 export type Permission = CanonicalPermission | string;
 

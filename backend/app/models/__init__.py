@@ -25,6 +25,7 @@ from app.models.notification import Notification, NotificationPreference
 from app.models.operation import OperationChecklist, OperationTask, OperationTaskAssignee
 from app.models.procurement import PurchaseOrder, PurchaseOrderItem, PurchaseRequest, Vendor
 from app.models.project import Project, ProjectMember
+from app.models.saas import PlatformAnnouncement, PlatformConfiguration
 from app.models.training import TrainingEnrollment, TrainingProgram, TrainingSession
 
 __all__ = [
@@ -67,6 +68,8 @@ __all__ = [
     "OrganizationMembership",
     "OrganizationSetting",
     "Permission",
+    "PlatformAnnouncement",
+    "PlatformConfiguration",
     "Profile",
     "Project",
     "ProjectMember",

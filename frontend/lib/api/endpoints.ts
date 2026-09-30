@@ -265,4 +265,22 @@ export const API_ENDPOINTS = {
     execute: (id: string) => `/automations/${id}/execute`,
     executions: (id: string) => `/automations/${id}/executions`,
   },
+  admin: {
+    overview: "/admin/overview",
+    organizations: "/admin/organizations",
+    organizationDetail: (id: string) => `/admin/organizations/${id}`,
+    suspendOrganization: (id: string) => `/admin/organizations/${id}/suspend`,
+    activateOrganization: (id: string) => `/admin/organizations/${id}/activate`,
+    restoreOrganization: (id: string) => `/admin/organizations/${id}/restore`,
+    members: "/admin/members",
+    usage: "/admin/usage",
+    health: "/admin/health",
+    auditLogs: "/admin/audit-logs",
+    config: "/admin/config",
+    announcements: "/admin/announcements",
+    announcementDetail: (id: string) => `/admin/announcements/${id}`,
+  },
+  announcements: {
+    active: "/announcements/active",
+  },
 } as const;
