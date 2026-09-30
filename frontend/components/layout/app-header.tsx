@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Menu, Search } from "lucide-react";
+import Link from "next/link";
+import { Bell, Menu, Search } from "lucide-react";
+import { ROUTES } from "@/constants/routes";
 import { OrgSwitcher } from "./org-switcher";
 import { UserNav } from "./user-nav";
 import { MobileNav } from "./mobile-nav";
@@ -39,8 +41,15 @@ export function AppHeader() {
           </div>
         </div>
 
-        {/* Right Section: User Menu */}
+        {/* Right Section: Notifications + User Menu */}
         <div className="flex items-center space-x-2 sm:space-x-3">
+          <Link
+            href={ROUTES.NOTIFICATIONS}
+            className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+            aria-label="Notifications"
+          >
+            <Bell className="h-5 w-5" />
+          </Link>
           <UserNav />
         </div>
       </header>

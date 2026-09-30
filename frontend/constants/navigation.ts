@@ -15,6 +15,7 @@ import {
   DollarSign,
   FileText,
   Bell,
+  ShieldCheck,
   Settings,
 } from "lucide-react";
 import { ROUTES } from "./routes";
@@ -62,11 +63,13 @@ export const MAIN_NAVIGATION: NavSection[] = [
         title: "Training",
         href: ROUTES.TRAINING,
         icon: GraduationCap,
+        requiredPermissions: ["training.view", "training.enroll", "training.create", "training.manage"],
       },
       {
         title: "Internships",
         href: ROUTES.INTERNSHIPS,
         icon: Award,
+        requiredPermissions: ["internships.view", "internships.create", "internships.manage"],
       },
     ],
   },
@@ -89,21 +92,25 @@ export const MAIN_NAVIGATION: NavSection[] = [
         title: "Procurement",
         href: ROUTES.PROCUREMENT,
         icon: ShoppingBag,
+        requiredPermissions: ["procurement.view", "procurement.create", "purchase_orders.view"],
       },
       {
         title: "Assets",
         href: ROUTES.ASSETS,
         icon: Box,
+        requiredPermissions: ["assets.view", "assets.create", "assets.assign"],
       },
       {
         title: "Maintenance",
         href: ROUTES.MAINTENANCE,
         icon: Wrench,
+        requiredPermissions: ["maintenance.view", "maintenance.create", "maintenance.update"],
       },
       {
         title: "Operations",
         href: ROUTES.OPERATIONS,
         icon: Activity,
+        requiredPermissions: ["operations.view", "operations.create", "operations.manage"],
       },
     ],
   },
@@ -114,17 +121,24 @@ export const MAIN_NAVIGATION: NavSection[] = [
         title: "Finance",
         href: ROUTES.FINANCE,
         icon: DollarSign,
-        requiredPermissions: ["finance:read"],
+        requiredPermissions: ["finance.view", "finance:read"],
       },
       {
         title: "Documents",
         href: ROUTES.DOCUMENTS,
         icon: FileText,
+        requiredPermissions: ["documents.view"],
       },
       {
         title: "Notifications",
         href: ROUTES.NOTIFICATIONS,
         icon: Bell,
+      },
+      {
+        title: "Audit Logs",
+        href: ROUTES.AUDIT_LOGS,
+        icon: ShieldCheck,
+        requiredPermissions: ["audit_logs.view"],
       },
       {
         title: "Settings",

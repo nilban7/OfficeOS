@@ -148,6 +148,7 @@ async def rls_org_db():
 
     # Cleanup test fixtures
     async with engine.begin() as conn:
+        await conn.execute(text("SET LOCAL app.allow_audit_log_cleanup = 'true'"))
         await conn.execute(
             text("DELETE FROM organizations WHERE id IN (:org_a, :org_b)"),
             {"org_a": org_a_id, "org_b": org_b_id},

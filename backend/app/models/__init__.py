@@ -1,7 +1,10 @@
+from app.models.asset import Asset, AssetAssignment
 from app.models.attendance import AttendanceRecord
 from app.models.audit import AuditLog
 from app.models.client import Client, ClientContact
+from app.models.document import Document, DocumentPermission, DocumentVersion
 from app.models.employee import Department, Employee
+from app.models.finance import Expense, ExpenseCategory, ExpenseItem, FinancialTransaction
 from app.models.identity import (
     Branch,
     MembershipRole,
@@ -13,21 +16,46 @@ from app.models.identity import (
     Role,
     RolePermission,
 )
+from app.models.internship import Internship, InternshipReview, InternshipSupervisor
 from app.models.leave import Holiday, LeaveRequest, LeaveType
+from app.models.maintenance import MaintenanceRecord, MaintenanceRequest
+from app.models.notification import Notification, NotificationPreference
+from app.models.operation import OperationChecklist, OperationTask, OperationTaskAssignee
+from app.models.procurement import PurchaseOrder, PurchaseOrderItem, PurchaseRequest, Vendor
 from app.models.project import Project, ProjectMember
+from app.models.training import TrainingEnrollment, TrainingProgram, TrainingSession
 
 __all__ = [
+    "Asset",
+    "AssetAssignment",
     "AttendanceRecord",
     "AuditLog",
     "Branch",
     "Client",
     "ClientContact",
     "Department",
+    "Document",
+    "DocumentPermission",
+    "DocumentVersion",
     "Employee",
+    "Expense",
+    "ExpenseCategory",
+    "ExpenseItem",
+    "FinancialTransaction",
     "Holiday",
+    "Internship",
+    "InternshipReview",
+    "InternshipSupervisor",
     "LeaveRequest",
     "LeaveType",
+    "MaintenanceRecord",
+    "MaintenanceRequest",
     "MembershipRole",
+    "Notification",
+    "NotificationPreference",
+    "OperationChecklist",
+    "OperationTask",
+    "OperationTaskAssignee",
     "Organization",
     "OrganizationMembership",
     "OrganizationSetting",
@@ -35,6 +63,13 @@ __all__ = [
     "Profile",
     "Project",
     "ProjectMember",
+    "PurchaseOrder",
+    "PurchaseOrderItem",
+    "PurchaseRequest",
     "Role",
     "RolePermission",
+    "TrainingEnrollment",
+    "TrainingProgram",
+    "TrainingSession",
+    "Vendor",
 ]

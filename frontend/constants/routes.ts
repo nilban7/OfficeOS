@@ -26,6 +26,7 @@ export const ROUTES = {
   FINANCE: "/finance",
   DOCUMENTS: "/documents",
   NOTIFICATIONS: "/notifications",
+  AUDIT_LOGS: "/audit-logs",
   SETTINGS: "/settings",
   SETTINGS_ORGANIZATION: "/settings/organization",
   SETTINGS_ORGANIZATION_BRANCHES: "/settings/organization/branches",
