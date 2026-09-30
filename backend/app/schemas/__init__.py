@@ -1,3 +1,14 @@
+from app.schemas.ai import (
+    AIConfigurationResponse,
+    AIConfigurationUpdate,
+    AIConversationCreate,
+    AIConversationDetailResponse,
+    AIConversationResponse,
+    AIMessageCreate,
+    AIMessageResponse,
+    AIQueryRequest,
+    AIQueryResponse,
+)
 from app.schemas.asset import (
     AssetAssignmentCreate,
     AssetAssignmentListResponse,
@@ -18,6 +29,13 @@ from app.schemas.audit import (
     ActorSummary,
     AuditLogDetail,
     AuditLogResponse,
+)
+from app.schemas.automation import (
+    AutomationCreate,
+    AutomationExecuteRequest,
+    AutomationExecutionResponse,
+    AutomationResponse,
+    AutomationUpdate,
 )
 from app.schemas.client import (
     ClientBase,
@@ -170,6 +188,15 @@ from app.schemas.training import (
 )
 
 __all__ = [
+    "AIConfigurationResponse",
+    "AIConfigurationUpdate",
+    "AIConversationCreate",
+    "AIConversationDetailResponse",
+    "AIConversationResponse",
+    "AIMessageCreate",
+    "AIMessageResponse",
+    "AIQueryRequest",
+    "AIQueryResponse",
     "ActorSummary",
     "ApiError",
     "ApiErrorDetail",
@@ -186,6 +213,11 @@ __all__ = [
     "AssetUpdate",
     "AuditLogDetail",
     "AuditLogResponse",
+    "AutomationCreate",
+    "AutomationExecuteRequest",
+    "AutomationExecutionResponse",
+    "AutomationResponse",
+    "AutomationUpdate",
     "BranchCreate",
     "BranchResponse",
     "BranchSummary",

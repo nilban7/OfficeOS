@@ -18,6 +18,8 @@ import {
   Bell,
   ShieldCheck,
   Settings,
+  Bot,
+  Workflow,
 } from "lucide-react";
 import { ROUTES } from "./routes";
 import type { NavSection } from "@/types/navigation";
@@ -36,6 +38,12 @@ export const MAIN_NAVIGATION: NavSection[] = [
         href: ROUTES.REPORTS,
         icon: BarChart3,
         requiredPermissions: ["reports.view", "org:read"],
+      },
+      {
+        title: "AI Assistant",
+        href: ROUTES.AI,
+        icon: Bot,
+        requiredPermissions: ["ai.view"],
       },
     ],
   },
@@ -146,6 +154,12 @@ export const MAIN_NAVIGATION: NavSection[] = [
         href: ROUTES.AUDIT_LOGS,
         icon: ShieldCheck,
         requiredPermissions: ["audit_logs.view"],
+      },
+      {
+        title: "Automations",
+        href: ROUTES.AUTOMATIONS,
+        icon: Workflow,
+        requiredPermissions: ["automations.view"],
       },
       {
         title: "Settings",

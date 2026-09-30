@@ -57,7 +57,16 @@ export type CanonicalPermission =
   | "reports.procurement"
   | "reports.maintenance"
   | "reports.finance"
-  | "reports.audit";
+  | "reports.audit"
+  | "ai.view"
+  | "ai.use"
+  | "ai.manage"
+  | "automations.view"
+  | "automations.create"
+  | "automations.update"
+  | "automations.delete"
+  | "automations.execute"
+  | "automations.manage";
 
 export type Permission = CanonicalPermission | string;
 

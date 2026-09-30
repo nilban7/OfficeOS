@@ -1,8 +1,10 @@
 from fastapi import APIRouter
 
+from app.api.v1.ai import router as ai_router
 from app.api.v1.assets import router as assets_router
 from app.api.v1.attendance import router as attendance_router
 from app.api.v1.audit_logs import router as audit_logs_router
+from app.api.v1.automations import router as automations_router
 from app.api.v1.clients import router as clients_router
 from app.api.v1.departments import router as departments_router
 from app.api.v1.documents import router as documents_router
@@ -53,4 +55,6 @@ router.include_router(documents_router)
 router.include_router(notifications_router)
 router.include_router(preferences_router)
 router.include_router(audit_logs_router)
-router.include_router(reports_router)
+router.include_router(reports_router)
+router.include_router(ai_router)
+router.include_router(automations_router)
