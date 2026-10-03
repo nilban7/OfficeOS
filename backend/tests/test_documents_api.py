@@ -22,6 +22,7 @@ from app.schemas.document import (
     EmployeeSummary,
 )
 from app.services.document import DocumentService
+from app.services.storage import SignedDownloadUrl, SignedUploadUrl
 
 
 def _make_document_response(**overrides):
@@ -324,15 +325,26 @@ async def test_generate_download_url_success():
     mock_res.scalar_one_or_none.return_value = mock_doc
     mock_session.execute.return_value = mock_res
 
-    result = await DocumentService.generate_download_url(
-        session=mock_session,
-        organization_id=org_id,
-        document_id=doc_id,
-        actor_user_id=uuid4(),
-    )
+    with patch(
+        "app.services.document.create_signed_download_url",
+        new=AsyncMock(return_value=SignedDownloadUrl("https://storage.example/signed/contract.pdf", 300)),
+    ) as create_signed_url:
+        result = await DocumentService.generate_download_url(
+            session=mock_session,
+            organization_id=org_id,
+            document_id=doc_id,
+            actor_user_id=uuid4(),
+            actor_access_token="verified-user-jwt",
+        )
     assert "contract.pdf" in result.download_url
     assert result.expires_in == 300
     assert result.filename == "contract.pdf"
+    create_signed_url.assert_awaited_once_with(
+        organization_id=org_id,
+        storage_path=mock_doc.storage_path,
+        access_token="verified-user-jwt",
+        expires_in=300,
+    )
 
 
 @pytest.mark.asyncio
@@ -359,20 +371,48 @@ async def test_generate_download_url_cross_tenant_storage_blocked():
             organization_id=org_id,
             document_id=doc_id,
             actor_user_id=uuid4(),
+            actor_access_token="verified-user-jwt",
         )
     assert exc.value.status_code == 403
     assert "outside tenant domain" in exc.value.detail
 
 
 @pytest.mark.asyncio
+async def test_generate_download_url_missing_document_is_not_found():
+    mock_session = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = None
+    mock_session.execute.return_value = mock_result
+
+    with pytest.raises(HTTPException) as exc:
+        await DocumentService.generate_download_url(
+            session=mock_session,
+            organization_id=uuid4(),
+            document_id=uuid4(),
+            actor_user_id=uuid4(),
+            actor_access_token="verified-user-jwt",
+        )
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_generate_upload_url_returns_path_and_expiry():
     org_id = uuid4()
-    result = await DocumentService.generate_upload_url(
-        organization_id=org_id,
-        filename="../dangerous/evil.exe",
-        mime_type="application/octet-stream",
-        file_size=5000,
-    )
+    with patch(
+        "app.services.document.create_signed_upload_url",
+        new=AsyncMock(
+            side_effect=lambda organization_id, storage_path, access_token, expires_in: SignedUploadUrl(
+                "https://storage.example/upload-signed", storage_path, expires_in
+            )
+        ),
+    ):
+        result = await DocumentService.generate_upload_url(
+            organization_id=org_id,
+            actor_access_token="verified-user-jwt",
+            filename="../dangerous/evil.exe",
+            mime_type="application/octet-stream",
+            file_size=5000,
+        )
     assert result.expires_in == 900
     assert ".." not in result.storage_path
     assert result.storage_path.startswith(f"{org_id}/documents/")
