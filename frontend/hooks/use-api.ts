@@ -23,7 +23,7 @@ export function useApi<T, P extends unknown[] = unknown[]>(
 
   const execute = useCallback(
     async (...args: P): Promise<T | null> => {
-      setState((prev) => ({ ...prev, isLoading: true, error: null }));
+      setState((prev) => ({ ...prev, isLoading: prev.data === null, error: null }));
       try {
         const result = await apiFn(...args);
         setState({ data: result, error: null, isLoading: false });

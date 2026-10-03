@@ -5,11 +5,16 @@ import { ApiException, type ApiResponse, type RequestOptions } from "@/types/api
 export class ApiClient {
   private baseUrl: string;
   private defaultTimeout: number;
+  private cache = new Map<string, { data: unknown; expiresAt: number }>();
 
   constructor(baseUrl: string = env.apiUrl, defaultTimeout: number = 30000) {
     // Ensure baseUrl does not have a trailing slash
     this.baseUrl = baseUrl.replace(/\/+$/, "");
     this.defaultTimeout = defaultTimeout;
+  }
+
+  public clearCache(): void {
+    this.cache.clear();
   }
 
   /**
@@ -104,6 +109,15 @@ export class ApiClient {
       headers["X-Organization-Id"] = orgId;
     }
 
+    const isGet = method.toUpperCase() === "GET";
+    const cacheKey = `${orgId || ""}:${url}`;
+    if (isGet && !options?.skipCache) {
+      const cached = this.cache.get(cacheKey);
+      if (cached && Date.now() < cached.expiresAt) {
+        return cached.data as T;
+      }
+    }
+
     const controller = new AbortController();
     const timeout = options?.timeout ?? this.defaultTimeout;
     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -181,16 +195,18 @@ export class ApiClient {
       }
 
       if (response.status === 204) {
+        if (!isGet) this.clearCache();
         return undefined as T;
       }
 
       if (isJson) {
         const json = (await response.json()) as ApiResponse<T> | T;
         // Unwrap standard OfficeOS envelope if present
+        let result: T;
         if (json && typeof json === "object" && "success" in json) {
           const apiResponse = json as ApiResponse<T>;
           if (apiResponse.success === true) {
-            return apiResponse.data;
+            result = apiResponse.data;
           } else if (apiResponse.success === false) {
             throw new ApiException(
               apiResponse.error.message,
@@ -199,12 +215,25 @@ export class ApiClient {
               apiResponse.error.details,
               apiResponse.error.field
             );
+          } else {
+            result = json as T;
           }
+        } else {
+          result = json as T;
         }
-        return json as T;
+
+        if (!isGet) {
+          this.clearCache();
+        } else if (!options?.skipCache) {
+          const ttl = options?.ttlMs ?? 60000;
+          this.cache.set(cacheKey, { data: result, expiresAt: Date.now() + ttl });
+        }
+        return result;
       }
 
-      return (await response.text()) as unknown as T;
+      const textResult = (await response.text()) as unknown as T;
+      if (!isGet) this.clearCache();
+      return textResult;
     } catch (err: unknown) {
       if (err instanceof ApiException) {
         throw err;

@@ -46,6 +46,8 @@ export interface RequestOptions {
   params?: Record<string, string | number | boolean | undefined | null>;
   timeout?: number;
   organizationId?: string;
+  skipCache?: boolean;
+  ttlMs?: number;
 }
 
 export class ApiException extends Error {
