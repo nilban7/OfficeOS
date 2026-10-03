@@ -23,6 +23,7 @@ from app.models.leave import Holiday, LeaveRequest, LeaveType
 from app.models.maintenance import MaintenanceRecord, MaintenanceRequest
 from app.models.notification import Notification, NotificationPreference
 from app.models.operation import OperationChecklist, OperationTask, OperationTaskAssignee
+from app.models.payroll import Payroll, Payslip, SalaryStructure
 from app.models.procurement import PurchaseOrder, PurchaseOrderItem, PurchaseRequest, Vendor
 from app.models.project import Project, ProjectMember
 from app.models.saas import PlatformAnnouncement, PlatformConfiguration
@@ -67,6 +68,8 @@ __all__ = [
     "Organization",
     "OrganizationMembership",
     "OrganizationSetting",
+    "Payroll",
+    "Payslip",
     "Permission",
     "PlatformAnnouncement",
     "PlatformConfiguration",
@@ -78,6 +81,7 @@ __all__ = [
     "PurchaseRequest",
     "Role",
     "RolePermission",
+    "SalaryStructure",
     "TrainingEnrollment",
     "TrainingProgram",
     "TrainingSession",

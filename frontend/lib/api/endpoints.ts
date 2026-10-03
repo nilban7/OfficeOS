@@ -283,4 +283,15 @@ export const API_ENDPOINTS = {
   announcements: {
     active: "/announcements/active",
   },
+  payroll: {
+    summary: "/payroll/summary",
+    structures: "/payroll/structures",
+    structureDetail: (employeeId: string) => `/payroll/structures/${employeeId}`,
+    runs: "/payroll/runs",
+    runDetail: (id: string) => `/payroll/runs/${id}`,
+    approveRun: (id: string) => `/payroll/runs/${id}/approve`,
+    disburseRun: (id: string) => `/payroll/runs/${id}/disburse`,
+    payslips: "/payroll/payslips",
+    payslipDetail: (id: string) => `/payroll/payslips/${id}`,
+  },
 } as const;

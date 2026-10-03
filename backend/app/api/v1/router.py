@@ -22,6 +22,7 @@ from app.api.v1.notifications import preferences_router
 from app.api.v1.notifications import router as notifications_router
 from app.api.v1.operations import router as operations_router
 from app.api.v1.organizations import router as organizations_router
+from app.api.v1.payroll import router as payroll_router
 from app.api.v1.projects import router as projects_router
 from app.api.v1.purchase_orders import router as purchase_orders_router
 from app.api.v1.purchase_requests import router as purchase_requests_router
@@ -53,6 +54,7 @@ router.include_router(training_enrollments_router)
 router.include_router(internships_router)
 router.include_router(operations_router)
 router.include_router(finance_router)
+router.include_router(payroll_router)
 router.include_router(documents_router)
 router.include_router(notifications_router)
 router.include_router(preferences_router)
