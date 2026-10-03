@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
-import { useOrganization } from "@/hooks/use-organization";
+import React, { type ReactNode } from "react";
+import { renderToString } from "react-dom/server";
+import { OrgSwitcher } from "@/components/layout/org-switcher";
+import { OrganizationProvider, useOrganization } from "@/hooks/use-organization";
 import { apiClient } from "@/lib/api/client";
 import { useAuth } from "@/hooks/use-auth";
 import { ApiException } from "@/types/api";
@@ -24,6 +27,7 @@ describe("useOrganization Hook", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
   });
 
   it("fetches organizations and selects the first one when authenticated", async () => {
@@ -165,5 +169,55 @@ describe("useOrganization Hook", () => {
       expect(result.current.currentOrganization).toBeNull();
       expect(result.current.permissions).toEqual([]);
     });
+  });
+
+  it("does not duplicate organization requests when used inside the provider", async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      isAuthenticated: true,
+      session: mockSession,
+      user: mockUser,
+      status: "authenticated",
+      isLoading: false,
+      signInWithPassword: vi.fn(),
+      signOut: vi.fn(),
+      resetPasswordForEmail: vi.fn(),
+      updateUserPassword: vi.fn(),
+      refreshSession: vi.fn(),
+    });
+
+    const mockOrgs = [{ id: "org-1", name: "Alpha Corp", slug: "alpha-corp" }];
+    vi.mocked(apiClient.get).mockImplementation((path: string) => {
+      if (path === "/me/organizations") return Promise.resolve(mockOrgs as unknown);
+      if (path === "/me/permissions") return Promise.resolve([{ code: "org:read" }] as unknown);
+      return Promise.resolve([] as unknown);
+    });
+
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <OrganizationProvider>{children}</OrganizationProvider>
+    );
+    const { result } = renderHook(() => useOrganization(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.currentOrganization?.id).toBe("org-1");
+      expect(result.current.permissions).toEqual(["org:read"]);
+    });
+
+    expect(vi.mocked(apiClient.get).mock.calls.filter(([path]) => path === "/me/organizations")).toHaveLength(1);
+  });
+
+  it("renders the same initial organization markup regardless of browser storage", () => {
+    const wrapper = (orgId: string) => {
+      localStorage.setItem("officeos_active_org_id", orgId);
+      return renderToString(
+        <OrganizationProvider>
+          <OrgSwitcher />
+        </OrganizationProvider>
+      );
+    };
+
+    const firstRender = wrapper("org-from-stale-browser-storage-a");
+    const secondRender = wrapper("org-from-stale-browser-storage-b");
+
+    expect(secondRender).toBe(firstRender);
   });
 });

@@ -72,11 +72,13 @@ async def _resolve_employee(
 )
 async def generate_upload_url_endpoint(
     payload: DocumentUploadUrlRequest,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     organization_header: Annotated[str, Header(alias="X-Organization-Id")],
 ) -> ApiSuccess[DocumentUploadUrlResponse]:
     org_id = UUID(organization_header)
     data = await DocumentService.generate_upload_url(
         organization_id=org_id,
+        actor_access_token=current_user.access_token,
         filename=payload.filename,
         mime_type=payload.mime_type,
         file_size=payload.file_size,
@@ -355,6 +357,7 @@ async def download_document_endpoint(
         organization_id=org_id,
         document_id=document_id,
         actor_user_id=user_id,
+        actor_access_token=current_user.access_token,
         version_id=version_id,
     )
     return ApiSuccess(data=data)

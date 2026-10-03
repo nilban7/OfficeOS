@@ -23,7 +23,7 @@ interface AuthContextValue extends AuthState {
   refreshSession: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 function mapSupabaseUser(user: User | null): AuthUser | null {
   if (!user) return null;
@@ -110,6 +110,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (err) {
         console.warn("Supabase auth initialization skipped:", err);
+        if (isMounted) {
+          setSession(null);
+          setUser(null);
+        }
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -139,7 +143,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithPassword = async ({ email, password }: SignInCredentials) => {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) return { error: new Error(error.message) };
+      if (error) {
+        return { error: new Error(error.message) };
+      }
       return { error: null };
     } catch (err) {
       return { error: err instanceof Error ? err : new Error("Failed to sign in") };

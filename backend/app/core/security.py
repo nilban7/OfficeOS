@@ -37,6 +37,7 @@ class AuthenticatedUser:
     id: str
     email: str | None
     claims: dict[str, object]
+    access_token: str = ""
 
 
 def verify_access_token(
@@ -49,6 +50,11 @@ def verify_access_token(
             detail="Authentication required",
         )
 
+    raw_token = credentials.credentials
+    # Production authentication path: Supabase JWT verification only.
+    # No demo tokens, no hardcoded identities, no email-based privileges.
+    # Any non-JWT bearer token fails closed via the verification below.
+
     settings = get_settings()
     jwks_url = settings.supabase_jwks_url
     if not jwks_url:
@@ -57,7 +63,6 @@ def verify_access_token(
             detail="Authentication is not configured",
         )
 
-    raw_token = credentials.credentials
     try:
         unverified_header = jwt.get_unverified_header(raw_token)
     except jwt.PyJWTError as exc:
@@ -131,4 +136,5 @@ def verify_access_token(
         id=subject_str,
         email=email if isinstance(email, str) else None,
         claims=claims,
+        access_token=raw_token,
     )

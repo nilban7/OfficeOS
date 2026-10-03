@@ -18,15 +18,55 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
+import { apiClient } from "@/lib/api/client";
+import { API_ENDPOINTS } from "@/lib/api/endpoints";
 import { env } from "@/lib/config/env";
 import { ROUTES } from "@/constants/routes";
+import type { ExecutiveOverviewReport } from "@/types/reports";
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const { currentOrganization, membership } = useOrganization();
+  const [overview, setOverview] = React.useState<ExecutiveOverviewReport | null>(null);
+  const [isLoadingMetrics, setIsLoadingMetrics] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    async function fetchDashboardMetrics() {
+      if (!currentOrganization?.id) return;
+      setIsLoadingMetrics(true);
+      try {
+        const res = await apiClient.get<ExecutiveOverviewReport>(API_ENDPOINTS.reports.overview, {
+          organizationId: currentOrganization.id,
+        });
+        if (isMounted && res) {
+          setOverview(res);
+        }
+      } catch {
+        // Fallback to null; cards will display graceful dashes or standard indicators
+      } finally {
+        if (isMounted) {
+          setIsLoadingMetrics(false);
+        }
+      }
+    }
+
+    fetchDashboardMetrics();
+    return () => {
+      isMounted = false;
+    };
+  }, [currentOrganization?.id]);
 
   const greetingName =
     user?.firstName || user?.fullName || user?.email?.split("@")[0] || "Team Member";
+
+  const totalEmployees = overview ? overview.active_employees_count : (isLoadingMetrics ? "..." : "—");
+  const attendanceDisplay = overview
+    ? `${overview.attendance_today_count} / ${overview.active_employees_count}`
+    : (isLoadingMetrics ? "..." : "—");
+  const attendanceRate = overview ? `${overview.attendance_rate_today}% attendance rate` : "Today's rate";
+  const pendingLeaves = overview ? overview.pending_leaves_count : (isLoadingMetrics ? "..." : "—");
+  const activeProjects = overview ? overview.active_projects_count : (isLoadingMetrics ? "..." : "—");
 
   return (
     <div className="space-y-8">
@@ -71,12 +111,9 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900">42</div>
+            <div className="text-2xl font-bold text-slate-900">{totalEmployees}</div>
             <p className="text-xs text-slate-500 mt-1 flex items-center">
-              <span className="text-emerald-600 font-medium inline-flex items-center mr-1">
-                +3
-              </span>{" "}
-              joined this month
+              Active staff in organization
             </p>
           </CardContent>
         </Card>
@@ -89,9 +126,9 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900">38 / 42</div>
+            <div className="text-2xl font-bold text-slate-900">{attendanceDisplay}</div>
             <p className="text-xs text-slate-500 mt-1">
-              90.4% attendance rate
+              {attendanceRate}
             </p>
           </CardContent>
         </Card>
@@ -104,9 +141,9 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900">4</div>
+            <div className="text-2xl font-bold text-slate-900">{pendingLeaves}</div>
             <p className="text-xs text-amber-600 font-medium mt-1">
-              Requires review
+              {Number(pendingLeaves) > 0 ? "Requires review" : "Up to date"}
             </p>
           </CardContent>
         </Card>
@@ -119,9 +156,9 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900">8</div>
+            <div className="text-2xl font-bold text-slate-900">{activeProjects}</div>
             <p className="text-xs text-slate-500 mt-1">
-              2 milestones due this week
+              Active client & internal engagements
             </p>
           </CardContent>
         </Card>

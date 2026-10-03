@@ -58,7 +58,7 @@ export const MAIN_NAVIGATION: NavSection[] = [
         title: "Organization",
         href: ROUTES.ORGANIZATION,
         icon: Building2,
-        requiredPermissions: ["org:read"],
+        requiredPermissions: ["organizations.view", "org:read"],
       },
       {
         title: "Employees",
@@ -169,7 +169,7 @@ export const MAIN_NAVIGATION: NavSection[] = [
         title: "Settings",
         href: ROUTES.SETTINGS,
         icon: Settings,
-        requiredPermissions: ["settings:read"],
+        requiredPermissions: ["organizations.view", "organizations.settings_manage", "settings:read"],
       },
     ],
   },

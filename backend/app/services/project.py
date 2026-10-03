@@ -289,7 +289,6 @@ async def create_project(
     )
 
     await session.flush()
-    project.members = []
     return await get_project(session=session, organization_id=organization_id, project_id=project.id)
 
 

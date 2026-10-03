@@ -6,6 +6,7 @@ import { AppHeader } from "@/components/layout/app-header";
 import { PlatformAnnouncementBanner } from "@/components/admin/announcement-banner";
 import { useAuth } from "@/hooks/use-auth";
 import { LoadingState } from "@/components/feedback/loading-state";
+import { OrganizationProvider } from "@/hooks/use-organization";
 
 export default function ProtectedLayout({
   children,
@@ -19,7 +20,8 @@ export default function ProtectedLayout({
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <OrganizationProvider>
+      <div className="min-h-screen bg-slate-50 text-slate-900">
       {/* Desktop Sidebar */}
       <AppSidebar />
 
@@ -32,5 +34,6 @@ export default function ProtectedLayout({
         </main>
       </div>
     </div>
+    </OrganizationProvider>
   );
 }

@@ -26,6 +26,7 @@ describe("ApiClient", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
   });
 
   afterEach(() => {
@@ -195,6 +196,27 @@ describe("ApiClient", () => {
       code: "BAD_REQUEST",
       message: "Organization context is required",
     });
+  });
+
+  it("never invents an organization header when no tenant is selected", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      headers: {
+        get: (key: string) => (key.toLowerCase() === "content-type" ? "application/json" : null),
+      },
+      json: async () => ({ detail: "Organization context is required" }),
+    });
+
+    const client = new ApiClient("http://localhost:8000/api/v1");
+    await expect(client.get("/me/permissions")).rejects.toMatchObject({ status: 400 });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://localhost:8000/api/v1/me/permissions",
+      expect.objectContaining({
+        headers: expect.not.objectContaining({ "X-Organization-Id": expect.any(String) }),
+      })
+    );
   });
 
   it("correctly handles POST requests with payload", async () => {

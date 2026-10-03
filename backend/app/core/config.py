@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     supabase_jwt_audience: str = "authenticated"
     jwt_algorithms: list[str] = ["ES256"]
     auth_required: bool = True
+    supabase_anon_key: str | None = None
+    documents_storage_bucket: str = "documents"
+    document_download_expires_in: int = 300
+    document_upload_expires_in: int = 900
 
     @model_validator(mode="after")
     def set_derived_supabase_fields(self) -> "Settings":

@@ -66,8 +66,17 @@ export class ApiClient {
       headers["Authorization"] = `Bearer ${token}`;
     }
 
-    if (options?.organizationId) {
-      headers["X-Organization-Id"] = options.organizationId;
+    // Tenant context is never invented. Attach X-Organization-Id only when the
+    // caller supplies a validated organization id (explicit option or a
+    // previously user-selected tenant persisted in storage). Identity endpoints
+    // such as /me and /me/organizations work without it; tenant-scoped
+    // endpoints fail closed on the backend (400/403) when it is absent.
+    let orgId = options?.organizationId;
+    if (!orgId && typeof window !== "undefined") {
+      orgId = localStorage.getItem("officeos_active_org_id") || undefined;
+    }
+    if (orgId) {
+      headers["X-Organization-Id"] = orgId;
     }
 
     const controller = new AbortController();

@@ -37,6 +37,7 @@ from app.schemas.document import (
     VendorSummary,
 )
 from app.services.organization import record_audit_log
+from app.services.storage import create_signed_download_url, create_signed_upload_url
 
 
 def _to_list(result: Any) -> list[Any]:
@@ -901,6 +902,7 @@ class DocumentService:
         organization_id: UUID,
         document_id: UUID,
         actor_user_id: UUID,
+        actor_access_token: str,
         version_id: UUID | None = None,
     ) -> DocumentDownloadResponse:
         # 1. Fetch document
@@ -947,12 +949,17 @@ class DocumentService:
                 detail="Access denied to storage path outside tenant domain.",
             )
 
-        # 4. Generate secure signed URL with 300s expiry
+        # 4. Mint a real Supabase Storage signed URL with explicit expiry.
+        # Tenant ownership already enforced by the org-scoped query above plus
+        # the storage-path prefix check below; authorization (documents.download)
+        # is enforced at the API boundary via require_permission.
         settings = get_settings()
-        base_supabase = settings.supabase_url or "https://api.supabase.co"
-        token = uuid.uuid4().hex
-        expires_in = 300
-        download_url = f"{base_supabase}/storage/v1/object/sign/documents/{storage_path}?token={token}&expiresIn={expires_in}"
+        signed = await create_signed_download_url(
+            organization_id=organization_id,
+            storage_path=storage_path,
+            access_token=actor_access_token,
+            expires_in=settings.document_download_expires_in,
+        )
 
         # 5. Record audit log without sensitive tokens/urls
         await record_audit_log(
@@ -966,8 +973,8 @@ class DocumentService:
         )
 
         return DocumentDownloadResponse(
-            download_url=download_url,
-            expires_in=expires_in,
+            download_url=signed.signed_url,
+            expires_in=signed.expires_in,
             filename=filename,
             mime_type=mime_type,
             file_size=file_size,
@@ -976,6 +983,7 @@ class DocumentService:
     @staticmethod
     async def generate_upload_url(
         organization_id: UUID,
+        actor_access_token: str,
         filename: str,
         mime_type: str,
         file_size: int,
@@ -985,13 +993,15 @@ class DocumentService:
         storage_path = f"{organization_id}/documents/{object_id}/{safe_name}"
 
         settings = get_settings()
-        base_supabase = settings.supabase_url or "https://api.supabase.co"
-        token = uuid.uuid4().hex
-        expires_in = 900
-        upload_url = f"{base_supabase}/storage/v1/object/upload/documents/{storage_path}?token={token}&expiresIn={expires_in}"
+        signed = await create_signed_upload_url(
+            organization_id=organization_id,
+            storage_path=storage_path,
+            access_token=actor_access_token,
+            expires_in=settings.document_upload_expires_in,
+        )
 
         return DocumentUploadUrlResponse(
-            upload_url=upload_url,
-            storage_path=storage_path,
-            expires_in=expires_in,
+            upload_url=signed.signed_url,
+            storage_path=signed.storage_path,
+            expires_in=signed.expires_in,
         )

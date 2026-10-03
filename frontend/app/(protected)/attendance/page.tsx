@@ -41,13 +41,15 @@ import type {
 } from "@/types/attendance";
 
 export default function AttendancePage() {
-  const { currentOrganization, permissions, isLoading: isOrgLoading } = useOrganization();
+  const { currentOrganization, permissions, membership, isLoading: isOrgLoading } = useOrganization();
+
+  const isSystemAdmin = membership?.role === "system_admin";
 
   // Permissions
-  const canView = permissions.includes("attendance.view");
-  const canCreate = permissions.includes("attendance.create");
-  const canUpdate = permissions.includes("attendance.update");
-  const canDelete = permissions.includes("attendance.delete");
+  const canView = isSystemAdmin || permissions.includes("attendance.view");
+  const canCreate = isSystemAdmin || permissions.includes("attendance.create");
+  const canUpdate = isSystemAdmin || permissions.includes("attendance.update");
+  const canDelete = isSystemAdmin || permissions.includes("attendance.delete");
 
   // Summary State
   const [summary, setSummary] = React.useState<AttendanceSummary | null>(null);

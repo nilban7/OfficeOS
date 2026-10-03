@@ -51,6 +51,18 @@ async def test_me_rejects_invalid_token() -> None:
 
 
 @pytest.mark.asyncio
+async def test_auth_rejects_demo_bearer_token() -> None:
+    """A demo-shaped token must follow normal JWT validation and fail."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(
+            "/api/v1/me",
+            headers={"Authorization": "Bearer demo-admin-token"},
+        )
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "UNAUTHENTICATED"
+
+
+@pytest.mark.asyncio
 async def test_auth_rejects_invalid_signature() -> None:
     token = create_test_token(private_key=UNTRUSTED_PRIVATE_KEY)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
