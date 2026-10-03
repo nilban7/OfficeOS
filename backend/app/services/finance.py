@@ -87,7 +87,7 @@ def _build_project_summary(project: Project | None) -> ProjectSummary | None:
     return ProjectSummary(
         id=project.id,
         name=project.name,
-        code=project.code,
+        code=getattr(project, "project_code", getattr(project, "code", "")),
     )
 
 

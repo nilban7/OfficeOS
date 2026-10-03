@@ -20,6 +20,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Calendar,
+  Layers,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ import type {
   ContactCreateInput,
   ContactUpdateInput,
 } from "@/types/client";
+import type { Project, ProjectListResponse, ProjectStatus } from "@/types/project";
 
 export default function ClientDetailPage() {
   const params = useParams();
@@ -56,10 +58,13 @@ export default function ClientDetailPage() {
   const canDeleteClients = permissions.includes("clients.delete");
   const canViewContacts = permissions.includes("client_contacts.view");
   const canManageContacts = permissions.includes("client_contacts.manage");
+  const canViewProjects = permissions.includes("projects.view");
 
   // Client Data State
   const [client, setClient] = React.useState<ClientDetail | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [projects, setProjects] = React.useState<Project[]>([]);
+  const [isLoadingProjects, setIsLoadingProjects] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [successMessage, setSuccessMessage] = React.useState<string | null>(null);
 
@@ -117,6 +122,49 @@ export default function ClientDetailPage() {
   React.useEffect(() => {
     fetchClientDetails();
   }, [fetchClientDetails]);
+
+  // Fetch Related Projects
+  const fetchRelatedProjects = React.useCallback(async () => {
+    if (!currentOrganization?.id || !clientId || !canViewProjects) return;
+
+    setIsLoadingProjects(true);
+    try {
+      const res = await apiClient.get<ProjectListResponse>(API_ENDPOINTS.projects.list, {
+        params: { client_id: clientId },
+        organizationId: currentOrganization.id,
+      });
+      if (res && Array.isArray(res.items)) {
+        setProjects(res.items);
+      }
+    } catch {
+      setProjects([]);
+    } finally {
+      setIsLoadingProjects(false);
+    }
+  }, [currentOrganization?.id, clientId, canViewProjects]);
+
+  React.useEffect(() => {
+    if (canViewProjects) {
+      fetchRelatedProjects();
+    }
+  }, [fetchRelatedProjects, canViewProjects]);
+
+  const getProjectStatusBadge = (status: ProjectStatus) => {
+    switch (status) {
+      case "active":
+        return <Badge variant="success">Active</Badge>;
+      case "planned":
+        return <Badge variant="secondary">Planned</Badge>;
+      case "on_hold":
+        return <Badge variant="warning">On Hold</Badge>;
+      case "completed":
+        return <Badge variant="outline">Completed</Badge>;
+      case "cancelled":
+        return <Badge variant="destructive">Cancelled</Badge>;
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
+    }
+  };
 
   // Open Edit Client Modal
   const openEditClientModal = () => {
@@ -738,6 +786,96 @@ export default function ClientDetailPage() {
                       </Button>
                     </div>
                   )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Related Projects Section */}
+      <Card>
+        <CardHeader className="border-b border-slate-100 pb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Layers className="h-5 w-5 text-primary-600" />
+                Related Projects ({projects.length})
+              </CardTitle>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Active and historical client projects and engagements.
+              </p>
+            </div>
+            {permissions.includes("projects.create") && (
+              <Link href={ROUTES.PROJECTS}>
+                <Button size="sm" variant="outline" className="flex items-center gap-1.5">
+                  <Plus className="h-4 w-4" />
+                  New Project
+                </Button>
+              </Link>
+            )}
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-0">
+          {!canViewProjects ? (
+            <div className="p-8">
+              <EmptyState
+                title="Access Restricted"
+                description="You do not have permission to view projects for this organization."
+              />
+            </div>
+          ) : isLoadingProjects ? (
+            <div className="p-8">
+              <LoadingState message="Loading client projects..." />
+            </div>
+          ) : projects.length === 0 ? (
+            <div className="p-8">
+              <EmptyState
+                title="No projects associated"
+                description="No projects have been initiated for this client yet."
+              />
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {projects.map((proj) => (
+                <div
+                  key={proj.id}
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 hover:bg-slate-50/60 transition-colors gap-3"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={`/projects/${proj.id}`}
+                        className="font-semibold text-slate-900 text-sm hover:text-primary-600 hover:underline"
+                      >
+                        {proj.name}
+                      </Link>
+                      {getProjectStatusBadge(proj.status)}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 pt-0.5">
+                      <span className="font-mono text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
+                        {proj.project_code}
+                      </span>
+                      {proj.project_manager_name && (
+                        <span>Manager: {proj.project_manager_name}</span>
+                      )}
+                      {proj.budget !== null && proj.budget !== undefined && (
+                        <span>Budget: ${Number(proj.budget).toLocaleString()}</span>
+                      )}
+                      {proj.start_date && (
+                        <span>
+                          Start: {new Date(proj.start_date).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <Link href={`/projects/${proj.id}`}>
+                    <Button variant="ghost" size="sm">
+                      View Details
+                    </Button>
+                  </Link>
                 </div>
               ))}
             </div>

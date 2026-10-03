@@ -41,13 +41,15 @@ import type {
 } from "@/types/client";
 
 export default function ClientsPage() {
-  const { currentOrganization, permissions, isLoading: isOrgLoading } = useOrganization();
+  const { currentOrganization, permissions, membership, isLoading: isOrgLoading } = useOrganization();
+
+  const isSystemAdmin = membership?.role === "system_admin";
 
   // Permissions
-  const canViewClients = permissions.includes("clients.view");
-  const canCreateClients = permissions.includes("clients.create");
-  const canUpdateClients = permissions.includes("clients.update");
-  const canDeleteClients = permissions.includes("clients.delete");
+  const canViewClients = isSystemAdmin || permissions.includes("clients.view");
+  const canCreateClients = isSystemAdmin || permissions.includes("clients.create");
+  const canUpdateClients = isSystemAdmin || permissions.includes("clients.update");
+  const canDeleteClients = isSystemAdmin || permissions.includes("clients.delete");
 
   // Client Data & Filters
   const [clientsData, setClientsData] = React.useState<ClientListResponse>({

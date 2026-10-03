@@ -17,6 +17,7 @@ import {
   AlertCircle,
   ShieldAlert,
   Percent,
+  ExternalLink,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -348,10 +349,23 @@ export default function ProjectDetailPage() {
             </div>
             <div className="mt-2 font-medium text-foreground">
               {project.client_name ? (
-                <div>
-                  <p>{project.client_name}</p>
-                  <p className="font-mono text-xs text-muted-foreground">{project.client_code}</p>
-                </div>
+                project.client_id ? (
+                  <Link
+                    href={`/clients/${project.client_id}`}
+                    className="group flex flex-col hover:text-primary-600 transition-colors"
+                  >
+                    <p className="flex items-center gap-1 group-hover:underline">
+                      {project.client_name}
+                      <ExternalLink className="h-3 w-3 opacity-60 group-hover:opacity-100" />
+                    </p>
+                    <p className="font-mono text-xs text-muted-foreground">{project.client_code}</p>
+                  </Link>
+                ) : (
+                  <div>
+                    <p>{project.client_name}</p>
+                    <p className="font-mono text-xs text-muted-foreground">{project.client_code}</p>
+                  </div>
+                )
               ) : (
                 <span className="text-sm text-muted-foreground italic">Internal Project</span>
               )}

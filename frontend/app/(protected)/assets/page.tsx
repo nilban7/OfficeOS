@@ -59,15 +59,17 @@ const CONDITION_CONFIG: Record<AssetCondition, { label: string; className: strin
 };
 
 export default function AssetsPage() {
-  const { currentOrganization, permissions, isLoading: isOrgLoading } = useOrganization();
+  const { currentOrganization, permissions, membership, isLoading: isOrgLoading } = useOrganization();
+
+  const isSystemAdmin = membership?.role === "system_admin";
 
   // Permissions
-  const canViewAssets = permissions.includes("assets.view") || permissions.length === 0;
-  const canCreateAssets = permissions.includes("assets.create");
-  const canUpdateAssets = permissions.includes("assets.update");
-  const canDeleteAssets = permissions.includes("assets.delete");
-  const canAssignAssets = permissions.includes("assets.assign");
-  const canReturnAssets = permissions.includes("assets.return");
+  const canViewAssets = isSystemAdmin || permissions.includes("assets.view") || permissions.length === 0;
+  const canCreateAssets = isSystemAdmin || permissions.includes("assets.create");
+  const canUpdateAssets = isSystemAdmin || permissions.includes("assets.update");
+  const canDeleteAssets = isSystemAdmin || permissions.includes("assets.delete");
+  const canAssignAssets = isSystemAdmin || permissions.includes("assets.assign");
+  const canReturnAssets = isSystemAdmin || permissions.includes("assets.return");
 
   // State
   const [assets, setAssets] = React.useState<Asset[]>([]);

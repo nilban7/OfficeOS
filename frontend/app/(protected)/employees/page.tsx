@@ -46,16 +46,18 @@ import type {
 } from "@/types/employee";
 
 export default function EmployeesPage() {
-  const { currentOrganization, permissions, isLoading: isOrgLoading } = useOrganization();
+  const { currentOrganization, permissions, membership, isLoading: isOrgLoading } = useOrganization();
+
+  const isSystemAdmin = membership?.role === "system_admin";
 
   // Permissions
-  const canViewEmployees = permissions.includes("employees.view");
-  const canCreateEmployees = permissions.includes("employees.create");
-  const canUpdateEmployees = permissions.includes("employees.update");
-  const canDeleteEmployees = permissions.includes("employees.delete");
+  const canViewEmployees = isSystemAdmin || permissions.includes("employees.view");
+  const canCreateEmployees = isSystemAdmin || permissions.includes("employees.create");
+  const canUpdateEmployees = isSystemAdmin || permissions.includes("employees.update");
+  const canDeleteEmployees = isSystemAdmin || permissions.includes("employees.delete");
 
-  const canViewDepartments = permissions.includes("departments.view");
-  const canManageDepartments = permissions.includes("departments.manage");
+  const canViewDepartments = isSystemAdmin || permissions.includes("departments.view");
+  const canManageDepartments = isSystemAdmin || permissions.includes("departments.manage");
 
   // Tab State
   const [activeTab, setActiveTab] = React.useState<"directory" | "departments">("directory");

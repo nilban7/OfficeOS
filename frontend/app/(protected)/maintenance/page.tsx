@@ -68,13 +68,15 @@ const PRIORITY_CONFIG: Record<MaintenanceRequestPriority, { label: string; class
 };
 
 export default function MaintenancePage() {
-  const { currentOrganization, permissions, isLoading: isOrgLoading } = useOrganization();
+  const { currentOrganization, permissions, membership, isLoading: isOrgLoading } = useOrganization();
+
+  const isSystemAdmin = membership?.role === "system_admin";
 
   // Permissions
-  const canView = permissions.includes("maintenance.view") || permissions.length === 0;
-  const canCreate = permissions.includes("maintenance.create");
-  const canUpdate = permissions.includes("maintenance.update");
-  const canComplete = permissions.includes("maintenance.complete");
+  const canView = isSystemAdmin || permissions.includes("maintenance.view") || permissions.length === 0;
+  const canCreate = isSystemAdmin || permissions.includes("maintenance.create");
+  const canUpdate = isSystemAdmin || permissions.includes("maintenance.update");
+  const canComplete = isSystemAdmin || permissions.includes("maintenance.complete");
 
   // State
   const [activeTab, setActiveTab] = React.useState<"requests" | "records">("requests");

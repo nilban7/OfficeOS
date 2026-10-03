@@ -10,11 +10,11 @@ import { Building2 } from "lucide-react";
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { membership } = useOrganization();
+  const { membership, permissions } = useOrganization();
 
   const userPermissions = React.useMemo(() => {
-    return new Set(membership?.permissions || []);
-  }, [membership]);
+    return new Set([...(membership?.permissions || []), ...(permissions || [])]);
+  }, [membership, permissions]);
 
   return (
     <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 border-r border-slate-200 bg-white shadow-sm z-30">

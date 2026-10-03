@@ -4,12 +4,45 @@ import * as React from "react";
 import Link from "next/link";
 import { Bell, Menu, Search } from "lucide-react";
 import { ROUTES } from "@/constants/routes";
+import { useOrganization } from "@/hooks/use-organization";
+import { apiClient } from "@/lib/api/client";
+import { API_ENDPOINTS } from "@/lib/api/endpoints";
+import type { UnreadCountResponse } from "@/types/notification";
 import { OrgSwitcher } from "./org-switcher";
 import { UserNav } from "./user-nav";
 import { MobileNav } from "./mobile-nav";
 
 export function AppHeader() {
   const [isMobileOpen, setIsMobileOpen] = React.useState(false);
+  const { currentOrganization, permissions } = useOrganization();
+  const [unreadCount, setUnreadCount] = React.useState<number>(0);
+
+  const canViewNotifications = permissions.includes("notifications.view");
+
+  React.useEffect(() => {
+    if (!currentOrganization?.id || !canViewNotifications) {
+      setUnreadCount(0);
+      return;
+    }
+
+    let isMounted = true;
+    apiClient
+      .get<UnreadCountResponse>(API_ENDPOINTS.notifications.unreadCount, {
+        organizationId: currentOrganization.id,
+      })
+      .then((res) => {
+        if (isMounted && res && typeof res.unread_count === "number") {
+          setUnreadCount(res.unread_count);
+        }
+      })
+      .catch(() => {
+        // Silently ignore notification count errors
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentOrganization?.id, canViewNotifications]);
 
   return (
     <>
@@ -49,6 +82,11 @@ export function AppHeader() {
             aria-label="Notifications"
           >
             <Bell className="h-5 w-5" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white shadow-sm ring-2 ring-white">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
           </Link>
           <UserNav />
         </div>

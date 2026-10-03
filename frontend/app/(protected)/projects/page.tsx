@@ -44,13 +44,15 @@ import type {
 } from "@/types/project";
 
 export default function ProjectsPage() {
-  const { currentOrganization, permissions, isLoading: isOrgLoading } = useOrganization();
+  const { currentOrganization, permissions, membership, isLoading: isOrgLoading } = useOrganization();
+
+  const isSystemAdmin = membership?.role === "system_admin";
 
   // Permissions
-  const canViewProjects = permissions.includes("projects.view") || permissions.includes("project:read");
-  const canCreateProjects = permissions.includes("projects.create");
-  const canUpdateProjects = permissions.includes("projects.update");
-  const canDeleteProjects = permissions.includes("projects.delete");
+  const canViewProjects = isSystemAdmin || permissions.includes("projects.view") || permissions.includes("project:read");
+  const canCreateProjects = isSystemAdmin || permissions.includes("projects.create");
+  const canUpdateProjects = isSystemAdmin || permissions.includes("projects.update");
+  const canDeleteProjects = isSystemAdmin || permissions.includes("projects.delete");
 
   // Project Data & Filters
   const [projectsData, setProjectsData] = React.useState<ProjectListResponse>({

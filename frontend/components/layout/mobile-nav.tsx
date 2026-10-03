@@ -15,11 +15,11 @@ export interface MobileNavProps {
 
 export function MobileNav({ isOpen, onClose }: MobileNavProps) {
   const pathname = usePathname();
-  const { membership } = useOrganization();
+  const { membership, permissions } = useOrganization();
 
   const userPermissions = React.useMemo(() => {
-    return new Set(membership?.permissions || []);
-  }, [membership]);
+    return new Set([...(membership?.permissions || []), ...(permissions || [])]);
+  }, [membership, permissions]);
 
   React.useEffect(() => {
     onClose();
