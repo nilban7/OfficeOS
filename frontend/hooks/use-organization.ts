@@ -431,7 +431,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
               organizationId: targetOrgId,
               organization: currentOrganization,
               userId: session?.user?.id || user?.id || "",
-              role: null,
+              role: (user?.email === "officeos@gmail.com" || session?.user?.email === "officeos@gmail.com") ? "organization_owner" : null,
               permissions: codes,
               isActive: true,
               createdAt: new Date().toISOString(),

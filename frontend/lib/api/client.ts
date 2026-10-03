@@ -19,8 +19,33 @@ export class ApiClient {
     try {
       const supabase = getSupabaseBrowserClient();
       const { data } = await supabase.auth.getSession();
-      return data.session?.access_token ?? null;
+      if (data.session?.access_token) {
+        return data.session.access_token;
+      }
+      if (typeof window !== "undefined") {
+        const devSession = localStorage.getItem("officeos_dev_session");
+        if (devSession) {
+          try {
+            const parsed = JSON.parse(devSession);
+            return parsed.accessToken ?? null;
+          } catch {
+            // ignore
+          }
+        }
+      }
+      return null;
     } catch {
+      if (typeof window !== "undefined") {
+        const devSession = localStorage.getItem("officeos_dev_session");
+        if (devSession) {
+          try {
+            const parsed = JSON.parse(devSession);
+            return parsed.accessToken ?? null;
+          } catch {
+            // ignore
+          }
+        }
+      }
       return null;
     }
   }

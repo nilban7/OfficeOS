@@ -5,6 +5,10 @@ import { AuthProvider } from "@/lib/auth/auth-provider";
 export const metadata: Metadata = {
   title: "OfficeOS — Multi-Tenant Office Management System",
   description: "Enterprise SaaS platform for organizations, HR, operations, and finance management.",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

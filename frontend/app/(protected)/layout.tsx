@@ -1,21 +1,30 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AppHeader } from "@/components/layout/app-header";
 import { PlatformAnnouncementBanner } from "@/components/admin/announcement-banner";
 import { useAuth } from "@/hooks/use-auth";
 import { LoadingState } from "@/components/feedback/loading-state";
 import { OrganizationProvider } from "@/hooks/use-organization";
+import { ROUTES } from "@/constants/routes";
 
 export default function ProtectedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { isLoading } = useAuth();
+  const { isLoading, isAuthenticated } = useAuth();
+  const router = useRouter();
 
-  if (isLoading) {
+  React.useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push(ROUTES.LOGIN);
+    }
+  }, [isLoading, isAuthenticated, router]);
+
+  if (isLoading || !isAuthenticated) {
     return <LoadingState fullPage message="Authenticating session..." />;
   }
 
