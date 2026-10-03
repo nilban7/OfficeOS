@@ -14,6 +14,7 @@ import {
   Award,
   Activity,
   DollarSign,
+  Banknote,
   FileText,
   Bell,
   ShieldCheck,
@@ -141,6 +142,12 @@ export const MAIN_NAVIGATION: NavSection[] = [
         href: ROUTES.FINANCE,
         icon: DollarSign,
         requiredPermissions: ["finance.view", "finance:read"],
+      },
+      {
+        title: "Payroll & Salary",
+        href: ROUTES.PAYROLL,
+        icon: Banknote,
+        requiredPermissions: ["payroll.view", "payslips.view", "payslips.view_own"],
       },
       {
         title: "Documents",
