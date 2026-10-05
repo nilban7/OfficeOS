@@ -260,10 +260,10 @@ export default function AttendancePage() {
       const res = await apiClient.post<AttendanceDetailResponse>(
         API_ENDPOINTS.attendance.clockIn,
         {
+          notes: clockNotes.trim() || undefined,
+        },
+        {
           organizationId: currentOrganization.id,
-          body: {
-            notes: clockNotes.trim() || undefined,
-          },
         }
       );
       setMyTodayRecord(res);
@@ -289,10 +289,10 @@ export default function AttendancePage() {
       const res = await apiClient.post<AttendanceDetailResponse>(
         `/attendance/${targetId}/check-out`,
         {
+          notes: clockNotes.trim() || undefined,
+        },
+        {
           organizationId: currentOrganization.id,
-          body: {
-            notes: clockNotes.trim() || undefined,
-          },
         }
       );
       setMyTodayRecord(res);
@@ -347,10 +347,13 @@ export default function AttendancePage() {
         notes: formNotes.trim() || null,
       };
 
-      await apiClient.post<AttendanceDetailResponse>(API_ENDPOINTS.attendance.list, {
-        organizationId: currentOrganization.id,
+      await apiClient.post<AttendanceDetailResponse>(
+        API_ENDPOINTS.attendance.list,
         body,
-      });
+        {
+          organizationId: currentOrganization.id,
+        }
+      );
 
       setIsMarkOpen(false);
       setGlobalSuccess("Attendance record created successfully!");
@@ -398,9 +401,9 @@ export default function AttendancePage() {
 
       await apiClient.patch<AttendanceDetailResponse>(
         `/attendance/${editingRecord.id}`,
+        body,
         {
           organizationId: currentOrganization.id,
-          body,
         }
       );
 
@@ -1078,13 +1081,18 @@ export default function AttendancePage() {
 
             {/* Check Out */}
             <div>
-              <Label className="text-xs font-semibold text-slate-700">Clock Out Time</Label>
+              <Label className="text-xs font-semibold text-slate-700">
+                Clock Out Time <span className="font-normal text-slate-500">(Optional — 2nd Half / Shift End)</span>
+              </Label>
               <Input
                 type="datetime-local"
                 value={formCheckOutAt}
                 onChange={(e) => setFormCheckOutAt(e.target.value)}
                 className="mt-1 text-xs"
               />
+              <p className="mt-1 text-[11px] text-slate-500">
+                Leave blank on 1st half / initial check-in. Clock-out can be recorded at the end of the shift.
+              </p>
             </div>
           </div>
 
@@ -1201,13 +1209,18 @@ export default function AttendancePage() {
 
             {/* Check Out */}
             <div>
-              <Label className="text-xs font-semibold text-slate-700">Clock Out Time</Label>
+              <Label className="text-xs font-semibold text-slate-700">
+                Clock Out Time <span className="font-normal text-slate-500">(2nd Half / Shift End)</span>
+              </Label>
               <Input
                 type="datetime-local"
                 value={formCheckOutAt}
                 onChange={(e) => setFormCheckOutAt(e.target.value)}
                 className="mt-1 text-xs"
               />
+              <p className="mt-1 text-[11px] text-slate-500">
+                Set employee departure time to finalize day&apos;s working hours.
+              </p>
             </div>
           </div>
 
