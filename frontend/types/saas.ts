@@ -84,6 +84,19 @@ export interface OrganizationDirectoryResponse {
   total_pages: number;
 }
 
+export interface OrganizationCreateRequest {
+  name: string;
+  slug?: string;
+  timezone?: string;
+  currency?: string;
+}
+
+export interface OrganizationUpdateRequest {
+  name?: string;
+  slug?: string;
+  is_active?: boolean;
+}
+
 export interface OrganizationDetailResponse {
   id: string;
   name: string;

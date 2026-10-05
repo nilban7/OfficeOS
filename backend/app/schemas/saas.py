@@ -109,6 +109,19 @@ class OrganizationDetailResponse(BaseModel):
     project_count: int = 0
 
 
+class OrganizationCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    slug: str | None = Field(default=None, max_length=100)
+    timezone: str = "UTC"
+    currency: str = "USD"
+
+
+class OrganizationUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    slug: str | None = Field(default=None, min_length=1, max_length=100)
+    is_active: bool | None = None
+
+
 class OrganizationSuspendRequest(BaseModel):
     reason: str | None = Field(default=None, max_length=500)
 
