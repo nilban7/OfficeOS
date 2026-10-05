@@ -6,7 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import distinct, func, or_, select, text
+from sqlalchemy import distinct, func, not_, or_, select, text
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -54,21 +54,35 @@ from app.services.audit import AuditLogService
 from app.services.identity import get_profile
 
 
+TEST_ORG_FILTERS = (
+    not_(Organization.name.ilike("Org %")),
+    not_(Organization.slug.ilike("org-%")),
+    not_(Organization.slug.ilike("ai-org-%")),
+    not_(Organization.slug.ilike("saas-org-%")),
+)
+
+
 class SaaSAdminService:
     @staticmethod
     async def get_overview(session: AsyncSession) -> PlatformOverviewResponse:
-        total_orgs = (await session.scalar(select(func.count(Organization.id)))) or 0
+        total_orgs = (await session.scalar(select(func.count(Organization.id)).where(*TEST_ORG_FILTERS))) or 0
         active_orgs = (
-            await session.scalar(select(func.count(Organization.id)).where(Organization.status == "active"))
+            await session.scalar(
+                select(func.count(Organization.id)).where(Organization.status == "active", *TEST_ORG_FILTERS)
+            )
         ) or 0
         suspended_orgs = (
-            await session.scalar(select(func.count(Organization.id)).where(Organization.status == "suspended"))
+            await session.scalar(
+                select(func.count(Organization.id)).where(Organization.status == "suspended", *TEST_ORG_FILTERS)
+            )
         ) or 0
         total_users = (await session.scalar(select(func.count(distinct(Profile.id))))) or 0
         total_employees = (await session.scalar(select(func.count(distinct(Employee.id))))) or 0
 
         # Recent 5 organizations
-        recent_orgs_query = select(Organization).order_by(Organization.created_at.desc()).limit(5)
+        recent_orgs_query = (
+            select(Organization).where(*TEST_ORG_FILTERS).order_by(Organization.created_at.desc()).limit(5)
+        )
         recent_orgs = list(await session.scalars(recent_orgs_query))
 
         items: list[OrganizationDirectoryItem] = []
@@ -127,8 +141,8 @@ class SaaSAdminService:
         search: str | None = None,
         status_filter: str | None = None,
     ) -> OrganizationDirectoryResponse:
-        query = select(Organization)
-        count_query = select(func.count(Organization.id))
+        query = select(Organization).where(*TEST_ORG_FILTERS)
+        count_query = select(func.count(Organization.id)).where(*TEST_ORG_FILTERS)
 
         filters = []
         if search and search.strip():
