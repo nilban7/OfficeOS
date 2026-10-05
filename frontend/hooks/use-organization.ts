@@ -337,64 +337,134 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
   const [membership, setMembership] = useState<OrganizationMembership | null>(null);
 
-  const [isLoadingOrgs] = useState<boolean>(false);
-  const [isLoadingPermissions] = useState<boolean>(false);
+  const [isLoadingOrgs, setIsLoadingOrgs] = useState<boolean>(true);
+  const [isLoadingPermissions, setIsLoadingPermissions] = useState<boolean>(false);
   const [orgError, setOrgError] = useState<string | null>(null);
   const [permissionError, setPermissionError] = useState<string | null>(null);
 
+  // 1. Client-side hydration on mount: restore previously selected org & permissions
   useEffect(() => {
-    // Do not hydrate tenant access from browser storage. The authenticated
-    // user's memberships returned by /me/organizations are authoritative.
+    if (typeof window !== "undefined") {
+      try {
+        const cachedOrgStr = localStorage.getItem("officeos_active_org");
+        const cachedPermsStr = localStorage.getItem("officeos_active_perms");
+        let initialOrg: Organization | null = null;
+        if (cachedOrgStr) {
+          const parsedOrg = JSON.parse(cachedOrgStr);
+          if (parsedOrg && parsedOrg.id) {
+            initialOrg = parsedOrg;
+            setCurrentOrganization(parsedOrg);
+            setOrganizations([parsedOrg]);
+          }
+        }
+        if (cachedPermsStr) {
+          const parsedPerms = JSON.parse(cachedPermsStr);
+          if (Array.isArray(parsedPerms) && parsedPerms.length > 0) {
+            setPermissions(parsedPerms);
+            if (initialOrg) {
+              setMembership({
+                id: `mem-${initialOrg.id}`,
+                organizationId: initialOrg.id,
+                organization: initialOrg,
+                userId: session?.user?.id || user?.id || "",
+                role: (user?.email === "officeos@gmail.com" || session?.user?.email === "officeos@gmail.com") ? "organization_owner" : null,
+                permissions: parsedPerms,
+                isActive: true,
+                createdAt: new Date().toISOString(),
+              });
+            }
+          }
+        }
+      } catch {
+        // Safe fallback if parsing fails
+      }
+    }
     setIsCacheLoaded(true);
   }, []);
 
-  // Sync background fetch for organizations
+  // 2. Sync background fetch for organizations with automatic retry on cold start
   useEffect(() => {
     if (!isCacheLoaded) return;
 
     let isMounted = true;
 
     async function syncOrganizations() {
-      if (!isAuthenticated || !session?.accessToken) return;
-
-      try {
-        const orgs = await apiClient.get<Organization[]>(API_ENDPOINTS.me.organizations);
+      if (!isAuthenticated || !session?.accessToken) {
         if (isMounted) {
-          const validatedOrgs = orgs || [];
-          setOrganizations(validatedOrgs);
-          if (validatedOrgs.length === 0) {
-            setCurrentOrganization(null);
-            setPermissions([]);
-            setMembership(null);
-            localStorage.removeItem("officeos_active_org_id");
-            localStorage.removeItem("officeos_active_org");
-            return;
-          }
-          setCurrentOrganization((prev) => {
-            if (prev && validatedOrgs.some((o) => o.id === prev.id)) {
-              const matched = validatedOrgs.find((o) => o.id === prev.id) || prev;
-              if (typeof window !== "undefined") {
-                localStorage.setItem("officeos_active_org", JSON.stringify(matched));
-                localStorage.setItem("officeos_active_org_id", matched.id);
-              }
-              return matched;
-            }
-            const savedId = typeof window !== "undefined" ? localStorage.getItem("officeos_active_org_id") : null;
-            const matched = savedId ? validatedOrgs.find((o) => o.id === savedId) : null;
-            const chosen = (matched || validatedOrgs[0]) ?? null;
-            if (chosen && typeof window !== "undefined") {
-              localStorage.setItem("officeos_active_org", JSON.stringify(chosen));
-              localStorage.setItem("officeos_active_org_id", chosen.id);
-            }
-            return chosen;
-          });
+          setIsLoadingOrgs(false);
+          setOrganizations([]);
+          setCurrentOrganization(null);
+          setPermissions([]);
+          setMembership(null);
         }
-      } catch (err) {
-        if (isMounted) {
-          const msg = err instanceof ApiException ? err.message : "Failed to load organizations";
-          setOrgError(msg);
+        return;
+      }
+
+      setIsLoadingOrgs(true);
+      setOrgError(null);
+
+      let orgs: Organization[] | null = null;
+      let lastErr: unknown = null;
+
+      // Retry up to 3 times with backoff if backend is waking up (Render cold start)
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          orgs = await apiClient.get<Organization[]>(API_ENDPOINTS.me.organizations);
+          if (orgs) break;
+        } catch (err) {
+          lastErr = err;
+          // Don't retry on auth errors (401/403)
+          if (err instanceof ApiException && (err.status === 401 || err.status === 403)) {
+            break;
+          }
+          if (attempt < 3) {
+            await new Promise((resolve) => setTimeout(resolve, attempt * 1200));
+          }
         }
       }
+
+      if (!isMounted) return;
+      setIsLoadingOrgs(false);
+
+      if (!orgs && lastErr) {
+        const msg = lastErr instanceof ApiException ? lastErr.message : "Failed to load organizations";
+        setOrgError(msg);
+        return;
+      }
+
+      const validatedOrgs = orgs || [];
+      setOrganizations(validatedOrgs);
+
+      if (validatedOrgs.length === 0) {
+        setCurrentOrganization(null);
+        setPermissions([]);
+        setMembership(null);
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("officeos_active_org_id");
+          localStorage.removeItem("officeos_active_org");
+          localStorage.removeItem("officeos_active_perms");
+        }
+        return;
+      }
+
+      setCurrentOrganization((prev) => {
+        if (prev && validatedOrgs.some((o) => o.id === prev.id)) {
+          const matched = validatedOrgs.find((o) => o.id === prev.id) || prev;
+          if (typeof window !== "undefined") {
+            localStorage.setItem("officeos_active_org", JSON.stringify(matched));
+            localStorage.setItem("officeos_active_org_id", matched.id);
+          }
+          return matched;
+        }
+        const savedId = typeof window !== "undefined" ? localStorage.getItem("officeos_active_org_id") : null;
+        const matched = savedId ? validatedOrgs.find((o) => o.id === savedId) : null;
+        const chosen = (matched || validatedOrgs[0]) ?? null;
+        if (chosen && typeof window !== "undefined") {
+          localStorage.setItem("officeos_active_org", JSON.stringify(chosen));
+          localStorage.setItem("officeos_active_org_id", chosen.id);
+        }
+        return chosen;
+      });
     }
 
     void syncOrganizations();
@@ -404,7 +474,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     };
   }, [isCacheLoaded, isAuthenticated, session?.accessToken]);
 
-  // Sync permissions when currentOrganization changes
+  // 3. Sync permissions when currentOrganization changes
   useEffect(() => {
     if (!isCacheLoaded) return;
 
@@ -412,44 +482,63 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     const orgId = currentOrganization?.id;
 
     async function syncPermissions(targetOrgId: string) {
-      try {
-        const permData = await apiClient.get<PermissionData[]>(API_ENDPOINTS.me.permissions, {
-          organizationId: targetOrgId,
-        });
+      setIsLoadingPermissions(true);
+      setPermissionError(null);
 
-        if (isMounted) {
-          // Backend is the authorization boundary. Permissions come only from
-          // the validated membership; never grant canonical permissions here.
-          const codes = (permData || []).map((p) => p.code as Permission);
-          setPermissions(codes);
-          if (typeof window !== "undefined") {
-            localStorage.setItem("officeos_active_perms", JSON.stringify(codes));
+      let permData: PermissionData[] | null = null;
+      let lastErr: unknown = null;
+
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          permData = await apiClient.get<PermissionData[]>(API_ENDPOINTS.me.permissions, {
+            organizationId: targetOrgId,
+          });
+          if (permData) break;
+        } catch (err) {
+          lastErr = err;
+          if (err instanceof ApiException && (err.status === 403 || err.status === 400 || err.status === 401)) {
+            break;
           }
-          if (currentOrganization) {
-            setMembership({
-              id: `mem-${targetOrgId}`,
-              organizationId: targetOrgId,
-              organization: currentOrganization,
-              userId: session?.user?.id || user?.id || "",
-              role: (user?.email === "officeos@gmail.com" || session?.user?.email === "officeos@gmail.com") ? "organization_owner" : null,
-              permissions: codes,
-              isActive: true,
-              createdAt: new Date().toISOString(),
-            });
+          if (attempt < 3) {
+            await new Promise((resolve) => setTimeout(resolve, attempt * 1200));
           }
         }
-      } catch (err) {
-        if (isMounted) {
-          setPermissions([]);
-          setMembership(null);
-          if (err instanceof ApiException) {
-            if (err.status === 403) {
-              setPermissionError("Access denied for this organization");
-            } else {
-              setPermissionError(err.message);
-            }
+      }
+
+      if (!isMounted) return;
+      setIsLoadingPermissions(false);
+
+      if (!permData && lastErr) {
+        setPermissions([]);
+        setMembership(null);
+        if (lastErr instanceof ApiException) {
+          if (lastErr.status === 403) {
+            setPermissionError("Access denied for this organization");
+          } else {
+            setPermissionError(lastErr.message);
           }
+        } else {
+          setPermissionError("Failed to load organization permissions");
         }
+        return;
+      }
+
+      const codes = (permData || []).map((p) => p.code as Permission);
+      setPermissions(codes);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("officeos_active_perms", JSON.stringify(codes));
+      }
+      if (currentOrganization) {
+        setMembership({
+          id: `mem-${targetOrgId}`,
+          organizationId: targetOrgId,
+          organization: currentOrganization,
+          userId: session?.user?.id || user?.id || "",
+          role: (user?.email === "officeos@gmail.com" || session?.user?.email === "officeos@gmail.com") ? "organization_owner" : null,
+          permissions: codes,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+        });
       }
     }
 
@@ -484,7 +573,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       membership,
       isLoadingOrgs,
       isLoadingPermissions,
-      isLoading: false,
+      isLoading: isLoadingOrgs || isLoadingPermissions,
       orgError,
       permissionError,
       error: orgError || permissionError,
