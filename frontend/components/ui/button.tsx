@@ -23,20 +23,20 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const baseStyles =
-      "inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 select-none";
+      "inline-flex items-center justify-center font-medium transition-all duration-150 ease-out active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 select-none";
 
     const variants: Record<string, string> = {
       primary:
-        "bg-primary-600 text-white shadow hover:bg-primary-700 active:bg-primary-800",
+        "bg-primary-600 text-white shadow-subtle hover:bg-primary-700 hover:shadow-card active:bg-primary-800",
       secondary:
-        "bg-slate-100 text-slate-900 hover:bg-slate-200 active:bg-slate-300",
+        "bg-slate-100 text-slate-900 hover:bg-slate-200/80 active:bg-slate-300",
       outline:
-        "border border-slate-300 bg-transparent text-slate-700 hover:bg-slate-50 active:bg-slate-100",
+        "border border-slate-300 bg-white/50 text-slate-700 hover:bg-slate-50 hover:border-slate-400 active:bg-slate-100",
       ghost:
-        "bg-transparent text-slate-700 hover:bg-slate-100 active:bg-slate-200",
+        "bg-transparent text-slate-700 hover:bg-slate-100/80 active:bg-slate-200",
       destructive:
-        "bg-red-600 text-white shadow-sm hover:bg-red-700 active:bg-red-800",
-      link: "text-primary-600 underline-offset-4 hover:underline p-0 h-auto",
+        "bg-red-600 text-white shadow-subtle hover:bg-red-700 hover:shadow-card active:bg-red-800",
+      link: "text-primary-600 underline-offset-4 hover:underline p-0 h-auto active:scale-100",
     };
 
     const sizes: Record<string, string> = {
