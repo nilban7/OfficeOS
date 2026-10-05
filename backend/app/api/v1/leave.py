@@ -195,13 +195,11 @@ async def list_org_leave_requests(
             return ApiSuccess(
                 data=PaginatedData(
                     items=[],
-                    pagination=PaginationMeta(
+                    meta=PaginationMeta(
                         page=page,
                         page_size=page_size,
-                        total_items=0,
+                        total=0,
                         total_pages=1,
-                        has_next=False,
-                        has_previous=False,
                     ),
                 )
             )

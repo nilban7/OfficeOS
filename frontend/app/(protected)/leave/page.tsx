@@ -40,6 +40,7 @@ import type {
   LeaveType,
   LeaveTypeCreateInput,
   LeaveTypeUpdateInput,
+  PaginatedLeaveRequests,
 } from "@/types/leave";
 
 export default function LeavePage() {
@@ -141,13 +142,18 @@ export default function LeavePage() {
     try {
       const orgId = currentOrganization.id;
 
-      // 1. Fetch Summary & Leave Types
-      const [summaryRes, typesRes, holidaysRes] = await Promise.allSettled([
+      // 1. Fetch Summary, Leave Types, Holidays, Branches, and Employees
+      const [summaryRes, typesRes, holidaysRes, branchRes, empRes] = await Promise.allSettled([
         apiClient.get<LeaveSummary>(API_ENDPOINTS.leave.summary, { organizationId: orgId }),
         apiClient.get<LeaveType[]>(API_ENDPOINTS.leave.types, { organizationId: orgId }),
         apiClient.get<Holiday[]>(API_ENDPOINTS.leave.holidays, {
           organizationId: orgId,
           params: { year: parseInt(holidayYearFilter, 10) || new Date().getFullYear() },
+        }),
+        apiClient.get<BranchResponse[]>(API_ENDPOINTS.organizations.currentBranches, { organizationId: orgId }),
+        apiClient.get<PaginatedEmployees>(API_ENDPOINTS.employees.list, {
+          organizationId: orgId,
+          params: { page_size: 100 },
         }),
       ]);
 
@@ -160,32 +166,34 @@ export default function LeavePage() {
       if (holidaysRes.status === "fulfilled" && holidaysRes.value) {
         setHolidays(holidaysRes.value);
       }
+      if (branchRes.status === "fulfilled" && branchRes.value) {
+        setBranches(branchRes.value);
+      }
+      if (empRes.status === "fulfilled" && empRes.value) {
+        setEmployees(empRes.value.items || []);
+      }
 
       // 2. Fetch My Requests
-      const myReqRes = await apiClient.get<LeaveRequest[]>(API_ENDPOINTS.leave.requests, {
-        organizationId: orgId,
-      });
-      setMyRequests(myReqRes || []);
+      try {
+        const myReqRes = await apiClient.get<PaginatedLeaveRequests | LeaveRequest[]>(API_ENDPOINTS.leave.requests, {
+          organizationId: orgId,
+        });
+        const items = Array.isArray(myReqRes) ? myReqRes : (myReqRes && "items" in myReqRes ? myReqRes.items : []);
+        setMyRequests(items);
+      } catch {
+        setMyRequests([]);
+      }
 
-      // 3. If manager/admin, fetch Org Requests and reference data
+      // 3. If manager/admin, fetch Org Requests
       if (canApproveLeave || canManageLeaveTypes) {
-        const [orgReqRes, branchRes, empRes] = await Promise.allSettled([
-          apiClient.get<LeaveRequest[]>(API_ENDPOINTS.leave.requests, { organizationId: orgId }),
-          apiClient.get<BranchResponse[]>(API_ENDPOINTS.organizations.currentBranches, { organizationId: orgId }),
-          apiClient.get<PaginatedEmployees>(API_ENDPOINTS.employees.list, {
+        try {
+          const orgReqRes = await apiClient.get<PaginatedLeaveRequests | LeaveRequest[]>(API_ENDPOINTS.leave.requests, {
             organizationId: orgId,
-            params: { page_size: 100 },
-          }),
-        ]);
-
-        if (orgReqRes.status === "fulfilled" && orgReqRes.value) {
-          setOrgRequests(orgReqRes.value);
-        }
-        if (branchRes.status === "fulfilled" && branchRes.value) {
-          setBranches(branchRes.value);
-        }
-        if (empRes.status === "fulfilled" && empRes.value) {
-          setEmployees(empRes.value.items || []);
+          });
+          const items = Array.isArray(orgReqRes) ? orgReqRes : (orgReqRes && "items" in orgReqRes ? orgReqRes.items : []);
+          setOrgRequests(items);
+        } catch {
+          setOrgRequests([]);
         }
       }
     } catch (err) {
@@ -1265,22 +1273,25 @@ export default function LeavePage() {
             </div>
           )}
 
-          {canApproveLeave && employees.length > 0 && (
+          {employees.length > 0 && (
             <div>
-              <Label htmlFor="req-emp">Submit for Employee (Optional)</Label>
+              <Label htmlFor="req-emp">Submit for Employee</Label>
               <select
                 id="req-emp"
                 value={reqEmployeeId}
                 onChange={(e) => setReqEmployeeId(e.target.value)}
                 className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none"
               >
-                <option value="">Self (My Account)</option>
+                <option value="">Self (My Linked Account)</option>
                 {employees.map((emp) => (
                   <option key={emp.id} value={emp.id}>
                     {emp.first_name} {emp.last_name} ({emp.employee_code})
                   </option>
                 ))}
               </select>
+              <p className="mt-1 text-[11px] text-slate-500">
+                Choose &quot;Self&quot; if your account is linked to an employee profile, or select a specific employee to submit on their behalf.
+              </p>
             </div>
           )}
 

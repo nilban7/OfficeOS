@@ -63,7 +63,32 @@ async def resolve_employee_for_user(
             Employee.organization_id == organization_id,
         )
     )
-    return await session.scalar(fallback_query)
+    emp = await session.scalar(fallback_query)
+    if emp is not None:
+        return emp
+
+    # Fallback 2: match by email with active user Profile
+    user_profile = await session.scalar(select(Profile).where(Profile.auth_user_id == auth_user_id))
+    if user_profile and user_profile.email:
+        clean_email = user_profile.email.strip().lower()
+        email_query = (
+            select(Employee)
+            .where(
+                Employee.organization_id == organization_id,
+                or_(
+                    func.lower(Employee.work_email) == clean_email,
+                    func.lower(Employee.personal_email) == clean_email,
+                ),
+            )
+        )
+        email_emp = await session.scalar(email_query)
+        if email_emp is not None:
+            if email_emp.profile_id is None:
+                email_emp.profile_id = user_profile.id
+                await session.flush()
+            return email_emp
+
+    return None
 
 
 def _to_detail_response(rec: AttendanceRecord) -> AttendanceDetailResponse:
