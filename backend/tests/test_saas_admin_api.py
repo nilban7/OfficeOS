@@ -480,3 +480,62 @@ async def test_platform_announcements_crud(mock_admin_user):
                         assert d_resp.json()["data"]["status"] == "deleted"
 
     app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_admin_organization_create_update_delete(mock_admin_user):
+    """Test POST, PATCH, and DELETE /api/v1/admin/organizations."""
+    org_id = uuid4()
+    detail_data = OrganizationDetailResponse(
+        id=org_id,
+        name="New Venture Inc",
+        slug="new-venture",
+        status="active",
+        is_active=True,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+        timezone="UTC",
+        currency="USD",
+        branch_count=1,
+        member_count=1,
+        employee_count=0,
+        project_count=0,
+    )
+
+    app.dependency_overrides[get_current_user] = lambda: mock_admin_user
+    app.dependency_overrides[require_system_admin] = lambda: mock_admin_user
+    app.dependency_overrides[get_saas_admin_session] = lambda: AsyncMock()
+
+    with (
+        patch("app.api.v1.admin.get_profile", new=AsyncMock(return_value=None)),
+        patch.object(SaaSAdminService, "create_organization", new=AsyncMock(return_value=detail_data)),
+        patch.object(SaaSAdminService, "update_organization", new=AsyncMock(return_value=detail_data)),
+        patch.object(SaaSAdminService, "delete_organization", new=AsyncMock(return_value=None)),
+    ):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            # CREATE
+            c_resp = await client.post(
+                "/api/v1/admin/organizations",
+                headers={"Authorization": "Bearer token"},
+                json={"name": "New Venture Inc", "slug": "new-venture"},
+            )
+            assert c_resp.status_code == status.HTTP_201_CREATED
+            assert c_resp.json()["data"]["name"] == "New Venture Inc"
+
+            # UPDATE
+            u_resp = await client.patch(
+                f"/api/v1/admin/organizations/{org_id}",
+                headers={"Authorization": "Bearer token"},
+                json={"name": "New Venture Updated"},
+            )
+            assert u_resp.status_code == status.HTTP_200_OK
+
+            # DELETE
+            d_resp = await client.delete(
+                f"/api/v1/admin/organizations/{org_id}",
+                headers={"Authorization": "Bearer token"},
+            )
+            assert d_resp.status_code == status.HTTP_200_OK
+
+    app.dependency_overrides.clear()
+

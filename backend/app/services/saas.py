@@ -327,6 +327,159 @@ class SaaSAdminService:
         return await SaaSAdminService.get_organization_detail(session, org_id)
 
     @staticmethod
+    async def create_organization(
+        session: AsyncSession,
+        name: str,
+        slug: str | None,
+        timezone: str = "UTC",
+        currency: str = "USD",
+        actor_id: UUID | None = None,
+        ip_address: str | None = None,
+    ) -> OrganizationDetailResponse:
+        import re
+
+        clean_slug = slug or re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+        existing = await session.scalar(select(Organization).where(Organization.slug == clean_slug))
+        if existing:
+            clean_slug = f"{clean_slug}-{uuid.uuid4().hex[:6]}"
+
+        new_org = Organization(
+            id=uuid.uuid4(),
+            name=name.strip(),
+            slug=clean_slug,
+            is_active=True,
+            status="active",
+        )
+        session.add(new_org)
+
+        # Settings
+        new_settings = OrganizationSetting(
+            id=uuid.uuid4(),
+            organization_id=new_org.id,
+            timezone=timezone,
+            currency=currency,
+        )
+        session.add(new_settings)
+
+        # Default HQ Branch
+        hq_branch = Branch(
+            id=uuid.uuid4(),
+            organization_id=new_org.id,
+            name="Headquarters",
+            code="HQ",
+            is_active=True,
+        )
+        session.add(hq_branch)
+
+        # If actor exists, add them as organization owner
+        if actor_id:
+            membership = OrganizationMembership(
+                id=uuid.uuid4(),
+                organization_id=new_org.id,
+                profile_id=actor_id,
+                status="active",
+            )
+            session.add(membership)
+
+        await AuditLogService.record_audit_log(
+            session=session,
+            organization_id=new_org.id,
+            actor_id=actor_id,
+            action="organization.created",
+            entity_type="organization",
+            entity_id=new_org.id,
+            details={"name": name, "slug": clean_slug},
+            ip_address=ip_address,
+        )
+        await session.commit()
+        await session.refresh(new_org)
+        return await SaaSAdminService.get_organization_detail(session, new_org.id)
+
+    @staticmethod
+    async def update_organization(
+        session: AsyncSession,
+        org_id: UUID,
+        name: str | None = None,
+        slug: str | None = None,
+        is_active: bool | None = None,
+        actor_id: UUID | None = None,
+        ip_address: str | None = None,
+    ) -> OrganizationDetailResponse:
+        org = await session.scalar(select(Organization).where(Organization.id == org_id))
+        if not org:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+
+        changes: dict[str, Any] = {}
+        if name and name.strip():
+            changes["name"] = name.strip()
+            org.name = name.strip()
+        if slug and slug.strip():
+            clean_slug = slug.strip().lower()
+            existing = await session.scalar(
+                select(Organization).where(Organization.slug == clean_slug, Organization.id != org_id)
+            )
+            if existing:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Organization slug already exists")
+            changes["slug"] = clean_slug
+            org.slug = clean_slug
+        if is_active is not None:
+            changes["is_active"] = is_active
+            org.is_active = is_active
+            if is_active:
+                org.status = "active"
+                org.suspension_reason = None
+                org.suspended_at = None
+            else:
+                org.status = "suspended"
+                org.suspended_at = datetime.now(UTC)
+
+        session.add(org)
+        await AuditLogService.record_audit_log(
+            session=session,
+            organization_id=org.id,
+            actor_id=actor_id,
+            action="organization.updated",
+            entity_type="organization",
+            entity_id=org.id,
+            details=changes,
+            ip_address=ip_address,
+        )
+        await session.commit()
+        await session.refresh(org)
+        return await SaaSAdminService.get_organization_detail(session, org_id)
+
+    @staticmethod
+    async def delete_organization(
+        session: AsyncSession,
+        org_id: UUID,
+        actor_id: UUID | None = None,
+        ip_address: str | None = None,
+    ) -> None:
+        org = await session.scalar(select(Organization).where(Organization.id == org_id))
+        if not org:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+
+        # Soft delete / suspend with decommission notice
+        org.status = "suspended"
+        org.is_active = False
+        org.suspension_reason = "Decommissioned by platform administrator"
+        org.suspended_at = datetime.now(UTC)
+        session.add(org)
+
+        await AuditLogService.record_audit_log(
+            session=session,
+            organization_id=org.id,
+            actor_id=actor_id,
+            action="organization.deleted",
+            entity_type="organization",
+            entity_id=org.id,
+            details={"name": org.name, "slug": org.slug},
+            ip_address=ip_address,
+        )
+        await session.commit()
+
+
+    @staticmethod
     async def list_members(
         session: AsyncSession,
         page: int = 1,

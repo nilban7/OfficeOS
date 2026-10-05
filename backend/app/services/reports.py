@@ -114,106 +114,40 @@ class ReportsService:
     ) -> ExecutiveOverviewReport:
         today = datetime.now(UTC).date()
 
-        # Employees count
-        active_emp_count = await session.scalar(
-            select(func.count(Employee.id)).where(
-                Employee.organization_id == organization_id,
-                Employee.status == "active",
-            )
-        ) or 0
+        stmt = select(
+            select(func.count(Employee.id)).where(Employee.organization_id == organization_id, Employee.status == "active").scalar_subquery().label("active_emp_count"),
+            select(func.count(AttendanceRecord.id)).where(AttendanceRecord.organization_id == organization_id, AttendanceRecord.work_date == today).scalar_subquery().label("total_att_records_today"),
+            select(func.count(AttendanceRecord.id)).where(AttendanceRecord.organization_id == organization_id, AttendanceRecord.work_date == today, AttendanceRecord.status == "present").scalar_subquery().label("att_today_count"),
+            select(func.count(LeaveRequest.id)).where(LeaveRequest.organization_id == organization_id, LeaveRequest.status == "pending").scalar_subquery().label("pending_leaves"),
+            select(func.count(Project.id)).where(Project.organization_id == organization_id, Project.status.in_(["active", "in_progress"])).scalar_subquery().label("active_projects"),
+            select(func.count(Client.id)).where(Client.organization_id == organization_id, Client.status == "active").scalar_subquery().label("active_clients"),
+            select(func.count(PurchaseRequest.id)).where(PurchaseRequest.organization_id == organization_id, PurchaseRequest.status.in_(["submitted", "pending"])).scalar_subquery().label("pending_purchases"),
+            select(func.count(MaintenanceRequest.id)).where(MaintenanceRequest.organization_id == organization_id, MaintenanceRequest.status.in_(["submitted", "in_progress", "scheduled"])).scalar_subquery().label("open_maintenance"),
+            select(func.count(OperationTask.id)).where(OperationTask.organization_id == organization_id, OperationTask.status.in_(["open", "in_progress"])).scalar_subquery().label("open_ops_tasks"),
+            select(func.count(TrainingSession.id)).where(TrainingSession.organization_id == organization_id, TrainingSession.session_date >= today, TrainingSession.status.in_(["scheduled", "open"])).scalar_subquery().label("upcoming_trainings"),
+            select(func.count(Internship.id)).where(Internship.organization_id == organization_id, Internship.status == "active").scalar_subquery().label("active_internships"),
+            select(func.count(Document.id)).where(Document.organization_id == organization_id).scalar_subquery().label("doc_count"),
+        )
+        row = (await session.execute(stmt)).first()
 
-        # Attendance today
-        att_row = (
-            await session.execute(
-                select(
-                    func.count(AttendanceRecord.id),
-                    func.count(AttendanceRecord.id).filter(AttendanceRecord.status == "present"),
-                ).where(
-                    AttendanceRecord.organization_id == organization_id,
-                    AttendanceRecord.work_date == today,
-                )
-            )
-        ).first()
-        att_today_count = att_row[1] if att_row else 0
-        total_att_records_today = att_row[0] if att_row else 0
+        active_emp_count = row[0] if row and row[0] is not None else 0
+        total_att_records_today = row[1] if row and row[1] is not None else 0
+        att_today_count = row[2] if row and row[2] is not None else 0
+        pending_leaves = row[3] if row and row[3] is not None else 0
+        active_projects = row[4] if row and row[4] is not None else 0
+        active_clients = row[5] if row and row[5] is not None else 0
+        pending_purchases = row[6] if row and row[6] is not None else 0
+        open_maintenance = row[7] if row and row[7] is not None else 0
+        open_ops_tasks = row[8] if row and row[8] is not None else 0
+        upcoming_trainings = row[9] if row and row[9] is not None else 0
+        active_internships = row[10] if row and row[10] is not None else 0
+        doc_count = row[11] if row and row[11] is not None else 0
 
         att_rate = Decimal("0.0")
         if active_emp_count > 0:
             att_rate = _round_rate((Decimal(att_today_count) / Decimal(active_emp_count)) * Decimal(100))
         elif total_att_records_today > 0:
             att_rate = _round_rate((Decimal(att_today_count) / Decimal(total_att_records_today)) * Decimal(100))
-
-        # Pending leave requests
-        pending_leaves = await session.scalar(
-            select(func.count(LeaveRequest.id)).where(
-                LeaveRequest.organization_id == organization_id,
-                LeaveRequest.status == "pending",
-            )
-        ) or 0
-
-        # Active projects
-        active_projects = await session.scalar(
-            select(func.count(Project.id)).where(
-                Project.organization_id == organization_id,
-                Project.status.in_(["active", "in_progress"]),
-            )
-        ) or 0
-
-        # Active clients
-        active_clients = await session.scalar(
-            select(func.count(Client.id)).where(
-                Client.organization_id == organization_id,
-                Client.status == "active",
-            )
-        ) or 0
-
-        # Pending purchase requests
-        pending_purchases = await session.scalar(
-            select(func.count(PurchaseRequest.id)).where(
-                PurchaseRequest.organization_id == organization_id,
-                PurchaseRequest.status.in_(["submitted", "pending"]),
-            )
-        ) or 0
-
-        # Open maintenance requests
-        open_maintenance = await session.scalar(
-            select(func.count(MaintenanceRequest.id)).where(
-                MaintenanceRequest.organization_id == organization_id,
-                MaintenanceRequest.status.in_(["submitted", "in_progress", "scheduled"]),
-            )
-        ) or 0
-
-        # Open operations tasks
-        open_ops_tasks = await session.scalar(
-            select(func.count(OperationTask.id)).where(
-                OperationTask.organization_id == organization_id,
-                OperationTask.status.in_(["open", "in_progress"]),
-            )
-        ) or 0
-
-        # Upcoming training sessions
-        upcoming_trainings = await session.scalar(
-            select(func.count(TrainingSession.id)).where(
-                TrainingSession.organization_id == organization_id,
-                TrainingSession.session_date >= today,
-                TrainingSession.status.in_(["scheduled", "open"]),
-            )
-        ) or 0
-
-        # Active internships
-        active_internships = await session.scalar(
-            select(func.count(Internship.id)).where(
-                Internship.organization_id == organization_id,
-                Internship.status == "active",
-            )
-        ) or 0
-
-        # Documents count
-        doc_count = await session.scalar(
-            select(func.count(Document.id)).where(
-                Document.organization_id == organization_id,
-            )
-        ) or 0
 
         # Unread notifications count for current profile
         unread_notifications = 0

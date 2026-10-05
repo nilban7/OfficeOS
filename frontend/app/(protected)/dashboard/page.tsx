@@ -23,6 +23,7 @@ import { API_ENDPOINTS } from "@/lib/api/endpoints";
 import { env } from "@/lib/config/env";
 import { ROUTES } from "@/constants/routes";
 import type { ExecutiveOverviewReport } from "@/types/reports";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -32,15 +33,36 @@ export default function DashboardPage() {
 
   React.useEffect(() => {
     let isMounted = true;
+    const orgId = currentOrganization?.id;
+    if (!orgId) return;
+
+    // Check localStorage cache for instant zero-latency hydration
+    try {
+      const cached = localStorage.getItem(`officeos_cached_overview_${orgId}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed === "object") {
+          setOverview(parsed);
+        }
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+
     async function fetchDashboardMetrics() {
-      if (!currentOrganization?.id) return;
+      if (!orgId) return;
       setIsLoadingMetrics(true);
       try {
         const res = await apiClient.get<ExecutiveOverviewReport>(API_ENDPOINTS.reports.overview, {
-          organizationId: currentOrganization.id,
+          organizationId: orgId,
         });
         if (isMounted && res) {
           setOverview(res);
+          try {
+            localStorage.setItem(`officeos_cached_overview_${orgId}`, JSON.stringify(res));
+          } catch {
+            // Ignore quota errors
+          }
         }
       } catch {
         // Fallback to null; cards will display graceful dashes or standard indicators
@@ -60,13 +82,41 @@ export default function DashboardPage() {
   const greetingName =
     user?.firstName || user?.fullName || user?.email?.split("@")[0] || "Team Member";
 
-  const totalEmployees = overview ? overview.active_employees_count : (isLoadingMetrics ? "..." : "—");
-  const attendanceDisplay = overview
-    ? `${overview.attendance_today_count} / ${overview.active_employees_count}`
-    : (isLoadingMetrics ? "..." : "—");
-  const attendanceRate = overview ? `${overview.attendance_rate_today}% attendance rate` : "Today's rate";
-  const pendingLeaves = overview ? overview.pending_leaves_count : (isLoadingMetrics ? "..." : "—");
-  const activeProjects = overview ? overview.active_projects_count : (isLoadingMetrics ? "..." : "—");
+  const totalEmployees = overview ? (
+    overview.active_employees_count
+  ) : isLoadingMetrics ? (
+    <Skeleton className="h-8 w-14" />
+  ) : (
+    "—"
+  );
+  const attendanceDisplay = overview ? (
+    `${overview.attendance_today_count} / ${overview.active_employees_count}`
+  ) : isLoadingMetrics ? (
+    <Skeleton className="h-8 w-20" />
+  ) : (
+    "—"
+  );
+  const attendanceRate = overview ? (
+    `${overview.attendance_rate_today}% attendance rate`
+  ) : isLoadingMetrics ? (
+    <Skeleton className="h-4 w-28 mt-0.5" />
+  ) : (
+    "Today's rate"
+  );
+  const pendingLeaves = overview ? (
+    overview.pending_leaves_count
+  ) : isLoadingMetrics ? (
+    <Skeleton className="h-8 w-14" />
+  ) : (
+    "—"
+  );
+  const activeProjects = overview ? (
+    overview.active_projects_count
+  ) : isLoadingMetrics ? (
+    <Skeleton className="h-8 w-14" />
+  ) : (
+    "—"
+  );
 
   return (
     <div className="space-y-8">
@@ -127,9 +177,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-slate-900">{attendanceDisplay}</div>
-            <p className="text-xs text-slate-500 mt-1">
+            <div className="text-xs text-slate-500 mt-1">
               {attendanceRate}
-            </p>
+            </div>
           </CardContent>
         </Card>
 

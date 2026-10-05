@@ -10,9 +10,11 @@ from app.dependencies.saas import get_saas_admin_session, require_system_admin
 from app.schemas.audit import AuditLogResponse
 from app.schemas.common import ApiSuccess
 from app.schemas.saas import (
+    OrganizationCreateRequest,
     OrganizationDetailResponse,
     OrganizationDirectoryResponse,
     OrganizationSuspendRequest,
+    OrganizationUpdateRequest,
     PlatformAnnouncementCreate,
     PlatformAnnouncementResponse,
     PlatformAnnouncementUpdate,
@@ -71,6 +73,77 @@ async def list_organizations(
         status_filter=status,
     )
     return ApiSuccess(data=data)
+
+
+@router.post(
+    "/organizations",
+    response_model=ApiSuccess[OrganizationDetailResponse],
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new organization in the SaaS platform",
+)
+async def create_organization(
+    data: OrganizationCreateRequest,
+    request: Request,
+    current_user: Annotated[AuthenticatedUser, Depends(require_system_admin)],
+    session: Annotated[AsyncSession, Depends(get_saas_admin_session)],
+) -> ApiSuccess[OrganizationDetailResponse]:
+    actor = await get_profile(session, current_user)
+    result = await SaaSAdminService.create_organization(
+        session=session,
+        name=data.name,
+        slug=data.slug,
+        timezone=data.timezone,
+        currency=data.currency,
+        actor_id=actor.id if actor else None,
+        ip_address=get_ip_address(request),
+    )
+    return ApiSuccess(data=result, message="Organization created successfully")
+
+
+@router.patch(
+    "/organizations/{organization_id}",
+    response_model=ApiSuccess[OrganizationDetailResponse],
+    summary="Update organization details",
+)
+async def update_organization(
+    organization_id: UUID,
+    data: OrganizationUpdateRequest,
+    request: Request,
+    current_user: Annotated[AuthenticatedUser, Depends(require_system_admin)],
+    session: Annotated[AsyncSession, Depends(get_saas_admin_session)],
+) -> ApiSuccess[OrganizationDetailResponse]:
+    actor = await get_profile(session, current_user)
+    result = await SaaSAdminService.update_organization(
+        session=session,
+        org_id=organization_id,
+        name=data.name,
+        slug=data.slug,
+        is_active=data.is_active,
+        actor_id=actor.id if actor else None,
+        ip_address=get_ip_address(request),
+    )
+    return ApiSuccess(data=result, message="Organization updated successfully")
+
+
+@router.delete(
+    "/organizations/{organization_id}",
+    response_model=ApiSuccess[None],
+    summary="Delete an organization",
+)
+async def delete_organization(
+    organization_id: UUID,
+    request: Request,
+    current_user: Annotated[AuthenticatedUser, Depends(require_system_admin)],
+    session: Annotated[AsyncSession, Depends(get_saas_admin_session)],
+) -> ApiSuccess[None]:
+    actor = await get_profile(session, current_user)
+    await SaaSAdminService.delete_organization(
+        session=session,
+        org_id=organization_id,
+        actor_id=actor.id if actor else None,
+        ip_address=get_ip_address(request),
+    )
+    return ApiSuccess(data=None, message="Organization removed successfully")
 
 
 @router.get(
