@@ -142,3 +142,13 @@ export interface HolidayUpdateInput {
   description?: string | null;
   is_optional?: boolean;
 }
+
+export interface PaginatedLeaveRequests {
+  items: LeaveRequest[];
+  meta: {
+    total: number;
+    page: number;
+    page_size: number;
+    total_pages: number;
+  };
+}

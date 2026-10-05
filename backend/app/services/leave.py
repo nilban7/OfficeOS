@@ -382,13 +382,11 @@ async def list_leave_requests(
 
     return PaginatedData(
         items=items,
-        pagination=PaginationMeta(
+        meta=PaginationMeta(
             page=page,
             page_size=page_size,
-            total_items=total_items,
+            total=total_items,
             total_pages=total_pages,
-            has_next=page < total_pages,
-            has_previous=page > 1,
         ),
     )
 
