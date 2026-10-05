@@ -42,8 +42,57 @@ export function LoadingState({
 export function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("animate-pulse rounded-md bg-slate-200/80", className)}
+      className={cn(
+        "relative overflow-hidden rounded-md bg-slate-100/90 before:absolute before:inset-0 before:-translate-x-full before:animate-shimmer before:bg-gradient-to-r before:from-transparent before:via-white/60 before:to-transparent",
+        className
+      )}
       {...props}
     />
   );
 }
+
+export function CardSkeleton({ className }: { className?: string }) {
+  return (
+    <div className={cn("rounded-xl border border-slate-200/80 bg-white p-6 shadow-card space-y-4", className)}>
+      <Skeleton className="h-5 w-1/3" />
+      <Skeleton className="h-4 w-2/3" />
+      <div className="pt-2 space-y-2">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+    </div>
+  );
+}
+
+export function TableSkeleton({ rows = 5, cols = 4 }: { rows?: number; cols?: number }) {
+  return (
+    <div className="rounded-xl border border-slate-200/80 bg-white shadow-card overflow-hidden">
+      <div className="border-b border-slate-100 bg-slate-50/50 p-4">
+        <Skeleton className="h-6 w-1/4" />
+      </div>
+      <div className="divide-y divide-slate-100 p-4 space-y-3">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="flex items-center gap-4 pt-3 first:pt-0">
+            {Array.from({ length: cols }).map((_, j) => (
+              <Skeleton key={j} className={cn("h-4 flex-1", j === 0 ? "w-1/4" : "w-auto")} />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function StatCardSkeleton() {
+  return (
+    <div className="rounded-xl border border-slate-200/80 bg-white p-6 shadow-card space-y-3">
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-8 w-8 rounded-lg" />
+      </div>
+      <Skeleton className="h-8 w-20" />
+      <Skeleton className="h-3 w-32" />
+    </div>
+  );
+}
+

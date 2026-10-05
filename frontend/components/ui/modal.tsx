@@ -60,7 +60,7 @@ export function Modal({
     >
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-slate-900/40 backdrop-blur-md transition-opacity duration-200"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -68,7 +68,7 @@ export function Modal({
       {/* Modal Dialog Content */}
       <div
         className={cn(
-          "relative z-50 w-full rounded-xl bg-white p-6 shadow-xl animate-in fade-in-0 zoom-in-95",
+          "relative z-50 w-full rounded-2xl bg-white p-6 shadow-modal border border-slate-100 animate-in fade-in-0 zoom-in-95 duration-200",
           sizeClasses[size],
           className
         )}

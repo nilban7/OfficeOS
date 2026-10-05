@@ -17,11 +17,11 @@ export function AppSidebar() {
   }, [membership, permissions]);
 
   return (
-    <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 border-r border-slate-200 bg-white shadow-sm z-30">
+    <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 border-r border-slate-200/80 bg-white shadow-subtle z-30">
       {/* Brand / Logo */}
       <div className="flex h-16 items-center px-6 border-b border-slate-100">
         <Link href="/dashboard" className="flex items-center space-x-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-600 text-white shadow-sm">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-600 text-white shadow-subtle">
             <Building2 className="h-5 w-5" />
           </div>
           <div>
@@ -64,9 +64,9 @@ export function AppSidebar() {
                     key={item.href}
                     href={item.disabled ? "#" : item.href}
                     className={cn(
-                      "group flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                      "group flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
                       isActive
-                        ? "bg-primary-50 text-primary-700 shadow-sm"
+                        ? "bg-primary-50/90 text-primary-700 shadow-subtle font-semibold"
                         : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
                       item.disabled && "pointer-events-none opacity-50"
                     )}

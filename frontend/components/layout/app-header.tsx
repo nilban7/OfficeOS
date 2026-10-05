@@ -46,7 +46,7 @@ export function AppHeader() {
 
   return (
     <>
-      <header className="sticky top-0 z-20 flex h-16 w-full items-center justify-between border-b border-slate-200 bg-white/95 px-4 sm:px-6 backdrop-blur transition-all">
+      <header className="sticky top-0 z-20 flex h-16 w-full items-center justify-between border-b border-slate-200/80 bg-white/80 px-4 sm:px-6 backdrop-blur-md shadow-subtle transition-all duration-200">
         {/* Left Section: Mobile Menu Trigger + Org Switcher */}
         <div className="flex items-center space-x-3 sm:space-x-4">
           <button
@@ -68,7 +68,7 @@ export function AppHeader() {
             <input
               type="text"
               placeholder="Quick search... (Press ⌘K)"
-              className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50/50 pl-9 pr-4 text-xs text-slate-700 placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary-500 transition-all"
+              className="h-9 w-full rounded-lg border border-slate-200/80 bg-slate-50/70 pl-9 pr-4 text-xs text-slate-700 placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-500/10 transition-all duration-150"
               readOnly
             />
           </div>
