@@ -268,6 +268,7 @@ describe("AttendancePage Component", () => {
     await waitFor(() => {
       expect(apiClient.post).toHaveBeenCalledWith(
         "/attendance/clock-in",
+        expect.anything(),
         expect.objectContaining({
           organizationId: "org-uuid-1111",
         })
@@ -296,6 +297,9 @@ describe("AttendancePage Component", () => {
       expect(apiClient.post).toHaveBeenCalledWith(
         "/attendance",
         expect.objectContaining({
+          employee_id: "emp-uuid-1",
+        }),
+        expect.objectContaining({
           organizationId: "org-uuid-1111",
         })
       );
@@ -322,6 +326,9 @@ describe("AttendancePage Component", () => {
     await waitFor(() => {
       expect(apiClient.patch).toHaveBeenCalledWith(
         "/attendance/att-uuid-1",
+        expect.objectContaining({
+          status: "present",
+        }),
         expect.objectContaining({
           organizationId: "org-uuid-1111",
         })
