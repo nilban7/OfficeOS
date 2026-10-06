@@ -5,6 +5,7 @@ Provides secure, tenant-isolated automation workflow management, safe primitive 
 No arbitrary code, shell commands, or raw SQL execution allowed.
 """
 
+import inspect
 import time
 import uuid
 from datetime import UTC, datetime
@@ -253,14 +254,15 @@ class AutomationService:
         session: AsyncSession,
         organization_id: UUID,
         automation_id: UUID,
-        auth_user_id: UUID | None,
+        auth_user_id: UUID | None = None,
+        actor_profile_id: UUID | None = None,
         trigger_source: str = "manual",
         input_payload: dict[str, Any] | None = None,
         ip_address: str | None = None,
     ) -> AutomationExecutionResponse:
         start_time = time.perf_counter()
-        profile_id: UUID | None = None
-        if auth_user_id:
+        profile_id: UUID | None = actor_profile_id
+        if not profile_id and auth_user_id:
             profile_stmt = select(Profile.id).where(Profile.auth_user_id == auth_user_id)
             profile_id = await session.scalar(profile_stmt)
 
@@ -298,29 +300,78 @@ class AutomationService:
         try:
             # Execute safe primitive action
             if automation.action_type == "notification":
-                recipient_id = automation.action_config.get("recipient_id") or profile_id
-                if not recipient_id:
-                    # Default to creator
-                    recipient_id = automation.created_by_id
+                target_recipient = str(automation.action_config.get("target_recipient", "requester")).lower()
+                payload_recipient = (input_payload or {}).get("recipient_id")
+
+                if target_recipient == "creator":
+                    recipient_raw = automation.created_by_id
+                elif target_recipient == "actor":
+                    recipient_raw = profile_id or automation.created_by_id
+                elif payload_recipient:
+                    recipient_raw = payload_recipient
                 else:
-                    try:
-                        recipient_id = UUID(str(recipient_id))
-                    except ValueError:
-                        recipient_id = automation.created_by_id
+                    recipient_raw = (
+                        automation.action_config.get("recipient_id")
+                        or profile_id
+                        or automation.created_by_id
+                    )
+
+                try:
+                    recipient_id = UUID(str(recipient_raw))
+                except (ValueError, TypeError):
+                    recipient_id = automation.created_by_id
+
+                # Resolve route / URL
+                action_url = (
+                    automation.action_config.get("route")
+                    or automation.action_config.get("action_url")
+                    or (input_payload or {}).get("route")
+                    or (input_payload or {}).get("action_url")
+                )
+
+                # Resolve notification type
+                valid_types = {
+                    "system", "task", "project", "document", "leave",
+                    "attendance", "finance", "maintenance", "training", "general",
+                }
+                notif_type = automation.action_config.get("notification_type") or (input_payload or {}).get("notification_type")
+                if not notif_type or notif_type not in valid_types:
+                    if "leave" in automation.name.lower() or "leave" in trigger_source.lower():
+                        notif_type = "leave"
+                    elif "task" in automation.name.lower():
+                        notif_type = "task"
+                    elif "attendance" in automation.name.lower():
+                        notif_type = "attendance"
+                    elif "finance" in automation.name.lower() or "expense" in automation.name.lower():
+                        notif_type = "finance"
+                    else:
+                        notif_type = "system"
 
                 title = automation.action_config.get("title", f"Automation Alert: {automation.name}")
                 message = automation.action_config.get(
                     "message", "This is an automated notification triggered by OfficeOS Automation Engine."
                 )
 
+                # Replace string templates if present in input_payload
+                if input_payload:
+                    for k, v in input_payload.items():
+                        if isinstance(v, (str, int, float)):
+                            placeholder = f"{{{k}}}"
+                            title = title.replace(placeholder, str(v))
+                            message = message.replace(placeholder, str(v))
+
                 notif = Notification(
                     id=uuid.uuid4(),
                     organization_id=organization_id,
                     recipient_id=recipient_id,
-                    notification_type="system",
+                    notification_type=notif_type,
                     title=title,
                     message=message,
-                    metadata_json={"automation_id": str(automation.id)},
+                    action_url=str(action_url) if action_url else None,
+                    metadata_json={
+                        "automation_id": str(automation.id),
+                        **(input_payload or {}),
+                    },
                     created_at=datetime.now(UTC),
                     updated_at=datetime.now(UTC),
                 )
@@ -348,6 +399,13 @@ class AutomationService:
                 task_title = automation.action_config.get("title", f"Automated Task: {automation.name}")
                 task_desc = automation.action_config.get("description", "Created by OfficeOS Automation workflow.")
                 priority = automation.action_config.get("priority", "medium")
+
+                if input_payload:
+                    for k, v in input_payload.items():
+                        if isinstance(v, (str, int, float)):
+                            placeholder = f"{{{k}}}"
+                            task_title = task_title.replace(placeholder, str(v))
+                            task_desc = task_desc.replace(placeholder, str(v))
 
                 task = OperationTask(
                     id=uuid.uuid4(),
@@ -415,6 +473,78 @@ class AutomationService:
         return AutomationExecutionResponse.model_validate(execution)
 
     @staticmethod
+    async def dispatch_event(
+        session: AsyncSession,
+        organization_id: UUID,
+        event_name: str,
+        payload: dict[str, Any] | None = None,
+        actor_profile_id: UUID | None = None,
+        ip_address: str | None = None,
+    ) -> list[AutomationExecutionResponse]:
+        """Dispatches an event across active tenant automations matching the event route/name."""
+        stmt = (
+            select(Automation)
+            .where(
+                Automation.organization_id == organization_id,
+                Automation.is_active == True,  # noqa: E712
+                Automation.trigger_type == "event",
+            )
+        )
+        candidates_result = await session.scalars(stmt)
+        candidates: list[Any] = []
+        if candidates_result:
+            if hasattr(candidates_result, "all"):
+                raw_candidates = candidates_result.all()
+                if inspect.isawaitable(raw_candidates):
+                    raw_candidates = await raw_candidates
+                candidates = list(raw_candidates) if raw_candidates else []
+            elif isinstance(candidates_result, (list, tuple)):
+                candidates = list(candidates_result)
+
+        executions: list[AutomationExecutionResponse] = []
+        normalized_event = event_name.strip().lower()
+
+        for auto in candidates:
+            cfg = auto.trigger_config or {}
+            cfg_event = str(cfg.get("event_name") or cfg.get("event_route") or "").strip().lower()
+
+            # Determine whether this automation matches the event
+            is_match = False
+            if cfg_event == normalized_event:
+                is_match = True
+            elif normalized_event == "leave.approved" and (
+                cfg_event in ["leave.approved", "leave_request.approve", "leave_request.approved", "leave.accepted", "leave_approval"]
+                # Also match existing rules named like "Notify on Leave Approval" created with default/custom trigger
+                or (cfg_event in ["", "custom.trigger"] and "leave" in auto.name.lower() and any(k in auto.name.lower() for k in ["approv", "accept"]))
+            ):
+                is_match = True
+            elif normalized_event == "leave.rejected" and (
+                cfg_event in ["leave.rejected", "leave_request.reject"]
+                or (cfg_event in ["", "custom.trigger"] and "leave" in auto.name.lower() and "reject" in auto.name.lower())
+            ):
+                is_match = True
+            elif normalized_event == "leave.requested" and (
+                cfg_event in ["leave.requested", "leave_request.create", "leave.created"]
+                or (cfg_event in ["", "custom.trigger"] and "leave" in auto.name.lower() and any(k in auto.name.lower() for k in ["request", "submit", "apply"]))
+            ):
+                is_match = True
+
+            if is_match:
+                res = await AutomationService.execute_automation(
+                    session=session,
+                    organization_id=organization_id,
+                    automation_id=auto.id,
+                    auth_user_id=None,
+                    actor_profile_id=actor_profile_id,
+                    trigger_source=f"event:{normalized_event}",
+                    input_payload=payload or {},
+                    ip_address=ip_address,
+                )
+                executions.append(res)
+
+        return executions
+
+    @staticmethod
     async def list_executions(
         session: AsyncSession,
         organization_id: UUID,
@@ -434,3 +564,4 @@ class AutomationService:
         )
         result = await session.scalars(stmt)
         return [AutomationExecutionResponse.model_validate(e) for e in result.all()]
+

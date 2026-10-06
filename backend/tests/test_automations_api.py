@@ -14,6 +14,7 @@ from app.core.security import AuthenticatedUser
 from app.dependencies.auth import get_current_user
 from app.dependencies.tenant import get_tenant_session
 from app.main import app
+from app.models.automation import Automation
 from app.schemas.automation import (
     AutomationExecutionResponse,
     AutomationResponse,
@@ -303,3 +304,55 @@ async def test_delete_automation_authorized(mock_user: AuthenticatedUser, org_id
             assert res.json()["success"] is True
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_dispatch_event_triggers_leave_approved_automation(
+    org_id: UUID, sample_automation: AutomationResponse
+):
+    mock_session = AsyncMock()
+    auto_model = Automation(
+        id=sample_automation.id,
+        organization_id=org_id,
+        name="NOTIFY ON LEAVE APPROVAL",
+        description="DISPATCHES AN ALERT WHEN LEAVE IS APPROVED",
+        is_active=True,
+        trigger_type="event",
+        trigger_config={"event_name": "leave.approved"},
+        action_type="notification",
+        action_config={
+            "title": "Leave Approved for {employee_name}",
+            "message": "Your leave starting {start_date} has been approved.",
+            "route": "/leave",
+            "target_recipient": "requester",
+        },
+        created_by_id=uuid4(),
+        run_count=0,
+    )
+    mock_session.scalars.return_value.all.return_value = [auto_model]
+    mock_session.scalar.return_value = auto_model
+
+    recipient_profile_id = uuid4()
+    payload = {
+        "event": "leave.approved",
+        "employee_name": "Alice Smith",
+        "recipient_id": str(recipient_profile_id),
+        "start_date": "2026-10-10",
+        "end_date": "2026-10-12",
+        "route": "/leave",
+    }
+
+    with patch("app.services.audit.AuditLogService.record_audit_log", new=AsyncMock()):
+        executions = await AutomationService.dispatch_event(
+            session=mock_session,
+            organization_id=org_id,
+            event_name="leave.approved",
+            payload=payload,
+        )
+
+    assert len(executions) == 1
+    assert executions[0].status == "success"
+    assert executions[0].trigger_source == "event:leave.approved"
+    assert auto_model.run_count == 1
+    assert auto_model.last_run_status == "success"
+
