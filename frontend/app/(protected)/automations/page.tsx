@@ -691,22 +691,31 @@ export default function AutomationsPage() {
 
       {/* CREATE MODAL */}
       {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full overflow-hidden my-8">
-            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
-              <div className="flex items-center space-x-2">
-                <Workflow className="h-5 w-5 text-primary-600" />
-                <h3 className="text-sm font-bold text-slate-900">Create Automation Workflow</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-6">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/80 max-w-2xl w-full max-h-[88vh] flex flex-col overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
+            {/* Header (Fixed) */}
+            <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/90">
+              <div className="flex items-center space-x-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-100 text-primary-700">
+                  <Workflow className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Create Automation Workflow</h3>
+                  <p className="text-[11px] text-slate-500">Configure trigger events and automated actions</p>
+                </div>
               </div>
               <button
+                type="button"
                 onClick={() => setIsCreateOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                aria-label="Close dialog"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateSubmit} className="p-4 space-y-4">
+            {/* Scrollable Form Body */}
+            <form id="create-automation-form" onSubmit={handleCreateSubmit} className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-700">Workflow Name *</label>
                 <Input
@@ -728,13 +737,13 @@ export default function AutomationsPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-700">Trigger Mechanism</label>
                   <select
                     value={newTriggerType}
                     onChange={(e) => setNewTriggerType(e.target.value as "event" | "schedule" | "manual")}
-                    className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800"
+                    className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800 shadow-sm"
                   >
                     <option value="event">Event-Triggered</option>
                     <option value="schedule">Scheduled Recurring</option>
@@ -747,7 +756,7 @@ export default function AutomationsPage() {
                   <select
                     value={newActionType}
                     onChange={(e) => setNewActionType(e.target.value as "notification" | "audit_log" | "task_create")}
-                    className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800"
+                    className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800 shadow-sm"
                   >
                     <option value="notification">In-App Notification</option>
                     <option value="audit_log">Audit Trail Entry</option>
@@ -758,16 +767,16 @@ export default function AutomationsPage() {
 
               {/* ROUTE & EVENT CONFIGURATION */}
               {newTriggerType === "event" && (
-                <div className="p-3 bg-slate-50/80 rounded-lg border border-slate-200 space-y-3">
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
                       <span>Trigger Event Route *</span>
-                      <span className="text-[10px] text-slate-400 font-normal">Identifies which system event fires this</span>
+                      <span className="text-[10px] text-slate-500 font-normal">Identifies which system event fires this</span>
                     </label>
                     <select
                       value={newEventRoute}
                       onChange={(e) => handleEventRouteChange(e.target.value, false)}
-                      className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800 font-medium"
+                      className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800 font-medium shadow-sm"
                     >
                       {PRESET_EVENT_ROUTES.map((p) => (
                         <option key={p.id} value={p.id}>
@@ -793,12 +802,12 @@ export default function AutomationsPage() {
               )}
 
               {newTriggerType === "schedule" && (
-                <div className="space-y-1 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="space-y-1 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
                   <label className="text-xs font-semibold text-slate-700">Recurring Schedule Interval</label>
                   <select
                     value={newScheduleInterval}
                     onChange={(e) => setNewScheduleInterval(e.target.value)}
-                    className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800"
+                    className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800 shadow-sm"
                   >
                     <option value="hourly">Hourly</option>
                     <option value="daily">Daily (Default)</option>
@@ -808,38 +817,42 @@ export default function AutomationsPage() {
                 </div>
               )}
 
-              {/* ACTION DESTINATION ROUTE */}
-              <div className="space-y-1 pt-1">
-                <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
-                  <span>Target Navigation Route (Link URL) *</span>
-                  <span className="text-[10px] text-slate-400 font-normal">Destination opened on click</span>
-                </label>
-                <Input
-                  value={newActionRoute}
-                  onChange={(e) => setNewActionRoute(e.target.value)}
-                  placeholder="e.g. /leave, /attendance, /finance, /operations"
-                  className="text-xs font-mono"
-                  required
-                />
-                <p className="text-[10px] text-slate-400">
-                  Direct route path users will navigate to when interacting with the notification or created task.
-                </p>
-              </div>
-
-              {newActionType === "notification" && (
+              {/* ACTION DESTINATION ROUTE & RECIPIENT */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">Target Recipient</label>
-                  <select
-                    value={newRecipientTarget}
-                    onChange={(e) => setNewRecipientTarget(e.target.value as "requester" | "actor" | "creator")}
-                    className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800"
-                  >
-                    <option value="requester">Employee / Requester (Subject of the event)</option>
-                    <option value="actor">Acting Manager / Reviewer (Person performing action)</option>
-                    <option value="creator">Automation Rule Creator (Admin)</option>
-                  </select>
+                  <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                    <span>Target Route (Link URL) *</span>
+                  </label>
+                  <Input
+                    value={newActionRoute}
+                    onChange={(e) => setNewActionRoute(e.target.value)}
+                    placeholder="e.g. /leave, /attendance, /finance, /operations"
+                    className="text-xs font-mono"
+                    required
+                  />
+                  <p className="text-[10px] text-slate-400">
+                    Destination opened on click (e.g. /leave).
+                  </p>
                 </div>
-              )}
+
+                {newActionType === "notification" && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-700">Target Recipient</label>
+                    <select
+                      value={newRecipientTarget}
+                      onChange={(e) => setNewRecipientTarget(e.target.value as "requester" | "actor" | "creator")}
+                      className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800 shadow-sm"
+                    >
+                      <option value="requester">Employee / Requester (Subject of event)</option>
+                      <option value="actor">Acting Manager (Person triggering action)</option>
+                      <option value="creator">Rule Creator (Admin)</option>
+                    </select>
+                    <p className="text-[10px] text-slate-400">
+                      Who receives the notification alert.
+                    </p>
+                  </div>
+                )}
+              </div>
 
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-700">Action Title / Header</label>
@@ -860,49 +873,60 @@ export default function AutomationsPage() {
                   className="text-xs"
                 />
               </div>
-
-              <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsCreateOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={isSubmitting}
-                  className="bg-primary-600 hover:bg-primary-700 text-white flex items-center gap-1.5"
-                >
-                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  <span>Create Workflow</span>
-                </Button>
-              </div>
             </form>
+
+            {/* Footer (Fixed, Never Cropped) */}
+            <div className="shrink-0 flex items-center justify-end space-x-3 px-6 py-3.5 border-t border-slate-100 bg-slate-50/90">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsCreateOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                form="create-automation-form"
+                size="sm"
+                disabled={isSubmitting}
+                className="bg-primary-600 hover:bg-primary-700 text-white flex items-center gap-1.5"
+              >
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                <span>Create Workflow</span>
+              </Button>
+            </div>
           </div>
         </div>
       )}
 
       {/* EDIT MODAL */}
       {editAutomation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full overflow-hidden my-8">
-            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
-              <div className="flex items-center space-x-2">
-                <Pencil className="h-4 w-4 text-primary-600" />
-                <h3 className="text-sm font-bold text-slate-900">Edit Automation Workflow</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-6">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/80 max-w-2xl w-full max-h-[88vh] flex flex-col overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
+            {/* Header (Fixed) */}
+            <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/90">
+              <div className="flex items-center space-x-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-100 text-primary-700">
+                  <Pencil className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Edit Automation Workflow</h3>
+                  <p className="text-[11px] text-slate-500">Modify triggers, routes, and actions</p>
+                </div>
               </div>
               <button
+                type="button"
                 onClick={() => setEditAutomation(null)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                aria-label="Close dialog"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <form onSubmit={handleEditSubmit} className="p-4 space-y-4">
+            {/* Scrollable Form Body */}
+            <form id="edit-automation-form" onSubmit={handleEditSubmit} className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-700">Workflow Name *</label>
                 <Input
@@ -922,13 +946,13 @@ export default function AutomationsPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-700">Trigger Mechanism</label>
                   <select
                     value={editTriggerType}
                     onChange={(e) => setEditTriggerType(e.target.value as "event" | "schedule" | "manual")}
-                    className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800"
+                    className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800 shadow-sm"
                   >
                     <option value="event">Event-Triggered</option>
                     <option value="schedule">Scheduled Recurring</option>
@@ -940,8 +964,8 @@ export default function AutomationsPage() {
                   <label className="text-xs font-semibold text-slate-700">Action Type</label>
                   <select
                     value={editActionType}
-                    onChange={(e) => setEditActionType(e.target.value as "notification" | "audit_log" | "task_create")}
-                    className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800"
+                    onChange={(e) => setNewActionType(e.target.value as "notification" | "audit_log" | "task_create")}
+                    className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800 shadow-sm"
                   >
                     <option value="notification">In-App Notification</option>
                     <option value="audit_log">Audit Trail Entry</option>
@@ -952,16 +976,16 @@ export default function AutomationsPage() {
 
               {/* ROUTE & EVENT CONFIGURATION */}
               {editTriggerType === "event" && (
-                <div className="p-3 bg-slate-50/80 rounded-lg border border-slate-200 space-y-3">
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
                       <span>Trigger Event Route *</span>
-                      <span className="text-[10px] text-slate-400 font-normal">Identifies which system event fires this</span>
+                      <span className="text-[10px] text-slate-500 font-normal">Identifies which system event fires this</span>
                     </label>
                     <select
                       value={editEventRoute}
                       onChange={(e) => handleEventRouteChange(e.target.value, true)}
-                      className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800 font-medium"
+                      className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800 font-medium shadow-sm"
                     >
                       {PRESET_EVENT_ROUTES.map((p) => (
                         <option key={p.id} value={p.id}>
@@ -987,12 +1011,12 @@ export default function AutomationsPage() {
               )}
 
               {editTriggerType === "schedule" && (
-                <div className="space-y-1 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="space-y-1 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
                   <label className="text-xs font-semibold text-slate-700">Recurring Schedule Interval</label>
                   <select
                     value={editScheduleInterval}
                     onChange={(e) => setEditScheduleInterval(e.target.value)}
-                    className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800"
+                    className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800 shadow-sm"
                   >
                     <option value="hourly">Hourly</option>
                     <option value="daily">Daily</option>
@@ -1002,35 +1026,42 @@ export default function AutomationsPage() {
                 </div>
               )}
 
-              {/* ACTION DESTINATION ROUTE */}
-              <div className="space-y-1 pt-1">
-                <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
-                  <span>Target Navigation Route (Link URL) *</span>
-                  <span className="text-[10px] text-slate-400 font-normal">Destination opened on click</span>
-                </label>
-                <Input
-                  value={editActionRoute}
-                  onChange={(e) => setEditActionRoute(e.target.value)}
-                  placeholder="e.g. /leave, /attendance, /finance, /operations"
-                  className="text-xs font-mono"
-                  required
-                />
-              </div>
-
-              {editActionType === "notification" && (
+              {/* ACTION DESTINATION ROUTE & RECIPIENT */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">Target Recipient</label>
-                  <select
-                    value={editRecipientTarget}
-                    onChange={(e) => setEditRecipientTarget(e.target.value as "requester" | "actor" | "creator")}
-                    className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800"
-                  >
-                    <option value="requester">Employee / Requester (Subject of the event)</option>
-                    <option value="actor">Acting Manager / Reviewer (Person performing action)</option>
-                    <option value="creator">Automation Rule Creator (Admin)</option>
-                  </select>
+                  <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                    <span>Target Route (Link URL) *</span>
+                  </label>
+                  <Input
+                    value={editActionRoute}
+                    onChange={(e) => setEditActionRoute(e.target.value)}
+                    placeholder="e.g. /leave, /attendance, /finance, /operations"
+                    className="text-xs font-mono"
+                    required
+                  />
+                  <p className="text-[10px] text-slate-400">
+                    Destination opened on click (e.g. /leave).
+                  </p>
                 </div>
-              )}
+
+                {editActionType === "notification" && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-700">Target Recipient</label>
+                    <select
+                      value={editRecipientTarget}
+                      onChange={(e) => setEditRecipientTarget(e.target.value as "requester" | "actor" | "creator")}
+                      className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800 shadow-sm"
+                    >
+                      <option value="requester">Employee / Requester (Subject of event)</option>
+                      <option value="actor">Acting Manager (Person triggering action)</option>
+                      <option value="creator">Rule Creator (Admin)</option>
+                    </select>
+                    <p className="text-[10px] text-slate-400">
+                      Who receives the notification alert.
+                    </p>
+                  </div>
+                )}
+              </div>
 
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-700">Action Title / Header</label>
@@ -1049,52 +1080,60 @@ export default function AutomationsPage() {
                   className="text-xs"
                 />
               </div>
-
-              <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setEditAutomation(null)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={isEditSubmitting}
-                  className="bg-primary-600 hover:bg-primary-700 text-white flex items-center gap-1.5"
-                >
-                  {isEditSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  <span>Save Changes</span>
-                </Button>
-              </div>
             </form>
+
+            {/* Footer (Fixed, Never Cropped) */}
+            <div className="shrink-0 flex items-center justify-end space-x-3 px-6 py-3.5 border-t border-slate-100 bg-slate-50/90">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setEditAutomation(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                form="edit-automation-form"
+                size="sm"
+                disabled={isEditSubmitting}
+                className="bg-primary-600 hover:bg-primary-700 text-white flex items-center gap-1.5"
+              >
+                {isEditSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                <span>Save Changes</span>
+              </Button>
+            </div>
           </div>
         </div>
       )}
 
       {/* EXECUTION HISTORY MODAL */}
       {historyAutomation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-2xl w-full overflow-hidden max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
-              <div className="flex items-center space-x-2">
-                <History className="h-5 w-5 text-slate-600" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-6">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/80 max-w-3xl w-full max-h-[88vh] flex flex-col overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
+            {/* Header (Fixed) */}
+            <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/90">
+              <div className="flex items-center space-x-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-700">
+                  <History className="h-4 w-4" />
+                </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Execution History</h3>
                   <p className="text-xs text-slate-500">{historyAutomation.name}</p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setHistoryAutomation(null)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                aria-label="Close history"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4">
+            {/* Scrollable Table Body */}
+            <div className="flex-1 overflow-y-auto p-6">
               {isLoadingHistory ? (
                 <div className="flex items-center justify-center py-12 text-xs text-slate-400">
                   <Loader2 className="h-5 w-5 animate-spin mr-2" />
@@ -1126,7 +1165,7 @@ export default function AutomationsPage() {
                             </Badge>
                           </td>
                           <td className="p-2.5 font-mono text-[11px] text-slate-700">{e.trigger_source}</td>
-                          <td className="p-2.5 text-slate-600 max-w-xs truncate">
+                          <td className="p-2.5 text-slate-600 max-w-xs break-words">
                             {e.result_summary || e.error_message || "—"}
                           </td>
                           <td className="p-2.5 text-slate-500">{e.duration_ms}ms</td>
@@ -1139,7 +1178,8 @@ export default function AutomationsPage() {
               )}
             </div>
 
-            <div className="p-3 border-t border-slate-100 bg-slate-50 flex justify-end">
+            {/* Footer (Fixed) */}
+            <div className="shrink-0 p-3.5 border-t border-slate-100 bg-slate-50/90 flex justify-end">
               <Button
                 variant="outline"
                 size="sm"
