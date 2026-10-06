@@ -33,6 +33,7 @@ from app.schemas.leave import (
     ReviewerBrief,
 )
 from app.services.attendance import resolve_employee_for_user
+from app.services.automation import AutomationService
 from app.services.organization import record_audit_log
 
 
@@ -604,6 +605,31 @@ async def create_leave_request(
         ip_address=ip_address,
     )
 
+    try:
+        await AutomationService.dispatch_event(
+            session=session,
+            organization_id=organization_id,
+            event_name="leave.requested",
+            payload={
+                "event": "leave.requested",
+                "request_id": str(req.id),
+                "employee_id": str(target_emp.id),
+                "employee_name": f"{target_emp.first_name} {target_emp.last_name}".strip(),
+                "recipient_id": str(target_emp.profile_id) if target_emp.profile_id else None,
+                "start_date": str(req.start_date),
+                "end_date": str(req.end_date),
+                "total_days": str(req.total_days),
+                "reason": req.reason,
+                "route": "/leave",
+                "action_url": "/leave",
+                "notification_type": "leave",
+            },
+            actor_profile_id=actor_profile_id,
+            ip_address=ip_address,
+        )
+    except Exception:
+        pass
+
     return await get_leave_request(session, organization_id, req.id)
 
 
@@ -764,6 +790,42 @@ async def approve_leave_request(
         ip_address=ip_address,
     )
 
+    # Resolve employee profile to notify requester
+    emp = getattr(rec, "employee", None)
+    if emp is None and hasattr(session, "scalar"):
+        try:
+            emp = await session.scalar(select(Employee).where(Employee.id == rec.employee_id))
+        except Exception:
+            emp = None
+
+    recipient_profile_id = getattr(emp, "profile_id", None) if emp else None
+    emp_name = f"{getattr(emp, 'first_name', '')} {getattr(emp, 'last_name', '')}".strip() if emp else "Employee"
+
+    try:
+        await AutomationService.dispatch_event(
+            session=session,
+            organization_id=organization_id,
+            event_name="leave.approved",
+            payload={
+                "event": "leave.approved",
+                "request_id": str(rec.id),
+                "employee_id": str(rec.employee_id),
+                "employee_name": emp_name,
+                "recipient_id": str(recipient_profile_id) if recipient_profile_id else None,
+                "start_date": str(rec.start_date),
+                "end_date": str(rec.end_date),
+                "total_days": str(rec.total_days),
+                "reviewer_comment": rec.reviewer_comment,
+                "route": "/leave",
+                "action_url": "/leave",
+                "notification_type": "leave",
+            },
+            actor_profile_id=actor_profile_id,
+            ip_address=ip_address,
+        )
+    except Exception:
+        pass
+
     return await get_leave_request(session, organization_id, rec.id)
 
 
@@ -813,6 +875,42 @@ async def reject_leave_request(
         },
         ip_address=ip_address,
     )
+
+    # Resolve employee profile to notify requester
+    emp = getattr(rec, "employee", None)
+    if emp is None and hasattr(session, "scalar"):
+        try:
+            emp = await session.scalar(select(Employee).where(Employee.id == rec.employee_id))
+        except Exception:
+            emp = None
+
+    recipient_profile_id = getattr(emp, "profile_id", None) if emp else None
+    emp_name = f"{getattr(emp, 'first_name', '')} {getattr(emp, 'last_name', '')}".strip() if emp else "Employee"
+
+    try:
+        await AutomationService.dispatch_event(
+            session=session,
+            organization_id=organization_id,
+            event_name="leave.rejected",
+            payload={
+                "event": "leave.rejected",
+                "request_id": str(rec.id),
+                "employee_id": str(rec.employee_id),
+                "employee_name": emp_name,
+                "recipient_id": str(recipient_profile_id) if recipient_profile_id else None,
+                "start_date": str(rec.start_date),
+                "end_date": str(rec.end_date),
+                "total_days": str(rec.total_days),
+                "reviewer_comment": rec.reviewer_comment,
+                "route": "/leave",
+                "action_url": "/leave",
+                "notification_type": "leave",
+            },
+            actor_profile_id=actor_profile_id,
+            ip_address=ip_address,
+        )
+    except Exception:
+        pass
 
     return await get_leave_request(session, organization_id, rec.id)
 

@@ -18,6 +18,8 @@ import {
   CheckSquare,
   Clock,
   X,
+  Pencil,
+  ArrowRight,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,8 +31,68 @@ import { API_ENDPOINTS } from "@/lib/api/endpoints";
 import type {
   Automation,
   AutomationCreate,
+  AutomationUpdate,
   AutomationExecution,
 } from "@/types/automation";
+
+const PRESET_EVENT_ROUTES = [
+  {
+    id: "leave.approved",
+    label: "Leave Request Approved (Acceptance)",
+    defaultRoute: "/leave",
+    defaultTitle: "Leave Approved",
+    defaultMsg: "Your leave request has been reviewed and approved.",
+    defaultCategory: "leave",
+  },
+  {
+    id: "leave.requested",
+    label: "Leave Request Submitted",
+    defaultRoute: "/leave",
+    defaultTitle: "New Leave Application",
+    defaultMsg: "A new leave request requires review.",
+    defaultCategory: "leave",
+  },
+  {
+    id: "leave.rejected",
+    label: "Leave Request Rejected",
+    defaultRoute: "/leave",
+    defaultTitle: "Leave Request Notice",
+    defaultMsg: "Your leave request was not approved.",
+    defaultCategory: "leave",
+  },
+  {
+    id: "attendance.check_in",
+    label: "Employee Attendance Check-In",
+    defaultRoute: "/attendance",
+    defaultTitle: "Attendance Checked-In",
+    defaultMsg: "Daily attendance verified successfully.",
+    defaultCategory: "attendance",
+  },
+  {
+    id: "expense.approved",
+    label: "Expense Claim Approved",
+    defaultRoute: "/finance",
+    defaultTitle: "Expense Approved",
+    defaultMsg: "Your submitted expense claim has been approved.",
+    defaultCategory: "finance",
+  },
+  {
+    id: "task.created",
+    label: "Operational Task Created",
+    defaultRoute: "/operations",
+    defaultTitle: "Operational Task Assigned",
+    defaultMsg: "A new operational task was assigned to you.",
+    defaultCategory: "task",
+  },
+  {
+    id: "custom",
+    label: "Custom Trigger Event Route...",
+    defaultRoute: "/dashboard",
+    defaultTitle: "Workflow Notification",
+    defaultMsg: "Automated trigger execution completed.",
+    defaultCategory: "general",
+  },
+];
 
 export default function AutomationsPage() {
   const { currentOrganization, permissions } = useOrganization();
@@ -51,9 +113,29 @@ export default function AutomationsPage() {
   const [newName, setNewName] = React.useState("");
   const [newDesc, setNewDesc] = React.useState("");
   const [newTriggerType, setNewTriggerType] = React.useState<"event" | "schedule" | "manual">("event");
+  const [newEventRoute, setNewEventRoute] = React.useState("leave.approved");
+  const [newCustomEvent, setNewCustomEvent] = React.useState("");
+  const [newScheduleInterval, setNewScheduleInterval] = React.useState("daily");
   const [newActionType, setNewActionType] = React.useState<"notification" | "audit_log" | "task_create">("notification");
   const [newActionTitle, setNewActionTitle] = React.useState("");
   const [newActionMessage, setNewActionMessage] = React.useState("");
+  const [newActionRoute, setNewActionRoute] = React.useState("/leave");
+  const [newRecipientTarget, setNewRecipientTarget] = React.useState<"requester" | "actor" | "creator">("requester");
+
+  // Edit Modal State
+  const [editAutomation, setEditAutomation] = React.useState<Automation | null>(null);
+  const [isEditSubmitting, setIsEditSubmitting] = React.useState(false);
+  const [editName, setEditName] = React.useState("");
+  const [editDesc, setEditDesc] = React.useState("");
+  const [editTriggerType, setEditTriggerType] = React.useState<"event" | "schedule" | "manual">("event");
+  const [editEventRoute, setEditEventRoute] = React.useState("leave.approved");
+  const [editCustomEvent, setEditCustomEvent] = React.useState("");
+  const [editScheduleInterval, setEditScheduleInterval] = React.useState("daily");
+  const [editActionType, setEditActionType] = React.useState<"notification" | "audit_log" | "task_create">("notification");
+  const [editActionTitle, setEditActionTitle] = React.useState("");
+  const [editActionMessage, setEditActionMessage] = React.useState("");
+  const [editActionRoute, setEditActionRoute] = React.useState("/leave");
+  const [editRecipientTarget, setEditRecipientTarget] = React.useState<"requester" | "actor" | "creator">("requester");
 
   // Execution History Modal State
   const [historyAutomation, setHistoryAutomation] = React.useState<Automation | null>(null);
@@ -97,6 +179,25 @@ export default function AutomationsPage() {
     };
   }, [currentOrganization, canView]);
 
+  function handleEventRouteChange(routeId: string, isEdit: boolean = false) {
+    const preset = PRESET_EVENT_ROUTES.find((p) => p.id === routeId);
+    if (isEdit) {
+      setEditEventRoute(routeId);
+      if (preset && routeId !== "custom") {
+        setEditActionRoute(preset.defaultRoute);
+        if (!editActionTitle) setEditActionTitle(preset.defaultTitle);
+        if (!editActionMessage) setEditActionMessage(preset.defaultMsg);
+      }
+    } else {
+      setNewEventRoute(routeId);
+      if (preset && routeId !== "custom") {
+        setNewActionRoute(preset.defaultRoute);
+        if (!newActionTitle) setNewActionTitle(preset.defaultTitle);
+        if (!newActionMessage) setNewActionMessage(preset.defaultMsg);
+      }
+    }
+  }
+
   async function handleToggle(id: string, currentStatus: boolean) {
     if (!canUpdate) return;
     try {
@@ -132,7 +233,6 @@ export default function AutomationsPage() {
           type: exec.status === "success" ? "success" : "error",
           text: `Execution ${exec.status}: ${exec.result_summary || exec.error_message || "Finished"} (${exec.duration_ms}ms)`,
         });
-        // Refresh last run
         setAutomations((prev) =>
           prev.map((a) =>
             a.id === id
@@ -170,6 +270,39 @@ export default function AutomationsPage() {
     }
   }
 
+  function handleOpenEdit(auto: Automation) {
+    setEditAutomation(auto);
+    setEditName(auto.name);
+    setEditDesc(auto.description || "");
+    setEditTriggerType(auto.trigger_type);
+
+    const cfg = auto.trigger_config || {};
+    const ev = (cfg.event_name as string) || (cfg.event_route as string) || "";
+    const matchedPreset = PRESET_EVENT_ROUTES.find((p) => p.id === ev);
+    if (matchedPreset) {
+      setEditEventRoute(matchedPreset.id);
+      setEditCustomEvent("");
+    } else if (ev) {
+      setEditEventRoute("custom");
+      setEditCustomEvent(ev);
+    } else if (auto.name.toLowerCase().includes("leave")) {
+      setEditEventRoute("leave.approved");
+      setEditCustomEvent("");
+    } else {
+      setEditEventRoute("custom");
+      setEditCustomEvent(ev || "custom.trigger");
+    }
+
+    setEditScheduleInterval((cfg.interval as string) || "daily");
+    setEditActionType(auto.action_type);
+
+    const act = auto.action_config || {};
+    setEditActionTitle((act.title as string) || "");
+    setEditActionMessage((act.message as string) || "");
+    setEditActionRoute((act.route as string) || (act.action_url as string) || "/leave");
+    setEditRecipientTarget((act.target_recipient as "requester" | "actor" | "creator") || "requester");
+  }
+
   async function handleDelete(id: string) {
     if (!canDelete) return;
     if (!confirm("Are you sure you want to delete this automation rule?")) return;
@@ -195,20 +328,28 @@ export default function AutomationsPage() {
     setIsSubmitting(true);
     setStatusMessage(null);
 
+    const finalEventName =
+      newTriggerType === "event"
+        ? (newEventRoute === "custom" ? newCustomEvent.trim() || "custom.trigger" : newEventRoute)
+        : undefined;
+
     const payload: AutomationCreate = {
       name: newName.trim(),
       description: newDesc.trim() || undefined,
       trigger_type: newTriggerType,
       trigger_config:
         newTriggerType === "event"
-          ? { event_name: "custom.trigger" }
+          ? { event_name: finalEventName, event_route: finalEventName }
           : newTriggerType === "schedule"
-          ? { interval: "daily" }
+          ? { interval: newScheduleInterval }
           : {},
       action_type: newActionType,
       action_config: {
         title: newActionTitle.trim() || `Auto: ${newName.trim()}`,
         message: newActionMessage.trim() || "Automated trigger execution.",
+        route: newActionRoute.trim() || "/leave",
+        action_url: newActionRoute.trim() || "/leave",
+        target_recipient: newRecipientTarget,
       },
       is_active: true,
     };
@@ -222,6 +363,7 @@ export default function AutomationsPage() {
         setNewDesc("");
         setNewActionTitle("");
         setNewActionMessage("");
+        setNewActionRoute("/leave");
         setStatusMessage({ type: "success", text: "Automation workflow created successfully." });
       }
     } catch (err: unknown) {
@@ -229,6 +371,63 @@ export default function AutomationsPage() {
       setStatusMessage({ type: "error", text: msg });
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handleEditSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!canUpdate || !editAutomation || isEditSubmitting) return;
+
+    if (!editName.trim()) {
+      setStatusMessage({ type: "error", text: "Rule name is required." });
+      return;
+    }
+
+    setIsEditSubmitting(true);
+    setStatusMessage(null);
+
+    const finalEventName =
+      editTriggerType === "event"
+        ? (editEventRoute === "custom" ? editCustomEvent.trim() || "custom.trigger" : editEventRoute)
+        : undefined;
+
+    const payload: AutomationUpdate = {
+      name: editName.trim(),
+      description: editDesc.trim() || undefined,
+      trigger_type: editTriggerType,
+      trigger_config:
+        editTriggerType === "event"
+          ? { event_name: finalEventName, event_route: finalEventName }
+          : editTriggerType === "schedule"
+          ? { interval: editScheduleInterval }
+          : {},
+      action_type: editActionType,
+      action_config: {
+        title: editActionTitle.trim() || `Auto: ${editName.trim()}`,
+        message: editActionMessage.trim() || "Automated trigger execution.",
+        route: editActionRoute.trim() || "/leave",
+        action_url: editActionRoute.trim() || "/leave",
+        target_recipient: editRecipientTarget,
+      },
+    };
+
+    try {
+      const res = await apiClient.put<Automation>(
+        API_ENDPOINTS.automations.update(editAutomation.id),
+        payload
+      );
+      if (res) {
+        setAutomations((prev) =>
+          prev.map((a) => (a.id === editAutomation.id ? res : a))
+        );
+        setEditAutomation(null);
+        setStatusMessage({ type: "success", text: "Automation workflow updated successfully." });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to update automation";
+      setStatusMessage({ type: "error", text: msg });
+    } finally {
+      setIsEditSubmitting(false);
     }
   }
 
@@ -354,6 +553,15 @@ export default function AutomationsPage() {
             <div className="divide-y divide-slate-100">
               {automations.map((a) => {
                 const isRunning = executingId === a.id;
+                const triggerEvent =
+                  (a.trigger_config?.event_name as string) ||
+                  (a.trigger_config?.event_route as string) ||
+                  (a.name.toLowerCase().includes("leave") ? "leave.approved" : "custom.trigger");
+                const actionRoute =
+                  (a.action_config?.route as string) ||
+                  (a.action_config?.action_url as string) ||
+                  (a.action_type === "notification" && a.name.toLowerCase().includes("leave") ? "/leave" : null);
+
                 return (
                   <div key={a.id} className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="space-y-1">
@@ -367,13 +575,23 @@ export default function AutomationsPage() {
                         </Badge>
                       </div>
                       {a.description && <p className="text-xs text-slate-500">{a.description}</p>}
-                      <div className="flex items-center gap-3 text-[11px] text-slate-400 pt-1">
-                        <span className="flex items-center gap-1">
+                      <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 pt-1">
+                        <span className="flex items-center gap-1.5">
                           <Activity className="h-3 w-3 text-slate-400" />
-                          Trigger: <strong className="text-slate-600 uppercase">{a.trigger_type}</strong>
+                          <span>Trigger: <strong className="text-slate-600 uppercase">{a.trigger_type}</strong></span>
+                          {a.trigger_type === "event" && (
+                            <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-mono text-primary-700 bg-primary-50/60 border-primary-200">
+                              {triggerEvent}
+                            </Badge>
+                          )}
+                          {a.trigger_type === "schedule" && (
+                            <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-mono text-slate-600 bg-slate-50">
+                              {(a.trigger_config?.interval as string) || "daily"}
+                            </Badge>
+                          )}
                         </span>
                         <span>•</span>
-                        <span className="flex items-center gap-1">
+                        <span className="flex items-center gap-1.5">
                           {a.action_type === "notification" ? (
                             <Bell className="h-3 w-3 text-blue-500" />
                           ) : a.action_type === "audit_log" ? (
@@ -381,7 +599,13 @@ export default function AutomationsPage() {
                           ) : (
                             <CheckSquare className="h-3 w-3 text-emerald-500" />
                           )}
-                          Action: <strong className="text-slate-600">{a.action_type}</strong>
+                          <span>Action: <strong className="text-slate-600">{a.action_type}</strong></span>
+                          {actionRoute && (
+                            <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-mono text-blue-700 bg-blue-50/60 border-blue-200 flex items-center gap-1">
+                              <span>Route: {actionRoute}</span>
+                              <ArrowRight className="h-2.5 w-2.5 opacity-60" />
+                            </Badge>
+                          )}
                         </span>
                         <span>•</span>
                         <span>Total runs: {a.run_count}</span>
@@ -426,6 +650,19 @@ export default function AutomationsPage() {
                       {canUpdate && (
                         <Button
                           size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenEdit(a)}
+                          className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-900"
+                          title="Edit workflow configuration and routes"
+                        >
+                          <Pencil className="h-3.5 w-3.5 text-slate-500" />
+                          <span>Edit</span>
+                        </Button>
+                      )}
+
+                      {canUpdate && (
+                        <Button
+                          size="sm"
                           variant="ghost"
                           onClick={() => handleToggle(a.id, a.is_active)}
                           className="text-xs text-slate-600 hover:text-slate-900"
@@ -454,8 +691,8 @@ export default function AutomationsPage() {
 
       {/* CREATE MODAL */}
       {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full overflow-hidden my-8">
             <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
               <div className="flex items-center space-x-2">
                 <Workflow className="h-5 w-5 text-primary-600" />
@@ -519,7 +756,92 @@ export default function AutomationsPage() {
                 </div>
               </div>
 
+              {/* ROUTE & EVENT CONFIGURATION */}
+              {newTriggerType === "event" && (
+                <div className="p-3 bg-slate-50/80 rounded-lg border border-slate-200 space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                      <span>Trigger Event Route *</span>
+                      <span className="text-[10px] text-slate-400 font-normal">Identifies which system event fires this</span>
+                    </label>
+                    <select
+                      value={newEventRoute}
+                      onChange={(e) => handleEventRouteChange(e.target.value, false)}
+                      className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800 font-medium"
+                    >
+                      {PRESET_EVENT_ROUTES.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {newEventRoute === "custom" && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-700">Custom Event Identifier / Route *</label>
+                      <Input
+                        value={newCustomEvent}
+                        onChange={(e) => setNewCustomEvent(e.target.value)}
+                        placeholder="e.g. payroll.disbursed or custom.trigger"
+                        className="text-xs"
+                        required={newEventRoute === "custom"}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {newTriggerType === "schedule" && (
+                <div className="space-y-1 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                  <label className="text-xs font-semibold text-slate-700">Recurring Schedule Interval</label>
+                  <select
+                    value={newScheduleInterval}
+                    onChange={(e) => setNewScheduleInterval(e.target.value)}
+                    className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800"
+                  >
+                    <option value="hourly">Hourly</option>
+                    <option value="daily">Daily (Default)</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+              )}
+
+              {/* ACTION DESTINATION ROUTE */}
               <div className="space-y-1 pt-1">
+                <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                  <span>Target Navigation Route (Link URL) *</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Destination opened on click</span>
+                </label>
+                <Input
+                  value={newActionRoute}
+                  onChange={(e) => setNewActionRoute(e.target.value)}
+                  placeholder="e.g. /leave, /attendance, /finance, /operations"
+                  className="text-xs font-mono"
+                  required
+                />
+                <p className="text-[10px] text-slate-400">
+                  Direct route path users will navigate to when interacting with the notification or created task.
+                </p>
+              </div>
+
+              {newActionType === "notification" && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700">Target Recipient</label>
+                  <select
+                    value={newRecipientTarget}
+                    onChange={(e) => setNewRecipientTarget(e.target.value as "requester" | "actor" | "creator")}
+                    className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800"
+                  >
+                    <option value="requester">Employee / Requester (Subject of the event)</option>
+                    <option value="actor">Acting Manager / Reviewer (Person performing action)</option>
+                    <option value="creator">Automation Rule Creator (Admin)</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-700">Action Title / Header</label>
                 <Input
                   value={newActionTitle}
@@ -563,6 +885,195 @@ export default function AutomationsPage() {
         </div>
       )}
 
+      {/* EDIT MODAL */}
+      {editAutomation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full overflow-hidden my-8">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
+              <div className="flex items-center space-x-2">
+                <Pencil className="h-4 w-4 text-primary-600" />
+                <h3 className="text-sm font-bold text-slate-900">Edit Automation Workflow</h3>
+              </div>
+              <button
+                onClick={() => setEditAutomation(null)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="p-4 space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-700">Workflow Name *</label>
+                <Input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  required
+                  className="text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-700">Description</label>
+                <Input
+                  value={editDesc}
+                  onChange={(e) => setEditDesc(e.target.value)}
+                  className="text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700">Trigger Mechanism</label>
+                  <select
+                    value={editTriggerType}
+                    onChange={(e) => setEditTriggerType(e.target.value as "event" | "schedule" | "manual")}
+                    className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800"
+                  >
+                    <option value="event">Event-Triggered</option>
+                    <option value="schedule">Scheduled Recurring</option>
+                    <option value="manual">Manual Execution</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700">Action Type</label>
+                  <select
+                    value={editActionType}
+                    onChange={(e) => setEditActionType(e.target.value as "notification" | "audit_log" | "task_create")}
+                    className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800"
+                  >
+                    <option value="notification">In-App Notification</option>
+                    <option value="audit_log">Audit Trail Entry</option>
+                    <option value="task_create">Create Operational Task</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* ROUTE & EVENT CONFIGURATION */}
+              {editTriggerType === "event" && (
+                <div className="p-3 bg-slate-50/80 rounded-lg border border-slate-200 space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                      <span>Trigger Event Route *</span>
+                      <span className="text-[10px] text-slate-400 font-normal">Identifies which system event fires this</span>
+                    </label>
+                    <select
+                      value={editEventRoute}
+                      onChange={(e) => handleEventRouteChange(e.target.value, true)}
+                      className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800 font-medium"
+                    >
+                      {PRESET_EVENT_ROUTES.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {editEventRoute === "custom" && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-700">Custom Event Identifier / Route *</label>
+                      <Input
+                        value={editCustomEvent}
+                        onChange={(e) => setEditCustomEvent(e.target.value)}
+                        placeholder="e.g. leave.approved or custom.trigger"
+                        className="text-xs"
+                        required={editEventRoute === "custom"}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {editTriggerType === "schedule" && (
+                <div className="space-y-1 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                  <label className="text-xs font-semibold text-slate-700">Recurring Schedule Interval</label>
+                  <select
+                    value={editScheduleInterval}
+                    onChange={(e) => setEditScheduleInterval(e.target.value)}
+                    className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800"
+                  >
+                    <option value="hourly">Hourly</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+              )}
+
+              {/* ACTION DESTINATION ROUTE */}
+              <div className="space-y-1 pt-1">
+                <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                  <span>Target Navigation Route (Link URL) *</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Destination opened on click</span>
+                </label>
+                <Input
+                  value={editActionRoute}
+                  onChange={(e) => setEditActionRoute(e.target.value)}
+                  placeholder="e.g. /leave, /attendance, /finance, /operations"
+                  className="text-xs font-mono"
+                  required
+                />
+              </div>
+
+              {editActionType === "notification" && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700">Target Recipient</label>
+                  <select
+                    value={editRecipientTarget}
+                    onChange={(e) => setEditRecipientTarget(e.target.value as "requester" | "actor" | "creator")}
+                    className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800"
+                  >
+                    <option value="requester">Employee / Requester (Subject of the event)</option>
+                    <option value="actor">Acting Manager / Reviewer (Person performing action)</option>
+                    <option value="creator">Automation Rule Creator (Admin)</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-700">Action Title / Header</label>
+                <Input
+                  value={editActionTitle}
+                  onChange={(e) => setEditActionTitle(e.target.value)}
+                  className="text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-700">Action Message / Details</label>
+                <Input
+                  value={editActionMessage}
+                  onChange={(e) => setEditActionMessage(e.target.value)}
+                  className="text-xs"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditAutomation(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isEditSubmitting}
+                  className="bg-primary-600 hover:bg-primary-700 text-white flex items-center gap-1.5"
+                >
+                  {isEditSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  <span>Save Changes</span>
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* EXECUTION HISTORY MODAL */}
       {historyAutomation && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -598,30 +1109,28 @@ export default function AutomationsPage() {
                       <tr>
                         <th className="p-2.5">Status</th>
                         <th className="p-2.5">Trigger</th>
+                        <th className="p-2.5">Result</th>
                         <th className="p-2.5">Duration</th>
-                        <th className="p-2.5">Summary</th>
-                        <th className="p-2.5 text-right">Timestamp</th>
+                        <th className="p-2.5">Timestamp</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                    <tbody className="divide-y divide-slate-100">
                       {executions.map((e) => (
-                        <tr key={e.id}>
+                        <tr key={e.id} className="hover:bg-slate-50/50">
                           <td className="p-2.5">
                             <Badge
-                              variant={e.status === "success" ? "success" : "destructive"}
+                              variant={e.status === "success" ? "success" : e.status === "skipped" ? "secondary" : "destructive"}
                               className="text-[10px] px-1.5 py-0"
                             >
                               {e.status}
                             </Badge>
                           </td>
-                          <td className="p-2.5 uppercase font-medium">{e.trigger_source}</td>
-                          <td className="p-2.5">{e.duration_ms}ms</td>
-                          <td className="p-2.5 max-w-xs truncate text-slate-600">
-                            {e.result_summary || e.error_message || "Executed"}
+                          <td className="p-2.5 font-mono text-[11px] text-slate-700">{e.trigger_source}</td>
+                          <td className="p-2.5 text-slate-600 max-w-xs truncate">
+                            {e.result_summary || e.error_message || "—"}
                           </td>
-                          <td className="p-2.5 text-right text-slate-400">
-                            {new Date(e.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                          </td>
+                          <td className="p-2.5 text-slate-500">{e.duration_ms}ms</td>
+                          <td className="p-2.5 text-slate-400">{new Date(e.created_at).toLocaleString()}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -631,7 +1140,11 @@ export default function AutomationsPage() {
             </div>
 
             <div className="p-3 border-t border-slate-100 bg-slate-50 flex justify-end">
-              <Button size="sm" variant="outline" onClick={() => setHistoryAutomation(null)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setHistoryAutomation(null)}
+              >
                 Close
               </Button>
             </div>

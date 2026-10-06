@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import AutomationsPage from "@/app/(protected)/automations/page";
 import { useOrganization } from "@/hooks/use-organization";
 import { apiClient } from "@/lib/api/client";
+import { API_ENDPOINTS } from "@/lib/api/endpoints";
 import type { Organization } from "@/types/organization";
 import type {
   Automation,
@@ -141,6 +142,72 @@ describe("AutomationsPage Component", () => {
     await waitFor(() => {
       expect(screen.getByText("Daily Operations Review")).toBeInTheDocument();
       expect(screen.getByText("Automation workflow created successfully.")).toBeInTheDocument();
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      API_ENDPOINTS.automations.create,
+      expect.objectContaining({
+        name: "Daily Operations Review",
+        trigger_type: "event",
+        trigger_config: expect.objectContaining({ event_name: "leave.approved" }),
+        action_config: expect.objectContaining({ route: "/leave" }),
+      })
+    );
+  });
+
+  it("captures custom event route and custom target navigation route", async () => {
+    const user = userEvent.setup();
+
+    vi.mocked(useOrganization).mockReturnValue({
+      currentOrganization: mockOrg,
+      membership: null,
+      organizations: [mockOrg],
+      permissions: ["automations.view", "automations.create"],
+      isLoading: false,
+      error: null,
+      selectOrganization: vi.fn(),
+      setOrganizations: vi.fn(),
+    } as any);
+
+    vi.mocked(apiClient.get).mockResolvedValueOnce([mockAutomation] as any);
+
+    const customAuto: Automation = {
+      ...mockAutomation,
+      id: "auto-3",
+      name: "Custom Event Alert",
+      trigger_type: "event",
+      trigger_config: { event_name: "custom.route", event_route: "custom.route" },
+      action_config: { route: "/operations", action_url: "/operations" },
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce(customAuto as any);
+
+    render(<AutomationsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Notify on Leave Approval")).toBeInTheDocument();
+    });
+
+    const createBtn = screen.getByRole("button", { name: /Create Automation/i });
+    await user.click(createBtn);
+
+    const nameInput = screen.getByPlaceholderText(/e\.g\. Notify on Leave Approval/i);
+    await user.type(nameInput, "Custom Event Alert");
+
+    const routeInput = screen.getByPlaceholderText(/e\.g\. \/leave, \/attendance, \/finance, \/operations/i);
+    await user.clear(routeInput);
+    await user.type(routeInput, "/operations");
+
+    const submitBtn = screen.getByRole("button", { name: /Create Workflow/i });
+    await user.click(submitBtn);
+
+    await waitFor(() => {
+      expect(apiClient.post).toHaveBeenCalledWith(
+        API_ENDPOINTS.automations.create,
+        expect.objectContaining({
+          name: "Custom Event Alert",
+          action_config: expect.objectContaining({ route: "/operations", action_url: "/operations" }),
+        })
+      );
     });
   });
 

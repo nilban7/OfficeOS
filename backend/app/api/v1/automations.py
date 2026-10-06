@@ -82,6 +82,7 @@ async def get_automation(
 
 
 @router.put("/{automation_id}", response_model=ApiSuccess[AutomationResponse])
+@router.patch("/{automation_id}", response_model=ApiSuccess[AutomationResponse])
 async def update_automation(
     automation_id: UUID,
     data: AutomationUpdate,
