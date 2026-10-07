@@ -5,9 +5,11 @@ Supports OpenAI-compatible tool/function calling for live database exploration.
 Secrets are never written to database rows or logged.
 """
 
+import asyncio
 import json
 import logging
 import os
+import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Coroutine
 from typing import Any
@@ -208,6 +210,8 @@ class GroqProvider(BaseAIProvider):
 
     GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
+    DEFAULT_MODEL = "openai/gpt-oss-120b"
+
     def __init__(self, api_key: str | None = None) -> None:
         settings = get_settings()
         self.api_key = api_key or settings.groq_api_key or os.getenv("GROQ_API_KEY")
@@ -217,7 +221,7 @@ class GroqProvider(BaseAIProvider):
         system_instruction: str,
         messages: list[dict[str, Any]],
         context_data: dict[str, Any] | None = None,
-        model_name: str = "llama-3.3-70b-versatile",
+        model_name: str = "openai/gpt-oss-120b",
         temperature: float = 0.7,
         max_tokens: int = 2048,
         tools: list[dict[str, Any]] | None = None,
@@ -250,14 +254,14 @@ class GroqProvider(BaseAIProvider):
             "Content-Type": "application/json",
         }
 
-        # Multi-turn tool calling loop (up to 3 turns)
+        # Multi-turn tool calling loop (up to 5 turns)
         total_tokens = 0
-        current_model = model_name or "llama-3.3-70b-versatile"
+        current_model = model_name or "openai/gpt-oss-120b"
         if "gemini" in current_model.lower():
             # If user configured a gemini model name but is using Groq provider, use Groq's flagship
-            current_model = "llama-3.3-70b-versatile"
+            current_model = "openai/gpt-oss-120b"
 
-        for _ in range(3):
+        for _ in range(5):
             req_body: dict[str, Any] = {
                 "model": current_model,
                 "messages": payload_messages,
@@ -271,6 +275,18 @@ class GroqProvider(BaseAIProvider):
             try:
                 async with httpx.AsyncClient(timeout=45.0) as client:
                     resp = await client.post(self.GROQ_API_URL, headers=headers, json=req_body)
+                    if resp.status_code == 429:
+                        try:
+                            err_msg = resp.json().get("error", {}).get("message", "")
+                            delay_m = re.search(r"try again in ([\d\.]+)s", err_msg)
+                            delay = float(delay_m.group(1)) if delay_m else 4.0
+                        except Exception:  # noqa: BLE001
+                            delay = 4.0
+                        if delay <= 6.0:
+                            logger.info(f"Groq TPM limit reached, waiting {delay:.1f}s before retrying...")
+                            await asyncio.sleep(delay + 0.5)
+                            resp = await client.post(self.GROQ_API_URL, headers=headers, json=req_body)
+
                     if resp.status_code != 200:
                         error_detail = resp.text
                         logger.error(f"Groq API error {resp.status_code}: {error_detail}")

@@ -239,7 +239,7 @@ export default function AIAssistantPage() {
   ];
 
   const providerLabel = config?.provider === "groq" ? "Groq LPU" : "Gemini";
-  const modelLabel = config?.model_name ?? (config?.provider === "groq" ? "llama-3.3-70b-versatile" : "gemini-1.5-flash");
+  const modelLabel = config?.model_name ?? (config?.provider === "groq" ? "openai/gpt-oss-120b" : "gemini-1.5-flash");
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-4">

@@ -97,7 +97,7 @@ class AIService:
                 organization_id=organization_id,
                 is_enabled=True,
                 provider="groq",
-                model_name="llama-3.3-70b-versatile",
+                model_name="openai/gpt-oss-120b",
                 temperature=Decimal("0.70"),
                 max_tokens_per_response=2048,
                 allowed_capabilities=[
@@ -185,9 +185,43 @@ QUERY RULES:
         # Ensure query is tenant-scoped
         org_id_str = str(organization_id)
         if org_id_str not in clean_query:
-            return {
-                "error": f"Tenant isolation restriction: Your query must explicitly include WHERE organization_id = '{org_id_str}'."
-            }
+            clean_query = clean_query.rstrip(";").strip()
+            from_m = re.search(r"\bfrom\s+([a-zA-Z0-9_]+)\b", clean_query, re.IGNORECASE)
+            if from_m:
+                table = from_m.group(1).lower()
+                where_m = re.search(r"\bwhere\b", clean_query, re.IGNORECASE)
+                if where_m:
+                    where_pos = where_m.end()
+                    tail_m = re.search(
+                        r"\b(order\s+by|group\s+by|limit|offset)\b",
+                        clean_query[where_pos:],
+                        re.IGNORECASE,
+                    )
+                    if tail_m:
+                        cond_end = where_pos + tail_m.start()
+                        cond = clean_query[where_pos:cond_end].strip()
+                        tail = clean_query[cond_end:]
+                        clean_query = (
+                            f"{clean_query[:where_pos]} {table}.organization_id = '{org_id_str}' AND ({cond}) {tail}"
+                        )
+                    else:
+                        cond = clean_query[where_pos:].strip()
+                        clean_query = f"{clean_query[:where_pos]} {table}.organization_id = '{org_id_str}' AND ({cond})"
+                else:
+                    tail_m = re.search(
+                        r"\b(order\s+by|group\s+by|limit|offset)\b", clean_query, re.IGNORECASE
+                    )
+                    if tail_m:
+                        pos = tail_m.start()
+                        clean_query = (
+                            f"{clean_query[:pos]} WHERE {table}.organization_id = '{org_id_str}' {clean_query[pos:]}"
+                        )
+                    else:
+                        clean_query = f"{clean_query} WHERE {table}.organization_id = '{org_id_str}'"
+            else:
+                return {
+                    "error": f"Tenant isolation restriction: Your query must explicitly include WHERE organization_id = '{org_id_str}'."
+                }
 
         try:
             res = await session.execute(text(clean_query))
