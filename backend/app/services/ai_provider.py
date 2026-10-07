@@ -82,7 +82,12 @@ def synthesize_context_response(
         recent_leaves = lv.get("recent_leaves", [])
         leave_detail = ""
         if recent_leaves:
-            l_lines = [f"  • {l.get('employee', 'Staff')}: {l.get('type', 'Leave')} ({l.get('days', 1)}d) — {l.get('status', 'pending')}" for l in recent_leaves[:5]]
+            l_lines = []
+            for l in recent_leaves[:10]:
+                ret = l.get("return_date")
+                ret_str = f" → Scheduled Return: **{ret}**" if ret and ret != "N/A" else ""
+                dates_str = f" ({l.get('start_date', '')} to {l.get('end_date', '')})" if l.get("start_date") and l.get("start_date") != "N/A" else ""
+                l_lines.append(f"  • {l.get('employee', 'Staff')}: {l.get('type', 'Leave')}{dates_str} ({l.get('days', 1)}d) — {l.get('status', 'pending')}{ret_str}")
             leave_detail = "\n" + "\n".join(l_lines)
         sections.append(
             f"📅 **Leave Activity**:\n"
@@ -90,6 +95,35 @@ def synthesize_context_response(
             f"- Approved Leaves: {lv.get('approved_requests', 0)} ({lv.get('total_leave_days_taken', '0.0')} days taken)."
             f"{leave_detail}"
         )
+
+        # Targeted answer if the user asks when an employee returns from leave
+        lower_msg = user_message.lower()
+        if any(k in lower_msg for k in ["return", "when will", "back to work", "come back", "sick leave", "date"]):
+            matches = []
+            for l in recent_leaves:
+                emp = l.get("employee", "Staff")
+                emp_lower = emp.lower()
+                is_match = False
+                if "sick" in lower_msg and "sick" in l.get("type", "").lower():
+                    is_match = True
+                for name_part in emp_lower.split():
+                    if len(name_part) > 2 and name_part in lower_msg:
+                        is_match = True
+                        break
+                if is_match or "return" in lower_msg or "sick" in lower_msg:
+                    ret_date = l.get("return_date", "N/A")
+                    start_d = l.get("start_date", "N/A")
+                    end_d = l.get("end_date", "N/A")
+                    status_d = l.get("status", "approved")
+                    matches.append(
+                        f"• **{emp}**: On {l.get('type', 'Leave')} ({status_d}) from {start_d} to {end_d}. "
+                        f"Scheduled return to work: **{ret_date}**."
+                    )
+            if matches:
+                sections.insert(
+                    0,
+                    "🗓️ **Scheduled Return Dates for Employees on Leave**:\n" + "\n".join(matches)
+                )
 
     # Projects context
     if "projects" in context_data:
@@ -171,11 +205,7 @@ def synthesize_context_response(
     if sections:
         header = "Here is the operational intelligence analysis from your organization database:\n\n"
         summary_body = "\n\n".join(sections)
-        conclusion = (
-            "\n\n*Tip: Connect your `GROQ_API_KEY` in AI Settings for live natural-language reasoning, "
-            "ad-hoc database queries, and interactive conversational answers.*"
-        )
-        response = header + summary_body + conclusion
+        response = header + summary_body
     else:
         response = (
             f"I processed your query regarding: \"{user_message}\". "

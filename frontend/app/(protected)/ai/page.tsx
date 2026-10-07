@@ -238,9 +238,6 @@ export default function AIAssistantPage() {
     { label: "Operational Tasks", prompt: "What are our open or overdue operation tasks and their priorities?", icon: Sparkles },
   ];
 
-  const providerLabel = config?.provider === "groq" ? "Groq LPU" : "Gemini";
-  const modelLabel = config?.model_name ?? (config?.provider === "groq" ? "openai/gpt-oss-120b" : "gemini-1.5-flash");
-
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-4">
       {/* Header */}
@@ -250,14 +247,9 @@ export default function AIAssistantPage() {
             <Bot className="h-5 w-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold tracking-tight text-slate-900">OfficeOS AI Assistant</h1>
-              <Badge variant="outline" className="text-[11px] font-medium border-slate-200 bg-slate-50 text-slate-700">
-                {providerLabel} · {modelLabel}
-              </Badge>
-            </div>
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">OfficeOS AI Assistant</h1>
             <p className="text-xs text-slate-500">
-              Live database-level intelligence powered by {providerLabel} ({modelLabel})
+              Live database-level organizational intelligence
             </p>
           </div>
         </div>

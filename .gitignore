@@ -37,3 +37,4 @@ Thumbs.db
 # Build / generated files
 dist/
 build/
+scratch/
