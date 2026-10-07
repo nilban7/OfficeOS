@@ -31,11 +31,11 @@ describe("SimulationsPage Component", () => {
 
   const mockPresets: SimulationPreset[] = [
     {
-      id: "hire_interns",
+      id: "hire_trainees",
       category: "workforce",
-      title: "Hire 5 Interns (3 Months @ ₹15k/mo)",
+      title: "Hire 5 Trainees (3 Months @ ₹15k/mo)",
       description: "Workload redistribution, mentor bottleneck, and net ROI.",
-      prompt: "What if I hire 5 interns for 3 months at ₹15,000/month stipend?",
+      prompt: "What if I hire 5 trainees for 3 months at ₹15,000/month stipend?",
       parameters: { count: 5 },
     },
   ];
@@ -103,7 +103,7 @@ describe("SimulationsPage Component", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Hire 5 Interns (3 Months @ ₹15k/mo)")
+        screen.getByText("Hire 5 Trainees (3 Months @ ₹15k/mo)")
       ).toBeInTheDocument();
     });
   });

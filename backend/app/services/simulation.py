@@ -28,14 +28,6 @@ logger = logging.getLogger(__name__)
 
 PRESETS: list[dict[str, Any]] = [
     {
-        "id": "hire_interns",
-        "category": "workforce",
-        "title": "Hire 5 Interns (3 Months @ ₹15k/mo)",
-        "description": "Simulate adding 5 interns: workload redistribution, mentor bottleneck, and net ROI.",
-        "prompt": "What if I hire 5 interns for 3 months at ₹15,000/month stipend?",
-        "parameters": {"count": 5, "duration_months": 3, "stipend": 15000, "role": "Intern"},
-    },
-    {
         "id": "salary_hike",
         "category": "compensation",
         "title": "8% Company-wide Salary Increase",
@@ -58,6 +50,14 @@ PRESETS: list[dict[str, Any]] = [
         "description": "Assess Capex, monthly run-rate, break-even period, and operational risk.",
         "prompt": "What if we open a Bangalore satellite branch with 10 employees?",
         "parameters": {"headcount": 10, "city": "Bangalore", "capex": 3500000},
+    },
+    {
+        "id": "hire_trainees",
+        "category": "workforce",
+        "title": "Hire 5 Trainees (3 Months @ ₹15k/mo)",
+        "description": "Simulate adding 5 trainees: workload redistribution, mentor bottleneck, and net ROI.",
+        "prompt": "What if I hire 5 trainees for 3 months at ₹15,000/month stipend?",
+        "parameters": {"count": 5, "duration_months": 3, "stipend": 15000, "role": "Trainee"},
     },
 ]
 
@@ -140,7 +140,7 @@ class SimulationService:
 
         # Detect category if set to workforce or custom
         category = request.category
-        if "intern" in prompt_lower or "hire" in prompt_lower:
+        if "intern" in prompt_lower or "hire" in prompt_lower or "trainee" in prompt_lower:
             category = "workforce"
         elif "salary" in prompt_lower or "pay" in prompt_lower or "hike" in prompt_lower:
             category = "compensation"
@@ -172,8 +172,10 @@ class SimulationService:
         api_key: str | None = None,
     ) -> SimulationRunResponse:
         # Extract count if present or default to 5
-        count_match = re.search(r"(\d+)\s+intern", request.prompt.lower())
+        count_match = re.search(r"(\d+)\s+(?:intern|trainee)", request.prompt.lower())
         count = int(count_match.group(1)) if count_match else 5
+        role_label = "Trainees" if "trainee" in request.prompt.lower() else "Interns"
+        role_sing = "Trainee" if "trainee" in request.prompt.lower() else "Intern"
         stipend = 15000
         months = 3
 
@@ -238,7 +240,7 @@ class SimulationService:
         scenarios = [
             SimulationScenario(
                 scenario_id="scenario_a",
-                name=f"Scenario A — Hire {count} Interns (Direct)",
+                name=f"Scenario A — Hire {count} {role_label} (Direct)",
                 description=f"Hire all {count} candidates immediately. High output volume with mentor strain.",
                 cost=f"₹{cost_lakhs}L",
                 expected_value=f"₹{val_low}L – ₹{val_high}L",
@@ -247,14 +249,14 @@ class SimulationService:
                 is_recommended=False,
                 timeline=[
                     SimulationTimelineEvent(period="Month 1", title="Onboarding & Ramp", impact=f"Mentors lose ~{mentor_burden}% capacity; minimal productive output."),
-                    SimulationTimelineEvent(period="Month 2", title="Absorption Phase", impact="Interns absorb documentation, QA, and operational backlog."),
+                    SimulationTimelineEvent(period="Month 2", title="Absorption Phase", impact=f"{role_label} absorb documentation, QA, and operational backlog."),
                     SimulationTimelineEvent(period="Month 3", title="Peak Velocity", impact=f"Net positive delivery; estimated value ₹{val_low}L+."),
                 ],
             ),
             SimulationScenario(
                 scenario_id="scenario_b",
-                name=f"Scenario B — Hire {count_b} Interns (Optimal)",
-                description=f"Right-size cohort to {count_b} interns to maintain senior focus while absorbing repetitive tasks.",
+                name=f"Scenario B — Hire {count_b} {role_label} (Optimal)",
+                description=f"Right-size cohort to {count_b} {role_label.lower()} to maintain senior focus while absorbing repetitive tasks.",
                 cost=f"₹{cost_b}L",
                 expected_value=f"₹{val_b_low}L – ₹{val_b_high}L",
                 roi_range=f"{round(((val_b_low - cost_b) / cost_b) * 100)}% – {round(((val_b_high - cost_b) / cost_b) * 100)}%",
@@ -268,7 +270,7 @@ class SimulationService:
             ),
             SimulationScenario(
                 scenario_id="scenario_c",
-                name=f"Scenario C — Hire {count} Interns + 1 Dedicated Lead",
+                name=f"Scenario C — Hire {count} {role_label} + 1 Dedicated Lead",
                 description="Hire the full cohort and pair with a dedicated contractor mentor to shield senior staff.",
                 cost=f"₹{cost_c}L",
                 expected_value=f"₹{val_c_low}L – ₹{val_c_high}L",
@@ -284,20 +286,20 @@ class SimulationService:
         ]
 
         summary = (
-            f"Simulating hiring {count} interns for 3 months at ₹{stipend:,}/mo against your current organization data "
+            f"Simulating hiring {count} {role_label.lower()} for 3 months at ₹{stipend:,}/mo against your current organization data "
             f"({emp_count} active employees, {mentors} potential mentors, ₹{round(curr_payroll / 100000, 2)}L monthly payroll). "
             f"While core workload drops from {curr_workload}% to {after_workload}%, OfficeOS detected an operational mentor bottleneck: "
-            f"{count} interns across {mentors} leads causes an estimated {mentor_burden}% capacity reduction in senior delivery."
+            f"{count} {role_label.lower()} across {mentors} leads causes an estimated {mentor_burden}% capacity reduction in senior delivery."
         )
 
         recommendation = (
-            f"**OfficeOS Recommendation: Scenario B ({count_b} Interns)** provides the optimal risk-adjusted return. "
+            f"**OfficeOS Recommendation: Scenario B ({count_b} {role_label})** provides the optimal risk-adjusted return. "
             f"It captures ₹{val_b_low}L–₹{val_b_high}L in productivity gains while keeping senior mentor overhead within safe thresholds."
         )
 
         assumptions = [
-            f"Intern stipend held constant at ₹{stipend:,}/month.",
-            "Intern productivity reaches 65% efficiency by week 5.",
+            f"{role_sing} stipend held constant at ₹{stipend:,}/month.",
+            f"{role_sing} productivity reaches 65% efficiency by week 5.",
             f"Mentor load calculated across {mentors} eligible senior roles.",
             "Existing office space & workstation allocation is sufficient without capital expenditure.",
         ]
@@ -305,15 +307,15 @@ class SimulationService:
         narrative = (
             f"### Executive Simulation Breakdown\n\n"
             f"• **Financial Impact**: Additional 3-month investment of **₹{cost_lakhs}L** yields an estimated **₹{val_low}L–₹{val_high}L** in task value.\n"
-            f"• **Operational Risk**: Mentorship capacity is your primary bottleneck. Having {mentors} leads train {count} interns simultaneously creates a **{mentor_burden}% drag** on core sprint deliverables.\n"
-            f"• **Optimal Path**: Capping the cohort at **{count_b} interns** preserves senior delivery schedules while unlocking a **100%+ ROI**."
+            f"• **Operational Risk**: Mentorship capacity is your primary bottleneck. Having {mentors} leads train {count} {role_label.lower()} simultaneously creates a **{mentor_burden}% drag** on core sprint deliverables.\n"
+            f"• **Optimal Path**: Capping the cohort at **{count_b} {role_label.lower()}** preserves senior delivery schedules while unlocking a **100%+ ROI**."
         )
 
         # Optional Groq enrichment if key exists
         enriched_narrative = await cls._enrich_with_groq(request.prompt, summary, narrative, api_key=api_key)
 
         return SimulationRunResponse(
-            title=f"Workforce Simulation: Hiring {count} Interns",
+            title=f"Workforce Simulation: Hiring {count} {role_label}",
             summary=summary,
             category="workforce",
             confidence_score=78,

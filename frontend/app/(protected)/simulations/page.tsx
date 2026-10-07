@@ -52,14 +52,6 @@ export default function SimulationsPage() {
         // Fallback default presets if offline
         setPresets([
           {
-            id: "hire_interns",
-            category: "workforce",
-            title: "Hire 5 Interns (3 Months @ ₹15k/mo)",
-            description: "Workload redistribution, mentor bottleneck, and net ROI.",
-            prompt: "What if I hire 5 interns for 3 months at ₹15,000/month stipend?",
-            parameters: { count: 5, duration_months: 3, stipend: 15000 },
-          },
-          {
             id: "salary_hike",
             category: "compensation",
             title: "8% Company-wide Salary Increase",
@@ -82,6 +74,14 @@ export default function SimulationsPage() {
             description: "Capex, break-even period, and operational risk.",
             prompt: "What if we open a Bangalore satellite branch with 10 employees?",
             parameters: { headcount: 10 },
+          },
+          {
+            id: "hire_trainees",
+            category: "workforce",
+            title: "Hire 5 Trainees (3 Months @ ₹15k/mo)",
+            description: "Workload redistribution, mentor bottleneck, and net ROI.",
+            prompt: "What if I hire 5 trainees for 3 months at ₹15,000/month stipend?",
+            parameters: { count: 5, duration_months: 3, stipend: 15000 },
           },
         ]);
       }
