@@ -749,7 +749,9 @@ async def approve_leave_request(
     ip_address: str | None = None,
 ) -> LeaveRequestResponse:
     rec = await session.scalar(
-        select(LeaveRequest).where(
+        select(LeaveRequest)
+        .options(selectinload(LeaveRequest.employee))
+        .where(
             LeaveRequest.id == request_id,
             LeaveRequest.organization_id == organization_id,
         )
@@ -791,15 +793,15 @@ async def approve_leave_request(
     )
 
     # Resolve employee profile to notify requester
-    emp = getattr(rec, "employee", None)
+    emp = rec.employee
     if emp is None and hasattr(session, "scalar"):
         try:
             emp = await session.scalar(select(Employee).where(Employee.id == rec.employee_id))
         except Exception:
             emp = None
 
-    recipient_profile_id = getattr(emp, "profile_id", None) if emp else None
-    emp_name = f"{getattr(emp, 'first_name', '')} {getattr(emp, 'last_name', '')}".strip() if emp else "Employee"
+    recipient_profile_id = emp.profile_id if emp else None
+    emp_name = f"{emp.first_name} {emp.last_name}".strip() if emp else "Employee"
 
     try:
         await AutomationService.dispatch_event(
@@ -838,7 +840,9 @@ async def reject_leave_request(
     ip_address: str | None = None,
 ) -> LeaveRequestResponse:
     rec = await session.scalar(
-        select(LeaveRequest).where(
+        select(LeaveRequest)
+        .options(selectinload(LeaveRequest.employee))
+        .where(
             LeaveRequest.id == request_id,
             LeaveRequest.organization_id == organization_id,
         )
@@ -877,15 +881,15 @@ async def reject_leave_request(
     )
 
     # Resolve employee profile to notify requester
-    emp = getattr(rec, "employee", None)
+    emp = rec.employee
     if emp is None and hasattr(session, "scalar"):
         try:
             emp = await session.scalar(select(Employee).where(Employee.id == rec.employee_id))
         except Exception:
             emp = None
 
-    recipient_profile_id = getattr(emp, "profile_id", None) if emp else None
-    emp_name = f"{getattr(emp, 'first_name', '')} {getattr(emp, 'last_name', '')}".strip() if emp else "Employee"
+    recipient_profile_id = emp.profile_id if emp else None
+    emp_name = f"{emp.first_name} {emp.last_name}".strip() if emp else "Employee"
 
     try:
         await AutomationService.dispatch_event(
