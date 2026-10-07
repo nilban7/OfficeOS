@@ -255,6 +255,10 @@ export const API_ENDPOINTS = {
     messages: (id: string) => `/ai/conversations/${id}/messages`,
     query: "/ai/query",
   },
+  simulations: {
+    presets: "/simulations/presets",
+    run: "/simulations/run",
+  },
   automations: {
     list: "/automations",
     create: "/automations",

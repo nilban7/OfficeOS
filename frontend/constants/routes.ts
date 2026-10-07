@@ -32,6 +32,7 @@ export const ROUTES = {
   NOTIFICATIONS: "/notifications",
   AUDIT_LOGS: "/audit-logs",
   AI: "/ai",
+  SIMULATIONS: "/simulations",
   AUTOMATIONS: "/automations",
   SETTINGS: "/settings",
   SETTINGS_AI: "/settings/ai",

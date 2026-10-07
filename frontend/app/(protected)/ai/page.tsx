@@ -21,6 +21,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { MarkdownMessage } from "@/components/ai/markdown-message";
 import { useOrganization } from "@/hooks/use-organization";
 import { apiClient } from "@/lib/api/client";
 import { API_ENDPOINTS } from "@/lib/api/endpoints";
@@ -407,11 +408,11 @@ export default function AIAssistantPage() {
                     <div
                       className={`rounded-xl p-3.5 text-xs max-w-[85%] leading-relaxed ${
                         isUser
-                          ? "bg-primary-600 text-white rounded-tr-none shadow-sm"
-                          : "bg-slate-50 border border-slate-200 text-slate-800 rounded-tl-none whitespace-pre-wrap shadow-sm"
+                          ? "bg-primary-600 text-white rounded-tr-none shadow-sm whitespace-pre-wrap"
+                          : "bg-slate-50 border border-slate-200 text-slate-800 rounded-tl-none shadow-sm"
                       }`}
                     >
-                      {m.content}
+                      {isUser ? m.content : <MarkdownMessage content={m.content} />}
                     </div>
                   </div>
                 );
