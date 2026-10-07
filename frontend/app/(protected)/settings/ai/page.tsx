@@ -40,7 +40,7 @@ export default function AISettingsPage() {
 
   const [isEnabled, setIsEnabled] = React.useState(true);
   const [provider, setProvider] = React.useState("groq");
-  const [modelName, setModelName] = React.useState("llama-3.3-70b-versatile");
+  const [modelName, setModelName] = React.useState("openai/gpt-oss-120b");
   const [temperature, setTemperature] = React.useState(0.7);
   const [maxTokens, setMaxTokens] = React.useState(2048);
   const [dailyLimit, setDailyLimit] = React.useState(1000);
@@ -232,7 +232,7 @@ export default function AISettingsPage() {
                       const nextProv = e.target.value;
                       setProvider(nextProv);
                       if (nextProv === "groq") {
-                        setModelName("llama-3.3-70b-versatile");
+                        setModelName("openai/gpt-oss-120b");
                       } else {
                         setModelName("gemini-1.5-flash");
                       }
@@ -253,8 +253,9 @@ export default function AISettingsPage() {
                   >
                     {provider === "groq" ? (
                       <>
-                        <option value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile (Recommended, High-Accuracy)</option>
-                        <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant (Ultra-Fast Lightweight)</option>
+                        <option value="openai/gpt-oss-120b">GPT-OSS 120B (Recommended, Ultra-Intelligent & Fast)</option>
+                        <option value="openai/gpt-oss-20b">GPT-OSS 20B (Fast & Efficient)</option>
+                        <option value="qwen/qwen3.8-27b">Qwen 3.8 27B</option>
                       </>
                     ) : (
                       <>
