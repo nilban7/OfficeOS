@@ -6,7 +6,7 @@ conversation sessions, message persistence, and audit logging.
 
 import re
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -68,7 +68,6 @@ DATABASE_TOOL_DEF = [
 FORBIDDEN_SQL_PATTERNS = [
     r"\b(insert|update|delete|drop|alter|truncate|grant|revoke|create|replace)\b",
     r"\b(execute|exec|call|vacuum|copy|comment|lock|reindex)\b",
-    r";",
     r"--",
     r"/\*",
 ]
@@ -135,7 +134,8 @@ DATABASE SCHEMA:
 - clients (id, organization_id, name, client_code, company_name, email, phone, status, industry)
 - operation_tasks (id, organization_id, title, description, project_id, assigned_to_id, status ['todo','in_progress','review','completed'], priority ['low','medium','high','urgent'], due_date)
 - attendance_records (id, organization_id, employee_id, date, check_in, check_out, status ['present','late','absent','half_day','on_leave'], work_hours)
-- leave_requests (id, organization_id, employee_id, leave_type ['casual','sick','earned','unpaid'], start_date, end_date, total_days, status ['pending','approved','rejected','cancelled'], reason)
+- leave_types (id, organization_id, name, code, is_paid, is_active)
+- leave_requests (id, organization_id, employee_id, leave_type_id, start_date, end_date, total_days, status ['pending','approved','rejected','cancelled'], reason)
 - assets (id, organization_id, asset_code, name, category, model, serial_number, status ['available','assigned','in_maintenance','retired'])
 - maintenance_requests (id, organization_id, asset_id, requested_by_id, priority, status ['pending','approved','in_progress','completed','rejected'], issue_description)
 - procurement_requests (id, organization_id, request_number, requester_id, status, total_estimated_cost)
@@ -144,10 +144,21 @@ DATABASE SCHEMA:
 - internships (id, organization_id, intern_name, email, stipend, status)
 - expenses (id, organization_id, expense_number, category, amount, status) [requires finance permission]
 
+LEAVE & RETURN DATES:
+When asked when an employee on leave (e.g. sick leave, casual leave) will return or which date they return:
+- Query:
+  SELECT e.first_name, e.last_name, lt.name AS leave_type, lr.start_date, lr.end_date, (lr.end_date + INTERVAL '1 day') AS return_date, lr.status
+  FROM leave_requests lr
+  JOIN employees e ON lr.employee_id = e.id
+  JOIN leave_types lt ON lr.leave_type_id = lt.id
+  WHERE lr.organization_id = '{organization_id}';
+- The employee's scheduled return date is `end_date + INTERVAL '1 day'` (the next day after end_date).
+- State the return date clearly (e.g., "Niladri Banerjee's sick leave ends on October 7, 2026, so he is scheduled to return on **October 8, 2026**").
+
 QUERY RULES:
 1. Every query must be a read-only SELECT statement.
-2. Always filter by `organization_id = '{organization_id}'` in the WHERE clause.
-3. Join tables where helpful (e.g., JOIN employees e ON t.assigned_to_id = e.id).
+2. Filter by `organization_id = '{organization_id}'`.
+3. Join tables where helpful (e.g., JOIN employees e ON lr.employee_id = e.id).
 4. Provide structured, accurate responses in clean markdown (tables, bullet points, metrics).
 """
 
@@ -158,9 +169,13 @@ QUERY RULES:
         user_permissions: list[str],
         query_str: str,
     ) -> dict[str, Any]:
-        clean_query = query_str.strip()
+        clean_query = query_str.strip().rstrip(";").strip()
         if not clean_query:
             return {"error": "Query cannot be empty."}
+
+        # Prevent multiple chained SQL statements
+        if ";" in clean_query:
+            return {"error": "Security restriction: Multiple SQL statements are not permitted."}
 
         # Must start with SELECT or WITH
         if not re.match(r"^(select|with)\b", clean_query, re.IGNORECASE):
@@ -186,9 +201,20 @@ QUERY RULES:
         org_id_str = str(organization_id)
         if org_id_str not in clean_query:
             clean_query = clean_query.rstrip(";").strip()
-            from_m = re.search(r"\bfrom\s+([a-zA-Z0-9_]+)\b", clean_query, re.IGNORECASE)
+            from_m = re.search(
+                r"\bfrom\s+([a-zA-Z0-9_]+)(?:\s+(?:as\s+)?([a-zA-Z0-9_]+))?",
+                clean_query,
+                re.IGNORECASE,
+            )
             if from_m:
                 table = from_m.group(1).lower()
+                raw_alias = from_m.group(2)
+                non_aliases = {
+                    "where", "join", "left", "right", "inner", "outer", "cross",
+                    "natural", "order", "group", "limit", "offset", "on"
+                }
+                alias = raw_alias if raw_alias and raw_alias.lower() not in non_aliases else table
+
                 where_m = re.search(r"\bwhere\b", clean_query, re.IGNORECASE)
                 if where_m:
                     where_pos = where_m.end()
@@ -202,11 +228,11 @@ QUERY RULES:
                         cond = clean_query[where_pos:cond_end].strip()
                         tail = clean_query[cond_end:]
                         clean_query = (
-                            f"{clean_query[:where_pos]} {table}.organization_id = '{org_id_str}' AND ({cond}) {tail}"
+                            f"{clean_query[:where_pos]} {alias}.organization_id = '{org_id_str}' AND ({cond}) {tail}"
                         )
                     else:
                         cond = clean_query[where_pos:].strip()
-                        clean_query = f"{clean_query[:where_pos]} {table}.organization_id = '{org_id_str}' AND ({cond})"
+                        clean_query = f"{clean_query[:where_pos]} {alias}.organization_id = '{org_id_str}' AND ({cond})"
                 else:
                     tail_m = re.search(
                         r"\b(order\s+by|group\s+by|limit|offset)\b", clean_query, re.IGNORECASE
@@ -214,10 +240,10 @@ QUERY RULES:
                     if tail_m:
                         pos = tail_m.start()
                         clean_query = (
-                            f"{clean_query[:pos]} WHERE {table}.organization_id = '{org_id_str}' {clean_query[pos:]}"
+                            f"{clean_query[:pos]} WHERE {alias}.organization_id = '{org_id_str}' {clean_query[pos:]}"
                         )
                     else:
-                        clean_query = f"{clean_query} WHERE {table}.organization_id = '{org_id_str}'"
+                        clean_query = f"{clean_query} WHERE {alias}.organization_id = '{org_id_str}'"
             else:
                 return {
                     "error": f"Tenant isolation restriction: Your query must explicitly include WHERE organization_id = '{org_id_str}'."
@@ -824,7 +850,7 @@ QUERY RULES:
         if (
             explicit_capability == "leave"
             or "leave" in allowed_capabilities
-            and any(w in lower_q for w in ["leave", "holiday", "vacation", "off", "absence"])
+            and any(w in lower_q for w in ["leave", "holiday", "vacation", "off", "absence", "return", "returning", "back", "sick"])
         ):
             lv_stmt = select(
                 func.count(case((LeaveRequest.status == "pending", LeaveRequest.id))).label("pending"),
@@ -841,6 +867,8 @@ QUERY RULES:
                     Employee.first_name,
                     Employee.last_name,
                     LeaveType.name.label("leave_type_name"),
+                    LeaveRequest.start_date,
+                    LeaveRequest.end_date,
                     LeaveRequest.total_days,
                     LeaveRequest.status,
                 )
@@ -848,18 +876,21 @@ QUERY RULES:
                 .join(LeaveType, LeaveRequest.leave_type_id == LeaveType.id)
                 .where(LeaveRequest.organization_id == organization_id)
                 .order_by(LeaveRequest.created_at.desc())
-                .limit(5)
+                .limit(10)
             )
             lv_sample_res = (await session.execute(lv_sample_stmt)).all()
-            recent_leaves = [
-                {
+            recent_leaves = []
+            for r in lv_sample_res:
+                ret_d = (r.end_date + timedelta(days=1)).isoformat() if r.end_date else "N/A"
+                recent_leaves.append({
                     "employee": f"{r.first_name} {r.last_name}",
                     "type": r.leave_type_name,
+                    "start_date": str(r.start_date) if r.start_date else "N/A",
+                    "end_date": str(r.end_date) if r.end_date else "N/A",
+                    "return_date": ret_d,
                     "days": str(r.total_days),
                     "status": r.status,
-                }
-                for r in lv_sample_res
-            ]
+                })
 
             context["leave"] = {
                 "pending_requests": lv_res.pending or 0,

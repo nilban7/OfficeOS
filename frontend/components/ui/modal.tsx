@@ -68,20 +68,20 @@ export function Modal({
       {/* Modal Dialog Content */}
       <div
         className={cn(
-          "relative z-50 w-full rounded-2xl bg-white p-6 shadow-modal border border-slate-100 animate-in fade-in-0 zoom-in-95 duration-200",
+          "relative z-50 w-full rounded-2xl bg-white p-5 sm:p-6 shadow-modal border border-slate-100 animate-in fade-in-0 zoom-in-95 duration-200 max-h-[calc(100vh-2.5rem)] flex flex-col",
           sizeClasses[size],
           className
         )}
       >
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-shrink-0">
           <div>
             {title && (
-              <h2 id="modal-title" className="text-lg font-semibold text-slate-900">
+              <h2 id="modal-title" className="text-base font-semibold text-slate-900">
                 {title}
               </h2>
             )}
             {description && (
-              <p id="modal-description" className="mt-1 text-sm text-slate-500">
+              <p id="modal-description" className="mt-0.5 text-xs text-slate-500">
                 {description}
               </p>
             )}
@@ -92,11 +92,11 @@ export function Modal({
             className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
             aria-label="Close modal"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="mt-4">{children}</div>
+        <div className="mt-3 overflow-y-auto flex-1 pr-1 overscroll-contain">{children}</div>
       </div>
     </div>
   );

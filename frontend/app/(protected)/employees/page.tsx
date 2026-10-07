@@ -1122,11 +1122,11 @@ export default function EmployeesPage() {
             ? "Update the employee's personal and organizational details."
             : "Enter employee profile and organizational assignment information."
         }
-        size="lg"
+        size="xl"
       >
-        <form onSubmit={isEditEmployeeOpen ? handleUpdateEmployee : handleCreateEmployee} className="space-y-4">
+        <form onSubmit={isEditEmployeeOpen ? handleUpdateEmployee : handleCreateEmployee} className="space-y-3.5">
           {employeeFormError && (
-            <div role="alert" className="p-3 rounded-md bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-start gap-2">
+            <div role="alert" className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-start gap-2">
               <AlertCircle className="h-4 w-4 text-rose-500 mt-0.5 flex-shrink-0" />
               <span>{employeeFormError}</span>
             </div>
@@ -1134,12 +1134,12 @@ export default function EmployeesPage() {
 
           {/* Section 1: Basic Information */}
           <div className="space-y-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
               Basic Information
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <div>
-                <Label htmlFor="emp_code">
+                <Label htmlFor="emp_code" className="text-xs font-medium text-slate-700">
                   Employee Code <span className="text-rose-500">*</span>
                 </Label>
                 <Input
@@ -1147,11 +1147,12 @@ export default function EmployeesPage() {
                   placeholder="e.g. EMP-001"
                   value={empCode}
                   onChange={(e) => setEmpCode(e.target.value.toUpperCase())}
+                  className="h-8.5 text-xs mt-1"
                   required
                 />
               </div>
               <div>
-                <Label htmlFor="emp_first_name">
+                <Label htmlFor="emp_first_name" className="text-xs font-medium text-slate-700">
                   First Name <span className="text-rose-500">*</span>
                 </Label>
                 <Input
@@ -1159,11 +1160,12 @@ export default function EmployeesPage() {
                   placeholder="First name"
                   value={empFirstName}
                   onChange={(e) => setEmpFirstName(e.target.value)}
+                  className="h-8.5 text-xs mt-1"
                   required
                 />
               </div>
               <div>
-                <Label htmlFor="emp_last_name">
+                <Label htmlFor="emp_last_name" className="text-xs font-medium text-slate-700">
                   Last Name <span className="text-rose-500">*</span>
                 </Label>
                 <Input
@@ -1171,6 +1173,7 @@ export default function EmployeesPage() {
                   placeholder="Last name"
                   value={empLastName}
                   onChange={(e) => setEmpLastName(e.target.value)}
+                  className="h-8.5 text-xs mt-1"
                   required
                 />
               </div>
@@ -1179,12 +1182,12 @@ export default function EmployeesPage() {
 
           {/* Section 2: Employment & Assignment */}
           <div className="space-y-2 pt-2 border-t border-slate-100">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
               Employment Details
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <div>
-                <Label htmlFor="emp_designation">
+                <Label htmlFor="emp_designation" className="text-xs font-medium text-slate-700">
                   Designation <span className="text-rose-500">*</span>
                 </Label>
                 <Input
@@ -1192,16 +1195,17 @@ export default function EmployeesPage() {
                   placeholder="e.g. Senior Software Engineer"
                   value={empDesignation}
                   onChange={(e) => setEmpDesignation(e.target.value)}
+                  className="h-8.5 text-xs mt-1"
                   required
                 />
               </div>
               <div>
-                <Label htmlFor="emp_type">Employment Type</Label>
+                <Label htmlFor="emp_type" className="text-xs font-medium text-slate-700">Employment Type</Label>
                 <select
                   id="emp_type"
                   value={empType}
                   onChange={(e) => setEmpType(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-md border border-slate-300 bg-white px-2.5 h-8.5 text-xs text-slate-900 mt-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
                   <option value="full_time">Full-Time</option>
                   <option value="part_time">Part-Time</option>
@@ -1210,12 +1214,12 @@ export default function EmployeesPage() {
                 </select>
               </div>
               <div>
-                <Label htmlFor="emp_status">Status</Label>
+                <Label htmlFor="emp_status" className="text-xs font-medium text-slate-700">Status</Label>
                 <select
                   id="emp_status"
                   value={empStatus}
                   onChange={(e) => setEmpStatus(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-md border border-slate-300 bg-white px-2.5 h-8.5 text-xs text-slate-900 mt-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
                   <option value="active">Active</option>
                   <option value="probation">Probation</option>
@@ -1227,9 +1231,9 @@ export default function EmployeesPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
               <div>
-                <Label htmlFor="emp_joining_date">
+                <Label htmlFor="emp_joining_date" className="text-xs font-medium text-slate-700">
                   Date of Joining <span className="text-rose-500">*</span>
                 </Label>
                 <Input
@@ -1237,28 +1241,30 @@ export default function EmployeesPage() {
                   type="date"
                   value={empJoiningDate}
                   onChange={(e) => setEmpJoiningDate(e.target.value)}
+                  className="h-8.5 text-xs mt-1"
                   required
                 />
               </div>
               <div>
-                <Label htmlFor="emp_exit_date">Date of Exit</Label>
+                <Label htmlFor="emp_exit_date" className="text-xs font-medium text-slate-700">Date of Exit</Label>
                 <Input
                   id="emp_exit_date"
                   type="date"
                   value={empExitDate}
                   onChange={(e) => setEmpExitDate(e.target.value)}
+                  className="h-8.5 text-xs mt-1"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
               <div>
-                <Label htmlFor="emp_department">Department</Label>
+                <Label htmlFor="emp_department" className="text-xs font-medium text-slate-700">Department</Label>
                 <select
                   id="emp_department"
                   value={empDepartmentId}
                   onChange={(e) => setEmpDepartmentId(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-md border border-slate-300 bg-white px-2.5 h-8.5 text-xs text-slate-900 mt-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
                   <option value="">None / Unassigned</option>
                   {departments.map((d) => (
@@ -1269,12 +1275,12 @@ export default function EmployeesPage() {
                 </select>
               </div>
               <div>
-                <Label htmlFor="emp_branch">Branch</Label>
+                <Label htmlFor="emp_branch" className="text-xs font-medium text-slate-700">Branch</Label>
                 <select
                   id="emp_branch"
                   value={empBranchId}
                   onChange={(e) => setEmpBranchId(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-md border border-slate-300 bg-white px-2.5 h-8.5 text-xs text-slate-900 mt-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
                   <option value="">None / Unassigned</option>
                   {branches.map((b) => (
@@ -1285,12 +1291,12 @@ export default function EmployeesPage() {
                 </select>
               </div>
               <div>
-                <Label htmlFor="emp_manager">Reporting Manager</Label>
+                <Label htmlFor="emp_manager" className="text-xs font-medium text-slate-700">Reporting Manager</Label>
                 <select
                   id="emp_manager"
                   value={empManagerId}
                   onChange={(e) => setEmpManagerId(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-md border border-slate-300 bg-white px-2.5 h-8.5 text-xs text-slate-900 mt-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
                   <option value="">None (Top Level)</option>
                   {managers
@@ -1307,101 +1313,110 @@ export default function EmployeesPage() {
 
           {/* Section 3: Contact Details */}
           <div className="space-y-2 pt-2 border-t border-slate-100">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
               Contact Information
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <div>
-                <Label htmlFor="emp_work_email">Work Email</Label>
+                <Label htmlFor="emp_work_email" className="text-xs font-medium text-slate-700">Work Email</Label>
                 <Input
                   id="emp_work_email"
                   type="email"
                   placeholder="name@company.com"
                   value={empWorkEmail}
                   onChange={(e) => setEmpWorkEmail(e.target.value)}
+                  className="h-8.5 text-xs mt-1"
                 />
               </div>
               <div>
-                <Label htmlFor="emp_personal_email">Personal Email</Label>
+                <Label htmlFor="emp_personal_email" className="text-xs font-medium text-slate-700">Personal Email</Label>
                 <Input
                   id="emp_personal_email"
                   type="email"
                   placeholder="personal@email.com"
                   value={empPersonalEmail}
                   onChange={(e) => setEmpPersonalEmail(e.target.value)}
+                  className="h-8.5 text-xs mt-1"
                 />
               </div>
               <div>
-                <Label htmlFor="emp_phone">Phone Number</Label>
+                <Label htmlFor="emp_phone" className="text-xs font-medium text-slate-700">Phone Number</Label>
                 <Input
                   id="emp_phone"
                   placeholder="+1 (555) 000-0000"
                   value={empPhone}
                   onChange={(e) => setEmpPhone(e.target.value)}
+                  className="h-8.5 text-xs mt-1"
                 />
               </div>
             </div>
-            <div>
-              <Label htmlFor="emp_address">Current Address</Label>
+            <div className="pt-1">
+              <Label htmlFor="emp_address" className="text-xs font-medium text-slate-700">Current Address</Label>
               <Input
                 id="emp_address"
                 placeholder="Street, City, State, ZIP"
                 value={empAddress}
                 onChange={(e) => setEmpAddress(e.target.value)}
+                className="h-8.5 text-xs mt-1"
               />
             </div>
           </div>
 
           {/* Section 4: Emergency Contact */}
           <div className="space-y-2 pt-2 border-t border-slate-100">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
               Emergency Contact
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <div>
-                <Label htmlFor="emp_em_name">Contact Name</Label>
+                <Label htmlFor="emp_em_name" className="text-xs font-medium text-slate-700">Contact Name</Label>
                 <Input
                   id="emp_em_name"
                   placeholder="Full name"
                   value={empEmergencyName}
                   onChange={(e) => setEmpEmergencyName(e.target.value)}
+                  className="h-8.5 text-xs mt-1"
                 />
               </div>
               <div>
-                <Label htmlFor="emp_em_rel">Relationship</Label>
+                <Label htmlFor="emp_em_rel" className="text-xs font-medium text-slate-700">Relationship</Label>
                 <Input
                   id="emp_em_rel"
                   placeholder="e.g. Spouse, Parent"
                   value={empEmergencyRel}
                   onChange={(e) => setEmpEmergencyRel(e.target.value)}
+                  className="h-8.5 text-xs mt-1"
                 />
               </div>
               <div>
-                <Label htmlFor="emp_em_phone">Emergency Phone</Label>
+                <Label htmlFor="emp_em_phone" className="text-xs font-medium text-slate-700">Emergency Phone</Label>
                 <Input
                   id="emp_em_phone"
                   placeholder="+1 (555) 000-0000"
                   value={empEmergencyPhone}
                   onChange={(e) => setEmpEmergencyPhone(e.target.value)}
+                  className="h-8.5 text-xs mt-1"
                 />
               </div>
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
             <Button
               type="button"
               variant="outline"
+              size="sm"
               onClick={() => {
                 setIsAddEmployeeOpen(false);
                 setIsEditEmployeeOpen(false);
                 resetEmployeeForm();
               }}
               disabled={isSubmittingEmployee}
+              className="h-8.5 text-xs"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmittingEmployee}>
+            <Button type="submit" size="sm" disabled={isSubmittingEmployee} className="h-8.5 text-xs px-4">
               {isSubmittingEmployee
                 ? "Saving..."
                 : isEditEmployeeOpen
