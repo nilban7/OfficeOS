@@ -39,7 +39,8 @@ export default function AISettingsPage() {
   const canManage = permissions.includes("ai.manage") || permissions.includes("settings:manage");
 
   const [isEnabled, setIsEnabled] = React.useState(true);
-  const [modelName, setModelName] = React.useState("gemini-1.5-flash");
+  const [provider, setProvider] = React.useState("groq");
+  const [modelName, setModelName] = React.useState("llama-3.3-70b-versatile");
   const [temperature, setTemperature] = React.useState(0.7);
   const [maxTokens, setMaxTokens] = React.useState(2048);
   const [dailyLimit, setDailyLimit] = React.useState(1000);
@@ -65,7 +66,12 @@ export default function AISettingsPage() {
         if (res) {
           const cfg = res;
           setIsEnabled(cfg.is_enabled);
-          setModelName(cfg.model_name);
+          if (cfg.provider) {
+            setProvider(cfg.provider);
+          }
+          if (cfg.model_name) {
+            setModelName(cfg.model_name);
+          }
           setTemperature(cfg.temperature != null ? Number(cfg.temperature) : 0.7);
           setMaxTokens(cfg.max_tokens_per_response != null ? cfg.max_tokens_per_response : 2048);
           setDailyLimit(cfg.daily_request_limit != null ? cfg.daily_request_limit : 1000);
@@ -104,6 +110,7 @@ export default function AISettingsPage() {
 
     const payload: AIConfigurationUpdate = {
       is_enabled: isEnabled,
+      provider,
       model_name: modelName,
       temperature,
       max_tokens_per_response: maxTokens,
@@ -218,17 +225,48 @@ export default function AISettingsPage() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700">AI Provider</label>
+                  <select
+                    value={provider}
+                    onChange={(e) => {
+                      const nextProv = e.target.value;
+                      setProvider(nextProv);
+                      if (nextProv === "groq") {
+                        setModelName("llama-3.3-70b-versatile");
+                      } else {
+                        setModelName("gemini-1.5-flash");
+                      }
+                    }}
+                    className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800"
+                  >
+                    <option value="groq">Groq Cloud (Ultra-Fast LPU Inference)</option>
+                    <option value={provider === "gemini" ? "gemini" : "system_gemini"}>Google Gemini API</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-slate-700">Model Identifier</label>
                   <select
                     value={modelName}
                     onChange={(e) => setModelName(e.target.value)}
                     className="w-full text-xs rounded-lg border border-slate-200 bg-white p-2.5 text-slate-800"
                   >
-                    <option value="gemini-1.5-flash">Gemini 1.5 Flash (Fast & Balanced)</option>
-                    <option value="gemini-1.5-pro">Gemini 1.5 Pro (Deep Analysis)</option>
+                    {provider === "groq" ? (
+                      <>
+                        <option value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile (Recommended, High-Accuracy)</option>
+                        <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant (Ultra-Fast Lightweight)</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="gemini-1.5-flash">Gemini 1.5 Flash (Fast & Balanced)</option>
+                        <option value="gemini-1.5-pro">Gemini 1.5 Pro (Deep Analysis)</option>
+                      </>
+                    )}
                   </select>
                 </div>
+              </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-slate-700">Daily Request Quota</label>
                   <Input
@@ -238,24 +276,6 @@ export default function AISettingsPage() {
                     value={dailyLimit}
                     onChange={(e) => setDailyLimit(Number(e.target.value))}
                     className="text-xs"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs">
-                    <span className="font-semibold text-slate-700">Creativity (Temperature)</span>
-                    <span className="text-slate-500">{temperature.toFixed(2)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={temperature}
-                    onChange={(e) => setTemperature(parseFloat(e.target.value))}
-                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
                   />
                 </div>
 
@@ -271,6 +291,22 @@ export default function AISettingsPage() {
                     className="text-xs"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-1.5 pt-2">
+                <div className="flex justify-between text-xs">
+                  <span className="font-semibold text-slate-700">Creativity (Temperature)</span>
+                  <span className="text-slate-500">{temperature.toFixed(2)}</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={temperature}
+                  onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
+                />
               </div>
             </CardContent>
           </Card>
