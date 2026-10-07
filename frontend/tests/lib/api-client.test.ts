@@ -247,4 +247,29 @@ describe("ApiClient", () => {
       })
     );
   });
+
+  it("converts abort error into REQUEST_TIMEOUT ApiException with friendly message", async () => {
+    const abortErr = new Error("The operation was aborted");
+    abortErr.name = "AbortError";
+    global.fetch = vi.fn().mockRejectedValue(abortErr);
+
+    const client = new ApiClient("http://localhost:8000/api/v1", 5000);
+    await expect(client.get("/test")).rejects.toMatchObject({
+      status: 408,
+      code: "REQUEST_TIMEOUT",
+      message: "Request timed out after 5s. Please try again.",
+    });
+  });
+
+  it("converts TypeError Failed to fetch into a clear server connection error message", async () => {
+    const fetchErr = new TypeError("Failed to fetch");
+    global.fetch = vi.fn().mockRejectedValue(fetchErr);
+
+    const client = new ApiClient("http://localhost:8000/api/v1");
+    await expect(client.get("/test")).rejects.toMatchObject({
+      status: 0,
+      code: "NETWORK_ERROR",
+      message: "Unable to connect to the server. Please check your network connection and verify the backend is running.",
+    });
+  });
 });

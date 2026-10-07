@@ -7,7 +7,7 @@ export class ApiClient {
   private defaultTimeout: number;
   private cache = new Map<string, { data: unknown; expiresAt: number }>();
 
-  constructor(baseUrl: string = env.apiUrl, defaultTimeout: number = 30000) {
+  constructor(baseUrl: string = env.apiUrl, defaultTimeout: number = 60000) {
     // Ensure baseUrl does not have a trailing slash
     this.baseUrl = baseUrl.replace(/\/+$/, "");
     this.defaultTimeout = defaultTimeout;
@@ -238,11 +238,28 @@ export class ApiClient {
       if (err instanceof ApiException) {
         throw err;
       }
-      if (err instanceof DOMException && err.name === "AbortError") {
-        throw new ApiException(`Request timeout after ${timeout}ms`, 408, "REQUEST_TIMEOUT");
+      const isAbort =
+        controller.signal.aborted ||
+        (err instanceof DOMException && err.name === "AbortError") ||
+        (err instanceof Error && err.name === "AbortError");
+      if (isAbort) {
+        const seconds = Math.round(timeout / 1000);
+        throw new ApiException(
+          `Request timed out after ${seconds}s. Please try again.`,
+          408,
+          "REQUEST_TIMEOUT"
+        );
       }
       if (err instanceof Error) {
-        throw new ApiException(err.message, 0, "NETWORK_ERROR");
+        const isFetchError =
+          err.name === "TypeError" &&
+          (err.message === "Failed to fetch" ||
+            err.message.toLowerCase().includes("networkerror") ||
+            err.message.toLowerCase().includes("load failed"));
+        const message = isFetchError
+          ? "Unable to connect to the server. Please check your network connection and verify the backend is running."
+          : err.message;
+        throw new ApiException(message, 0, "NETWORK_ERROR");
       }
       throw new ApiException("An unknown network error occurred", 0, "UNKNOWN_ERROR");
     } finally {

@@ -621,12 +621,12 @@ Format responses in clean, structured markdown tables and bullet points. Do not 
             created_at=datetime.now(UTC),
         )
         session.add(user_msg)
+        conv.messages.append(user_msg)
         conv.updated_at = datetime.now(UTC)
         await session.flush()
 
         # Build message history for provider
         history = [{"role": m.sender_role, "content": m.content} for m in conv.messages]
-        history.append({"role": "user", "content": content.strip()})
 
         # Collect live authorized context
         context_data = await AIService._collect_context_data(
@@ -671,16 +671,16 @@ Format responses in clean, structured markdown tables and bullet points. Do not 
             created_at=datetime.now(UTC),
         )
         session.add(asst_msg)
+        conv.messages.append(asst_msg)
         await session.flush()
 
-        # Re-fetch full conversation
-        stmt = (
-            select(AIConversation)
-            .where(AIConversation.id == conv.id)
-            .options(selectinload(AIConversation.messages))
+        # Query all messages in chronological order
+        msg_stmt = (
+            select(AIMessage)
+            .where(AIMessage.conversation_id == conv.id)
+            .order_by(AIMessage.created_at.asc())
         )
-        conv = await session.scalar(stmt)
-        assert conv is not None
+        all_messages = (await session.scalars(msg_stmt)).all()
 
         return AIConversationDetailResponse(
             id=conv.id,
@@ -690,7 +690,7 @@ Format responses in clean, structured markdown tables and bullet points. Do not 
             is_archived=conv.is_archived,
             created_at=conv.created_at,
             updated_at=conv.updated_at,
-            messages=[AIMessageResponse.model_validate(m) for m in conv.messages],
+            messages=[AIMessageResponse.model_validate(m) for m in all_messages],
         )
 
     @staticmethod
@@ -765,7 +765,7 @@ Format responses in clean, structured markdown tables and bullet points. Do not 
         if (
             explicit_capability == "workforce"
             or "workforce" in allowed_capabilities
-            and any(w in lower_q for w in ["employee", "staff", "headcount", "workforce", "department", "hiring"])
+            and any(w in lower_q for w in ["employee", "staff", "headcount", "workforce", "department", "hiring", "who", "salary", "designation", "role", "educated", "education", "senior", "person", "people", "team", "title"])
         ):
             wf_stmt = select(
                 func.count(Employee.id).label("total"),

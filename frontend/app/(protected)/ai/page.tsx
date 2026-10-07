@@ -33,6 +33,8 @@ import type {
   AIConfiguration,
 } from "@/types/ai";
 
+const AI_REQUEST_TIMEOUT = 120000; // 2 minutes for multi-turn LLM reasoning & tool calls
+
 export default function AIAssistantPage() {
   const { currentOrganization, permissions } = useOrganization();
 
@@ -50,6 +52,7 @@ export default function AIAssistantPage() {
   const [isLoadingConv, setIsLoadingConv] = React.useState(false);
   const [isSending, setIsSending] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const [failedPrompt, setFailedPrompt] = React.useState<string | null>(null);
 
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
@@ -59,7 +62,7 @@ export default function AIAssistantPage() {
 
   React.useEffect(() => {
     scrollToBottom();
-  }, [activeConversation?.messages]);
+  }, [activeConversation?.messages, isSending, errorMessage]);
 
   // Load config & conversation list
   React.useEffect(() => {
@@ -75,8 +78,8 @@ export default function AIAssistantPage() {
       setErrorMessage(null);
       try {
         const [configRes, convsRes] = await Promise.all([
-          apiClient.get<AIConfiguration>(API_ENDPOINTS.ai.configuration),
-          apiClient.get<AIConversation[]>(API_ENDPOINTS.ai.conversations),
+          apiClient.get<AIConfiguration>(API_ENDPOINTS.ai.configuration, { skipCache: true }),
+          apiClient.get<AIConversation[]>(API_ENDPOINTS.ai.conversations, { skipCache: true }),
         ]);
 
         if (!isMounted) return;
@@ -114,8 +117,12 @@ export default function AIAssistantPage() {
   async function loadConversation(id: string) {
     setActiveConvId(id);
     setIsLoadingConv(true);
+    setErrorMessage(null);
     try {
-      const res = await apiClient.get<AIConversationDetail>(API_ENDPOINTS.ai.conversationDetail(id));
+      const res = await apiClient.get<AIConversationDetail>(
+        API_ENDPOINTS.ai.conversationDetail(id),
+        { skipCache: true }
+      );
       if (res) {
         setActiveConversation(res);
       }
@@ -131,12 +138,17 @@ export default function AIAssistantPage() {
     if (!canUseAI) return;
     setIsSending(true);
     setErrorMessage(null);
+    setFailedPrompt(null);
     try {
       const payload = {
         title: initialPrompt ? initialPrompt.slice(0, 40) + "..." : "New Analysis",
         initial_message: initialPrompt || undefined,
       };
-      const res = await apiClient.post<AIConversationDetail>(API_ENDPOINTS.ai.conversations, payload);
+      const res = await apiClient.post<AIConversationDetail>(
+        API_ENDPOINTS.ai.conversations,
+        payload,
+        { timeout: AI_REQUEST_TIMEOUT }
+      );
       if (res) {
         const newConv = res;
         setConversations((prev) => [newConv, ...prev]);
@@ -147,6 +159,9 @@ export default function AIAssistantPage() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to start conversation";
       setErrorMessage(msg);
+      if (initialPrompt) {
+        setFailedPrompt(initialPrompt);
+      }
     } finally {
       setIsSending(false);
     }
@@ -164,6 +179,7 @@ export default function AIAssistantPage() {
 
     setIsSending(true);
     setErrorMessage(null);
+    setFailedPrompt(null);
     setInputPrompt("");
 
     // Optimistic user message
@@ -188,14 +204,29 @@ export default function AIAssistantPage() {
     try {
       const res = await apiClient.post<AIConversationDetail>(
         API_ENDPOINTS.ai.messages(activeConvId),
-        { content: prompt }
+        { content: prompt },
+        { timeout: AI_REQUEST_TIMEOUT }
       );
       if (res) {
         setActiveConversation(res);
+        setFailedPrompt(null);
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === res.id
+              ? {
+                  ...c,
+                  message_count: res.messages.length,
+                  last_message: res.messages[res.messages.length - 1]?.content ?? c.last_message,
+                  updated_at: res.updated_at,
+                }
+              : c
+          )
+        );
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to send message";
       setErrorMessage(msg);
+      setFailedPrompt(prompt);
     } finally {
       setIsSending(false);
     }
@@ -351,13 +382,6 @@ export default function AIAssistantPage() {
 
           {/* Messages Stream */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {errorMessage && (
-              <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                <span>{errorMessage}</span>
-              </div>
-            )}
-
             {isLoadingConv ? (
               <div className="flex items-center justify-center h-full text-xs text-slate-400">
                 <Loader2 className="h-5 w-5 animate-spin mr-2" />
@@ -428,6 +452,29 @@ export default function AIAssistantPage() {
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   <span>Analyzing organizational data...</span>
                 </div>
+              </div>
+            )}
+
+            {errorMessage && (
+              <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 flex items-center justify-between gap-3 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  <span>{errorMessage}</span>
+                </div>
+                {failedPrompt && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setInputPrompt(failedPrompt);
+                      setErrorMessage(null);
+                    }}
+                    className="h-7 px-2.5 text-xs border-rose-300 text-rose-800 hover:bg-rose-100 flex-shrink-0"
+                  >
+                    Retry
+                  </Button>
+                )}
               </div>
             )}
             <div ref={messagesEndRef} />
