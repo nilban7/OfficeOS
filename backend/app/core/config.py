@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     documents_storage_bucket: str = "documents"
     document_download_expires_in: int = 300
     document_upload_expires_in: int = 900
+    groq_api_key: str | None = None
+    gemini_api_key: str | None = None
 
     @model_validator(mode="after")
     def set_derived_supabase_fields(self) -> "Settings":

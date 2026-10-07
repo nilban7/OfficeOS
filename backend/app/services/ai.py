@@ -4,6 +4,7 @@ Handles AI configurations, capability discovery, secure authorized context gathe
 conversation sessions, message persistence, and audit logging.
 """
 
+import re
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -11,7 +12,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -23,7 +24,7 @@ from app.models.employee import Department, Employee
 from app.models.finance import Expense, FinancialTransaction
 from app.models.identity import Profile
 from app.models.internship import Internship
-from app.models.leave import LeaveRequest
+from app.models.leave import LeaveRequest, LeaveType
 from app.models.maintenance import MaintenanceRecord, MaintenanceRequest
 from app.models.operation import OperationTask
 from app.models.procurement import PurchaseOrder, PurchaseRequest
@@ -41,6 +42,46 @@ from app.schemas.ai import (
 from app.services.ai_provider import get_ai_provider
 from app.services.audit import AuditLogService
 
+DATABASE_TOOL_DEF = [
+    {
+        "type": "function",
+        "function": {
+            "name": "query_database",
+            "description": (
+                "Execute a safe read-only SQL SELECT query against the organization PostgreSQL database "
+                "to answer questions with real live data. Always filter by organization_id."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "A PostgreSQL SELECT query. Must include WHERE organization_id = '...'",
+                    }
+                },
+                "required": ["query"],
+            },
+        },
+    }
+]
+
+FORBIDDEN_SQL_PATTERNS = [
+    r"\b(insert|update|delete|drop|alter|truncate|grant|revoke|create|replace)\b",
+    r"\b(execute|exec|call|vacuum|copy|comment|lock|reindex)\b",
+    r";",
+    r"--",
+    r"/\*",
+]
+
+RESTRICTED_TABLE_PERMISSIONS = {
+    "expenses": "finance.view",
+    "financial_transactions": "finance.view",
+    "salary_structures": "payroll.view",
+    "payroll_items": "payroll.view",
+    "payroll_runs": "payroll.view",
+    "audit_logs": "audit_logs.view",
+}
+
 
 class AIService:
     @staticmethod
@@ -55,8 +96,8 @@ class AIService:
                 id=uuid.uuid4(),
                 organization_id=organization_id,
                 is_enabled=True,
-                provider="system_gemini",
-                model_name="gemini-1.5-flash",
+                provider="groq",
+                model_name="llama-3.3-70b-versatile",
                 temperature=Decimal("0.70"),
                 max_tokens_per_response=2048,
                 allowed_capabilities=[
@@ -77,6 +118,100 @@ class AIService:
             session.add(config)
             await session.flush()
         return AIConfigurationResponse.model_validate(config)
+
+    @staticmethod
+    def build_system_instruction(organization_id: UUID) -> str:
+        return f"""You are the OfficeOS AI Assistant with real-time database intelligence for this organization.
+Current Organization ID: '{organization_id}'
+
+You have access to live database queries via the `query_database` tool.
+When the user asks questions about specific employees, departments, projects, tasks, attendance records, leaves, clients, assets, maintenance, or other records, USE the `query_database` tool to fetch real-time data from PostgreSQL!
+
+DATABASE SCHEMA:
+- employees (id, organization_id, employee_code, first_name, last_name, email, phone_number, designation, department_id, status ['active','probation','notice_period','terminated'], date_of_joining)
+- departments (id, organization_id, name, code, manager_id, is_active)
+- branches (id, organization_id, name, code, city, is_active)
+- projects (id, organization_id, name, code, description, client_id, status ['not_started','in_progress','on_hold','completed','cancelled'], priority, budget, start_date, end_date)
+- clients (id, organization_id, name, client_code, company_name, email, phone, status, industry)
+- operation_tasks (id, organization_id, title, description, project_id, assigned_to_id, status ['todo','in_progress','review','completed'], priority ['low','medium','high','urgent'], due_date)
+- attendance_records (id, organization_id, employee_id, date, check_in, check_out, status ['present','late','absent','half_day','on_leave'], work_hours)
+- leave_requests (id, organization_id, employee_id, leave_type ['casual','sick','earned','unpaid'], start_date, end_date, total_days, status ['pending','approved','rejected','cancelled'], reason)
+- assets (id, organization_id, asset_code, name, category, model, serial_number, status ['available','assigned','in_maintenance','retired'])
+- maintenance_requests (id, organization_id, asset_id, requested_by_id, priority, status ['pending','approved','in_progress','completed','rejected'], issue_description)
+- procurement_requests (id, organization_id, request_number, requester_id, status, total_estimated_cost)
+- procurement_orders (id, organization_id, order_number, total_amount, status)
+- training_programs (id, organization_id, title, category, status)
+- internships (id, organization_id, intern_name, email, stipend, status)
+- expenses (id, organization_id, expense_number, category, amount, status) [requires finance permission]
+
+QUERY RULES:
+1. Every query must be a read-only SELECT statement.
+2. Always filter by `organization_id = '{organization_id}'` in the WHERE clause.
+3. Join tables where helpful (e.g., JOIN employees e ON t.assigned_to_id = e.id).
+4. Provide structured, accurate responses in clean markdown (tables, bullet points, metrics).
+"""
+
+    @staticmethod
+    async def execute_safe_tenant_sql(
+        session: AsyncSession,
+        organization_id: UUID,
+        user_permissions: list[str],
+        query_str: str,
+    ) -> dict[str, Any]:
+        clean_query = query_str.strip()
+        if not clean_query:
+            return {"error": "Query cannot be empty."}
+
+        # Must start with SELECT or WITH
+        if not re.match(r"^(select|with)\b", clean_query, re.IGNORECASE):
+            return {"error": "Security restriction: Only read-only SELECT queries are permitted."}
+
+        for pattern in FORBIDDEN_SQL_PATTERNS:
+            if re.search(pattern, clean_query, re.IGNORECASE):
+                return {"error": "Security restriction: Disallowed SQL keyword or syntax detected."}
+
+        # Table permission check
+        lower_query = clean_query.lower()
+        for table_name, req_perm in RESTRICTED_TABLE_PERMISSIONS.items():
+            if re.search(rf"\b{table_name}\b", lower_query):
+                has_perm = (
+                    req_perm in user_permissions
+                    or (req_perm == "finance.view" and any(p in user_permissions for p in ("finance:read", "reports.finance")))
+                    or (req_perm == "payroll.view" and any(p in user_permissions for p in ("payroll:read", "payroll.manage")))
+                )
+                if not has_perm:
+                    return {"error": f"Permission denied: Access to table '{table_name}' requires permission '{req_perm}'."}
+
+        # Ensure query is tenant-scoped
+        org_id_str = str(organization_id)
+        if org_id_str not in clean_query:
+            return {
+                "error": f"Tenant isolation restriction: Your query must explicitly include WHERE organization_id = '{org_id_str}'."
+            }
+
+        try:
+            res = await session.execute(text(clean_query))
+            columns = list(res.keys())
+            rows = res.fetchmany(50)
+            formatted_rows = [
+                dict(
+                    zip(
+                        columns,
+                        [
+                            str(v) if isinstance(v, (UUID, Decimal, datetime)) else v
+                            for v in row
+                        ],
+                    )
+                )
+                for row in rows
+            ]
+            return {
+                "columns": columns,
+                "rows": formatted_rows,
+                "row_count": len(formatted_rows),
+            }
+        except Exception as e:  # noqa: BLE001
+            return {"error": f"Database execution error: {e!s}"}
 
     @staticmethod
     async def update_configuration(
@@ -255,14 +390,26 @@ class AIService:
                 allowed_capabilities=config_resp.allowed_capabilities,
             )
 
-            provider = get_ai_provider()
+            async def tool_executor(fn_name: str, args: dict[str, Any]) -> Any:
+                if fn_name == "query_database":
+                    return await AIService.execute_safe_tenant_sql(
+                        session=session,
+                        organization_id=organization_id,
+                        user_permissions=user_permissions,
+                        query_str=args.get("query", ""),
+                    )
+                return {"error": f"Unknown tool: {fn_name}"}
+
+            provider = get_ai_provider(config_resp.provider)
             reply_text, tokens = await provider.generate_response(
-                system_instruction="You are OfficeOS Assistant. Provide helpful, accurate organizational intelligence.",
+                system_instruction=AIService.build_system_instruction(organization_id),
                 messages=[{"role": "user", "content": data.initial_message.strip()}],
                 context_data=context_data,
                 model_name=config_resp.model_name,
                 temperature=float(config_resp.temperature),
                 max_tokens=config_resp.max_tokens_per_response,
+                tools=DATABASE_TOOL_DEF,
+                tool_executor=tool_executor,
             )
 
             asst_msg = AIMessage(
@@ -440,14 +587,26 @@ class AIService:
             allowed_capabilities=config_resp.allowed_capabilities,
         )
 
-        provider = get_ai_provider()
+        async def tool_executor(fn_name: str, args: dict[str, Any]) -> Any:
+            if fn_name == "query_database":
+                return await AIService.execute_safe_tenant_sql(
+                    session=session,
+                    organization_id=organization_id,
+                    user_permissions=user_permissions,
+                    query_str=args.get("query", ""),
+                )
+            return {"error": f"Unknown tool: {fn_name}"}
+
+        provider = get_ai_provider(config_resp.provider)
         reply_text, tokens = await provider.generate_response(
-            system_instruction="You are OfficeOS Assistant. Provide helpful, accurate organizational intelligence.",
+            system_instruction=AIService.build_system_instruction(organization_id),
             messages=history,
             context_data=context_data,
             model_name=config_resp.model_name,
             temperature=float(config_resp.temperature),
             max_tokens=config_resp.max_tokens_per_response,
+            tools=DATABASE_TOOL_DEF,
+            tool_executor=tool_executor,
         )
 
         asst_msg = AIMessage(
@@ -508,14 +667,26 @@ class AIService:
             explicit_capability=capability,
         )
 
-        provider = get_ai_provider()
+        async def tool_executor(fn_name: str, args: dict[str, Any]) -> Any:
+            if fn_name == "query_database":
+                return await AIService.execute_safe_tenant_sql(
+                    session=session,
+                    organization_id=organization_id,
+                    user_permissions=user_permissions,
+                    query_str=args.get("query", ""),
+                )
+            return {"error": f"Unknown tool: {fn_name}"}
+
+        provider = get_ai_provider(config_resp.provider)
         reply_text, tokens = await provider.generate_response(
-            system_instruction="You are OfficeOS Assistant. Provide helpful, accurate organizational intelligence.",
+            system_instruction=AIService.build_system_instruction(organization_id),
             messages=[{"role": "user", "content": prompt.strip()}],
             context_data=context_data,
             model_name=config_resp.model_name,
             temperature=float(config_resp.temperature),
             max_tokens=config_resp.max_tokens_per_response,
+            tools=DATABASE_TOOL_DEF,
+            tool_executor=tool_executor,
         )
 
         return AIQueryResponse(
@@ -557,12 +728,38 @@ class AIService:
                 )
                 or 0
             )
+
+            emp_sample_stmt = (
+                select(
+                    Employee.first_name,
+                    Employee.last_name,
+                    Employee.employee_code,
+                    Employee.designation,
+                    Department.name.label("department_name"),
+                )
+                .outerjoin(Department, Employee.department_id == Department.id)
+                .where(Employee.organization_id == organization_id)
+                .order_by(Employee.created_at.desc())
+                .limit(10)
+            )
+            emp_sample_res = (await session.execute(emp_sample_stmt)).all()
+            employees_sample = [
+                {
+                    "name": f"{r.first_name} {r.last_name}",
+                    "code": r.employee_code or "N/A",
+                    "designation": r.designation or "Staff",
+                    "department": r.department_name or "General",
+                }
+                for r in emp_sample_res
+            ]
+
             context["workforce"] = {
                 "total_employees": wf_res.total or 0,
                 "active_employees": wf_res.active or 0,
                 "probation_employees": wf_res.probation or 0,
                 "notice_employees": wf_res.notice or 0,
                 "department_count": dept_count,
+                "employees_sample": employees_sample,
             }
 
         # 2. Attendance
@@ -604,10 +801,37 @@ class AIService:
                 ).label("days_taken"),
             ).where(LeaveRequest.organization_id == organization_id)
             lv_res = (await session.execute(lv_stmt)).one()
+
+            lv_sample_stmt = (
+                select(
+                    Employee.first_name,
+                    Employee.last_name,
+                    LeaveType.name.label("leave_type_name"),
+                    LeaveRequest.total_days,
+                    LeaveRequest.status,
+                )
+                .join(Employee, LeaveRequest.employee_id == Employee.id)
+                .join(LeaveType, LeaveRequest.leave_type_id == LeaveType.id)
+                .where(LeaveRequest.organization_id == organization_id)
+                .order_by(LeaveRequest.created_at.desc())
+                .limit(5)
+            )
+            lv_sample_res = (await session.execute(lv_sample_stmt)).all()
+            recent_leaves = [
+                {
+                    "employee": f"{r.first_name} {r.last_name}",
+                    "type": r.leave_type_name,
+                    "days": str(r.total_days),
+                    "status": r.status,
+                }
+                for r in lv_sample_res
+            ]
+
             context["leave"] = {
                 "pending_requests": lv_res.pending or 0,
                 "approved_requests": lv_res.approved or 0,
                 "total_leave_days_taken": f"{Decimal(str(lv_res.days_taken)):.1f}",
+                "recent_leaves": recent_leaves,
             }
 
         # 4. Projects
@@ -623,11 +847,30 @@ class AIService:
                 func.coalesce(func.sum(Project.budget), 0).label("budget"),
             ).where(Project.organization_id == organization_id)
             p_res = (await session.execute(proj_stmt)).one()
+
+            proj_sample_stmt = (
+                select(Project.name, Project.project_code, Project.status, Project.budget)
+                .where(Project.organization_id == organization_id)
+                .order_by(Project.created_at.desc())
+                .limit(6)
+            )
+            proj_sample_res = (await session.execute(proj_sample_stmt)).all()
+            projects_sample = [
+                {
+                    "name": r.name,
+                    "code": r.project_code or "N/A",
+                    "status": r.status,
+                    "budget": f"{Decimal(str(r.budget or 0)):.2f}",
+                }
+                for r in proj_sample_res
+            ]
+
             context["projects"] = {
                 "total_projects": p_res.total or 0,
                 "active_projects": p_res.active or 0,
                 "completed_projects": p_res.completed or 0,
                 "total_budget": f"{Decimal(str(p_res.budget)):.2f}",
+                "projects_sample": projects_sample,
             }
 
         # 5. Operations
@@ -650,11 +893,30 @@ class AIService:
                 ).label("overdue"),
             ).where(OperationTask.organization_id == organization_id)
             o_res = (await session.execute(op_stmt)).one()
+
+            task_sample_stmt = (
+                select(OperationTask.title, OperationTask.priority, OperationTask.status, OperationTask.due_date)
+                .where(OperationTask.organization_id == organization_id)
+                .order_by(OperationTask.created_at.desc())
+                .limit(6)
+            )
+            task_sample_res = (await session.execute(task_sample_stmt)).all()
+            tasks_sample = [
+                {
+                    "title": r.title,
+                    "priority": r.priority,
+                    "status": r.status,
+                    "due_date": str(r.due_date) if r.due_date else "N/A",
+                }
+                for r in task_sample_res
+            ]
+
             context["operations"] = {
                 "total_tasks": o_res.total or 0,
                 "open_tasks": o_res.open or 0,
                 "completed_tasks": o_res.completed or 0,
                 "overdue_tasks": o_res.overdue or 0,
+                "tasks_sample": tasks_sample,
             }
 
         # 6. Procurement
