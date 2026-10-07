@@ -28,9 +28,9 @@ export default function SimulationsPage() {
   const canView = permissions.includes("ai.view") || permissions.includes("reports.view") || permissions.includes("ai.use");
 
   const [presets, setPresets] = React.useState<SimulationPreset[]>([]);
-  const [selectedCategory, setSelectedCategory] = React.useState<string>("workforce");
+  const [selectedCategory, setSelectedCategory] = React.useState<string>("compensation");
   const [prompt, setPrompt] = React.useState<string>(
-    "What if I hire 5 interns for 3 months at ₹15,000/month stipend?"
+    "What if we introduce an 8% company-wide salary increase next month?"
   );
   const [isSimulating, setIsSimulating] = React.useState<boolean>(false);
   const [simulationResult, setSimulationResult] = React.useState<SimulationRunResponse | null>(null);
