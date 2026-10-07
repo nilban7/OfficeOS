@@ -43,11 +43,11 @@ export default function AISettingsPage() {
 
   const [isEnabled, setIsEnabled] = React.useState(true);
   const [provider, setProvider] = React.useState("groq");
-  const [modelName, setModelName] = React.useState("openai/gpt-oss-120b");
+  const [modelName, setModelName] = React.useState("qwen/qwen3.8-27b");
   const [apiKey, setApiKey] = React.useState("");
   const [showApiKey, setShowApiKey] = React.useState(false);
   const [temperature, setTemperature] = React.useState(0.7);
-  const [maxTokens, setMaxTokens] = React.useState(2048);
+  const [maxTokens, setMaxTokens] = React.useState(1024);
   const [dailyLimit, setDailyLimit] = React.useState(1000);
   const [selectedCapabilities, setSelectedCapabilities] = React.useState<string[]>([]);
 
@@ -241,7 +241,7 @@ export default function AISettingsPage() {
                       const nextProv = e.target.value;
                       setProvider(nextProv);
                       if (nextProv === "groq") {
-                        setModelName("openai/gpt-oss-120b");
+                        setModelName("qwen/qwen3.8-27b");
                       } else {
                         setModelName("gemini-1.5-flash");
                       }
@@ -262,9 +262,9 @@ export default function AISettingsPage() {
                   >
                     {provider === "groq" ? (
                       <>
-                        <option value="openai/gpt-oss-120b">GPT-OSS 120B (Recommended, Ultra-Intelligent & Fast)</option>
+                        <option value="qwen/qwen3.8-27b">Qwen 3.8 27B (Recommended, Ultra-Fast & High Token Efficiency)</option>
+                        <option value="openai/gpt-oss-120b">GPT-OSS 120B (High Reasoning)</option>
                         <option value="openai/gpt-oss-20b">GPT-OSS 20B (Fast & Efficient)</option>
-                        <option value="qwen/qwen3.8-27b">Qwen 3.8 27B</option>
                       </>
                     ) : (
                       <>

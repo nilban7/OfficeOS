@@ -254,7 +254,7 @@ class GroqProvider(BaseAIProvider):
 
     GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-    DEFAULT_MODEL = "openai/gpt-oss-120b"
+    DEFAULT_MODEL = "qwen/qwen3.8-27b"
 
     def __init__(self, api_key: str | None = None) -> None:
         settings = get_settings()
@@ -265,9 +265,9 @@ class GroqProvider(BaseAIProvider):
         system_instruction: str,
         messages: list[dict[str, Any]],
         context_data: dict[str, Any] | None = None,
-        model_name: str = "openai/gpt-oss-120b",
+        model_name: str = "qwen/qwen3.8-27b",
         temperature: float = 0.7,
-        max_tokens: int = 2048,
+        max_tokens: int = 1024,
         tools: list[dict[str, Any]] | None = None,
         tool_executor: Callable[[str, dict[str, Any]], Coroutine[Any, Any, Any]] | None = None,
     ) -> tuple[str, int]:
@@ -284,10 +284,12 @@ class GroqProvider(BaseAIProvider):
         # Build system prompt with context data if present
         sys_content = system_instruction
         if context_data:
-            sys_content += f"\n\n--- Organization Live Context Data ---\n{json.dumps(context_data, default=str, indent=2)}"
+            sys_content += f"\n\n--- Organization Live Context Data ---\n{json.dumps(context_data, default=str, separators=(',', ':'))}"
 
         payload_messages: list[dict[str, Any]] = [{"role": "system", "content": sys_content}]
-        for m in messages:
+        # Keep recent conversation history (last 6 messages) to prevent TPM overflow
+        recent_messages = messages[-6:] if len(messages) > 6 else messages
+        for m in recent_messages:
             payload_messages.append({
                 "role": m.get("role", "user"),
                 "content": m.get("content", ""),
@@ -300,19 +302,19 @@ class GroqProvider(BaseAIProvider):
 
         # Multi-turn tool calling loop (up to 5 turns)
         total_tokens = 0
-        current_model = model_name or "openai/gpt-oss-120b"
+        current_model = model_name or "qwen/qwen3.8-27b"
         if "gemini" in current_model.lower():
-            # If user configured a gemini model name but is using Groq provider, use Groq's flagship
-            current_model = "openai/gpt-oss-120b"
+            current_model = "qwen/qwen3.8-27b"
 
-        for _ in range(5):
+        has_executed_tools = False
+        for _turn_idx in range(3):
             req_body: dict[str, Any] = {
                 "model": current_model,
                 "messages": payload_messages,
                 "temperature": max(0.0, min(float(temperature), 1.0)),
-                "max_tokens": max(128, min(int(max_tokens), 8192)),
+                "max_tokens": max(128, min(int(max_tokens), 512)),
             }
-            if tools:
+            if tools and not has_executed_tools:
                 req_body["tools"] = tools
                 req_body["tool_choice"] = "auto"
 
@@ -323,27 +325,32 @@ class GroqProvider(BaseAIProvider):
                         try:
                             err_msg = resp.json().get("error", {}).get("message", "")
                             delay_m = re.search(r"try again in ([\d\.]+)s", err_msg)
-                            delay = float(delay_m.group(1)) if delay_m else 4.0
+                            delay = float(delay_m.group(1)) if delay_m else 3.0
                         except Exception:  # noqa: BLE001
-                            delay = 4.0
-                        if delay <= 6.0:
+                            delay = 3.0
+                        if delay <= 5.0:
                             logger.info(f"Groq TPM limit reached, waiting {delay:.1f}s before retrying...")
                             await asyncio.sleep(delay + 0.5)
+                            req_body["max_tokens"] = min(req_body["max_tokens"], 256)
                             resp = await client.post(self.GROQ_API_URL, headers=headers, json=req_body)
 
                     if resp.status_code != 200:
                         error_detail = resp.text
                         logger.error(f"Groq API error {resp.status_code}: {error_detail}")
+                        if context_data:
+                            return synthesize_context_response(latest_user_message, context_data)
                         msg = (
-                            f"I encountered an issue communicating with Groq ({resp.status_code}): {error_detail[:200]}. "
-                            "Please ensure your GROQ_API_KEY is valid and has sufficient rate limits."
+                            "AI Assistant is currently experiencing temporary rate limits. "
+                            "Please retry in a moment."
                         )
                         return (msg, 0)
                     data = resp.json()
             except Exception as e:
                 logger.exception("Failed to call Groq API")
+                if context_data:
+                    return synthesize_context_response(latest_user_message, context_data)
                 return (
-                    f"Unable to reach Groq AI: {e!s}. Please check your network connection.",
+                    f"Unable to reach AI service: {e!s}. Please check your connection.",
                     0,
                 )
 
@@ -352,13 +359,33 @@ class GroqProvider(BaseAIProvider):
             usage = data.get("usage", {})
             total_tokens += usage.get("total_tokens", 0)
 
+            raw_content = msg.get("content") or ""
             tool_calls = msg.get("tool_calls")
-            if not tool_calls or not tool_executor:
-                content = msg.get("content") or "I processed your request, but received an empty response."
+
+            # Check if Qwen output text-based tool_call tags instead of native json tool_calls
+            if not tool_calls and "<tool_call>" in raw_content and tool_executor and not has_executed_tools:
+                q_match = re.search(r"<parameter=query>\s*(.*?)\s*</parameter>", raw_content, re.DOTALL | re.IGNORECASE)
+                fn_match = re.search(r"<function=([a-zA-Z0-9_]+)>", raw_content, re.IGNORECASE)
+                fn_name = fn_match.group(1) if fn_match else "query_database"
+                if q_match:
+                    tool_calls = [{
+                        "id": "qwen_tool_1",
+                        "function": {
+                            "name": fn_name,
+                            "arguments": json.dumps({"query": q_match.group(1).strip()}),
+                        },
+                    }]
+
+            is_text_tool_call = not msg.get("tool_calls") and "<tool_call>" in raw_content
+
+            if not tool_calls or not tool_executor or has_executed_tools:
+                clean_content = re.sub(r"<tool_call>.*?</tool_call>", "", raw_content, flags=re.DOTALL).strip()
+                content = clean_content or (synthesize_context_response(latest_user_message, context_data)[0] if context_data else raw_content)
                 return content, total_tokens
 
             # Append assistant's tool call message
             payload_messages.append(msg)
+            has_executed_tools = True
 
             # Execute tool calls
             for tool_call in tool_calls:
@@ -371,14 +398,28 @@ class GroqProvider(BaseAIProvider):
                     args = {}
 
                 tool_result = await tool_executor(fn_name, args)
-                payload_messages.append({
-                    "role": "tool",
-                    "tool_call_id": call_id,
-                    "content": json.dumps(tool_result, default=str),
-                })
+                if is_text_tool_call:
+                    payload_messages.append({
+                        "role": "user",
+                        "content": (
+                            f"Database query result:\n{json.dumps(tool_result, default=str)}\n\n"
+                            "Based on these results, provide a clear, structured markdown answer to the user. Do not call any further tools."
+                        ),
+                    })
+                else:
+                    payload_messages.append({
+                        "role": "tool",
+                        "tool_call_id": call_id,
+                        "content": json.dumps(tool_result, default=str),
+                    })
 
+        last_content = re.sub(r"<tool_call>.*?</tool_call>", "", msg.get("content") or "", flags=re.DOTALL).strip()
+        if last_content:
+            return last_content, total_tokens
+        if context_data:
+            return synthesize_context_response(latest_user_message, context_data)
         return (
-            "I processed your query with multi-step database analysis, but reached the maximum tool reasoning steps.",
+            "I processed your query, but could not finalize the response.",
             total_tokens,
         )
 
