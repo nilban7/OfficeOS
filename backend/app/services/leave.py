@@ -282,33 +282,53 @@ async def delete_leave_type(
 # ==========================================
 def _to_request_response(rec: LeaveRequest) -> LeaveRequestResponse:
     emp_brief = None
-    if rec.employee:
-        dept_name = rec.employee.department.name if rec.employee.department else None
+    try:
+        emp = rec.employee
+    except Exception:
+        emp = None
+
+    if emp:
+        dept_name = None
+        try:
+            dept_name = emp.department.name if emp.department else None
+        except Exception:
+            dept_name = None
+
         emp_brief = EmployeeBrief(
-            id=rec.employee.id,
-            employee_code=rec.employee.employee_code,
-            first_name=rec.employee.first_name,
-            last_name=rec.employee.last_name,
-            designation=rec.employee.designation,
+            id=emp.id,
+            employee_code=emp.employee_code,
+            first_name=emp.first_name,
+            last_name=emp.last_name,
+            designation=emp.designation,
             department_name=dept_name,
         )
 
     lt_brief = None
-    if rec.leave_type:
+    try:
+        lt = rec.leave_type
+    except Exception:
+        lt = None
+
+    if lt:
         lt_brief = LeaveTypeBrief(
-            id=rec.leave_type.id,
-            name=rec.leave_type.name,
-            code=rec.leave_type.code,
-            is_paid=rec.leave_type.is_paid,
+            id=lt.id,
+            name=lt.name,
+            code=lt.code,
+            is_paid=lt.is_paid,
         )
 
     rev_brief = None
-    if rec.reviewer:
+    try:
+        rev = rec.reviewer
+    except Exception:
+        rev = None
+
+    if rev:
         rev_brief = ReviewerBrief(
-            id=rec.reviewer.id,
-            first_name=rec.reviewer.first_name,
-            last_name=rec.reviewer.last_name,
-            email=rec.reviewer.email,
+            id=rev.id,
+            first_name=rev.first_name,
+            last_name=rev.last_name,
+            email=rev.email,
         )
 
     return LeaveRequestResponse(
@@ -749,7 +769,13 @@ async def approve_leave_request(
     ip_address: str | None = None,
 ) -> LeaveRequestResponse:
     rec = await session.scalar(
-        select(LeaveRequest).where(
+        select(LeaveRequest)
+        .options(
+            selectinload(LeaveRequest.employee).selectinload(Employee.department),
+            selectinload(LeaveRequest.leave_type),
+            selectinload(LeaveRequest.reviewer),
+        )
+        .where(
             LeaveRequest.id == request_id,
             LeaveRequest.organization_id == organization_id,
         )
@@ -791,7 +817,12 @@ async def approve_leave_request(
     )
 
     # Resolve employee profile to notify requester
-    emp = getattr(rec, "employee", None)
+    emp = None
+    try:
+        emp = rec.employee
+    except Exception:
+        emp = None
+
     if emp is None and hasattr(session, "scalar"):
         try:
             emp = await session.scalar(select(Employee).where(Employee.id == rec.employee_id))
@@ -838,7 +869,13 @@ async def reject_leave_request(
     ip_address: str | None = None,
 ) -> LeaveRequestResponse:
     rec = await session.scalar(
-        select(LeaveRequest).where(
+        select(LeaveRequest)
+        .options(
+            selectinload(LeaveRequest.employee).selectinload(Employee.department),
+            selectinload(LeaveRequest.leave_type),
+            selectinload(LeaveRequest.reviewer),
+        )
+        .where(
             LeaveRequest.id == request_id,
             LeaveRequest.organization_id == organization_id,
         )
@@ -877,7 +914,12 @@ async def reject_leave_request(
     )
 
     # Resolve employee profile to notify requester
-    emp = getattr(rec, "employee", None)
+    emp = None
+    try:
+        emp = rec.employee
+    except Exception:
+        emp = None
+
     if emp is None and hasattr(session, "scalar"):
         try:
             emp = await session.scalar(select(Employee).where(Employee.id == rec.employee_id))
