@@ -8,6 +8,7 @@ export interface AIConfiguration {
   max_tokens_per_response: number;
   allowed_capabilities: string[];
   daily_request_limit: number;
+  api_key?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -16,6 +17,7 @@ export interface AIConfigurationUpdate {
   is_enabled?: boolean;
   provider?: string;
   model_name?: string;
+  api_key?: string | null;
   temperature?: number;
   max_tokens_per_response?: number;
   allowed_capabilities?: string[];

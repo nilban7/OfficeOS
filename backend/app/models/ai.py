@@ -35,6 +35,7 @@ class AIConfiguration(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     is_enabled: Mapped[bool] = mapped_column(default=True, nullable=False)
     provider: Mapped[str] = mapped_column(String(50), default="system_gemini", nullable=False)
     model_name: Mapped[str] = mapped_column(String(100), default="gemini-1.5-flash", nullable=False)
+    api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
     temperature: Mapped[Decimal] = mapped_column(Numeric(3, 2), default=Decimal("0.70"), nullable=False)
     max_tokens_per_response: Mapped[int] = mapped_column(Integer, default=2048, nullable=False)
     allowed_capabilities: Mapped[list[str]] = mapped_column(

@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.models.ai import AIConfiguration
 from app.models.employee import Employee
 from app.models.internship import Internship
 from app.models.payroll import SalaryStructure
@@ -148,22 +149,27 @@ class SimulationService:
         elif "office" in prompt_lower or "branch" in prompt_lower or "expand" in prompt_lower:
             category = "operations"
 
+        config_stmt = select(AIConfiguration.api_key).where(AIConfiguration.organization_id == organization_id)
+        db_key = await session.scalar(config_stmt)
+        api_key = db_key or get_settings().groq_api_key or os.getenv("GROQ_API_KEY")
+
         if category == "workforce":
-            return await cls._simulate_workforce(baseline, request)
+            return await cls._simulate_workforce(baseline, request, api_key=api_key)
         elif category == "compensation":
-            return await cls._simulate_compensation(baseline, request)
+            return await cls._simulate_compensation(baseline, request, api_key=api_key)
         elif category == "project_delay":
-            return await cls._simulate_project_delay(baseline, request)
+            return await cls._simulate_project_delay(baseline, request, api_key=api_key)
         elif category == "operations":
-            return await cls._simulate_operations(baseline, request)
+            return await cls._simulate_operations(baseline, request, api_key=api_key)
         else:
-            return await cls._simulate_custom(baseline, request)
+            return await cls._simulate_custom(baseline, request, api_key=api_key)
 
     @classmethod
     async def _simulate_workforce(
         cls,
         baseline: dict[str, Any],
         request: SimulationRunRequest,
+        api_key: str | None = None,
     ) -> SimulationRunResponse:
         # Extract count if present or default to 5
         count_match = re.search(r"(\d+)\s+intern", request.prompt.lower())
@@ -304,7 +310,7 @@ class SimulationService:
         )
 
         # Optional Groq enrichment if key exists
-        enriched_narrative = await cls._enrich_with_groq(request.prompt, summary, narrative)
+        enriched_narrative = await cls._enrich_with_groq(request.prompt, summary, narrative, api_key=api_key)
 
         return SimulationRunResponse(
             title=f"Workforce Simulation: Hiring {count} Interns",
@@ -323,6 +329,7 @@ class SimulationService:
         cls,
         baseline: dict[str, Any],
         request: SimulationRunRequest,
+        api_key: str | None = None,
     ) -> SimulationRunResponse:
         pct_match = re.search(r"(\d+)%", request.prompt)
         pct = int(pct_match.group(1)) if pct_match else 8
@@ -437,7 +444,7 @@ class SimulationService:
             f"• **Risk Tradeoff**: A blanket across-the-board hike compresses cash runway by **1.6 months**, whereas tiered allocation protects project continuity."
         )
 
-        enriched_narrative = await cls._enrich_with_groq(request.prompt, summary, narrative)
+        enriched_narrative = await cls._enrich_with_groq(request.prompt, summary, narrative, api_key=api_key)
 
         return SimulationRunResponse(
             title=f"Compensation Simulation: {pct}% Salary Increase",
@@ -456,6 +463,7 @@ class SimulationService:
         cls,
         baseline: dict[str, Any],
         request: SimulationRunRequest,
+        api_key: str | None = None,
     ) -> SimulationRunResponse:
         delay_match = re.search(r"(\d+)\s+day", request.prompt)
         days = int(delay_match.group(1)) if delay_match else 30
@@ -564,7 +572,7 @@ class SimulationService:
             f"• **Recommended Action**: Adding 1 external specialist for 3 weeks protects cash runway and preserves client trust."
         )
 
-        enriched_narrative = await cls._enrich_with_groq(request.prompt, summary, narrative)
+        enriched_narrative = await cls._enrich_with_groq(request.prompt, summary, narrative, api_key=api_key)
 
         return SimulationRunResponse(
             title=f"Project Risk Simulation: {days}-Day Milestone Delay",
@@ -583,6 +591,7 @@ class SimulationService:
         cls,
         baseline: dict[str, Any],
         request: SimulationRunRequest,
+        api_key: str | None = None,
     ) -> SimulationRunResponse:
         city = "Bangalore" if "bangalore" in request.prompt.lower() else "Satellite Office"
         headcount = 10
@@ -668,7 +677,7 @@ class SimulationService:
             f"• **Risk Rating**: Committing to physical commercial fitouts prior to localized revenue reaching ₹18L/mo carries elevated capital risk."
         )
 
-        enriched_narrative = await cls._enrich_with_groq(request.prompt, summary, narrative)
+        enriched_narrative = await cls._enrich_with_groq(request.prompt, summary, narrative, api_key=api_key)
 
         return SimulationRunResponse(
             title=f"Expansion Simulation: {city} Branch ({headcount} Staff)",
@@ -687,6 +696,7 @@ class SimulationService:
         cls,
         baseline: dict[str, Any],
         request: SimulationRunRequest,
+        api_key: str | None = None,
     ) -> SimulationRunResponse:
         # Default fallback simulator for arbitrary queries
         curr_payroll = baseline["monthly_payroll"]
@@ -735,7 +745,7 @@ class SimulationService:
         assumptions = ["Simulation assumes steady-state operating margins over the next two quarters."]
         narrative = f"### Decision Simulation\n\nOfficeOS analyzed your scenario against current workforce ({emp_count} employees) and operational pipelines."
 
-        enriched_narrative = await cls._enrich_with_groq(request.prompt, summary, narrative)
+        enriched_narrative = await cls._enrich_with_groq(request.prompt, summary, narrative, api_key=api_key)
 
         return SimulationRunResponse(
             title="Strategic Business Simulation",
@@ -755,15 +765,15 @@ class SimulationService:
         prompt: str,
         summary: str,
         narrative: str,
+        api_key: str | None = None,
     ) -> str | None:
-        """If GROQ_API_KEY is configured, enrich the narrative with deep strategic nuances."""
-        settings = get_settings()
-        api_key = settings.groq_api_key or os.getenv("GROQ_API_KEY")
-        if not api_key:
+        """If Groq API key is available, enrich the narrative with deep strategic nuances."""
+        active_key = api_key or get_settings().groq_api_key or os.getenv("GROQ_API_KEY")
+        if not active_key:
             return None
 
         try:
-            groq = GroqProvider(api_key=api_key)
+            groq = GroqProvider(api_key=active_key)
             system_instruction = (
                 "You are the OfficeOS Executive Simulation Engine. "
                 "Analyze the business scenario and provide an insightful, crisp 2-3 paragraph executive briefing. "

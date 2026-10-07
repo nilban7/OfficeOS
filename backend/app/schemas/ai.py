@@ -18,6 +18,7 @@ class AIConfigurationResponse(BaseModel):
     max_tokens_per_response: int
     allowed_capabilities: list[str]
     daily_request_limit: int
+    api_key: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -26,6 +27,7 @@ class AIConfigurationUpdate(BaseModel):
     is_enabled: bool | None = None
     provider: str | None = Field(None, max_length=50)
     model_name: str | None = Field(None, max_length=100)
+    api_key: str | None = Field(None, max_length=256)
     temperature: Decimal | None = Field(None, ge=Decimal("0.0"), le=Decimal("2.0"))
     max_tokens_per_response: int | None = Field(None, ge=128, le=8192)
     allowed_capabilities: list[str] | None = None
