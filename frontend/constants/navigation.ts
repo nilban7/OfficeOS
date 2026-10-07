@@ -25,6 +25,7 @@ import {
   HeartPulse,
   Megaphone,
   SlidersHorizontal,
+  Sparkles,
 } from "lucide-react";
 import { ROUTES } from "./routes";
 import type { NavSection } from "@/types/navigation";
@@ -48,6 +49,12 @@ export const MAIN_NAVIGATION: NavSection[] = [
         title: "AI Assistant",
         href: ROUTES.AI,
         icon: Bot,
+        requiredPermissions: ["ai.view"],
+      },
+      {
+        title: "What If? Simulator",
+        href: ROUTES.SIMULATIONS,
+        icon: Sparkles,
         requiredPermissions: ["ai.view"],
       },
     ],

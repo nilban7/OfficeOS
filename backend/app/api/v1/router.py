@@ -27,6 +27,7 @@ from app.api.v1.projects import router as projects_router
 from app.api.v1.purchase_orders import router as purchase_orders_router
 from app.api.v1.purchase_requests import router as purchase_requests_router
 from app.api.v1.reports import router as reports_router
+from app.api.v1.simulations import router as simulations_router
 from app.api.v1.training_enrollments import router as training_enrollments_router
 from app.api.v1.training_programs import router as training_programs_router
 from app.api.v1.training_sessions import router as training_sessions_router
@@ -61,6 +62,7 @@ router.include_router(preferences_router)
 router.include_router(audit_logs_router)
 router.include_router(reports_router)
 router.include_router(ai_router)
+router.include_router(simulations_router)
 router.include_router(automations_router)
 router.include_router(admin_router)
 router.include_router(announcements_router)
