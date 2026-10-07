@@ -67,6 +67,20 @@ def synthesize_context_response(
             f"{emp_detail}"
         )
 
+        lower_msg = user_message.lower()
+        if any(w in lower_msg for w in ["hire", "recruit", "more employee", "is it required", "should we hire", "need more"]):
+            hiring_analysis = (
+                f"💡 **Hiring & Headcount Advisory**:\n"
+                f"- **Current Team Size**: {active_emp} active staff across {wf.get('department_count', 0)} departments.\n"
+                f"- **Capacity Assessment**: To model whether adding headcount is operationally required, "
+                f"simulate this decision in the **What If? Simulator** (`/simulations`). It projects payroll deltas, mentor load, and project timelines.\n"
+                f"- **Strategic Evaluation**:\n"
+                f"  1. *Bandwidth*: Check if bottlenecks are due to permanent workload or short-term project spikes.\n"
+                f"  2. *Cash Flow*: Each new full-time employee adds fixed recurring monthly payroll and benefits.\n"
+                f"  3. *Agile Alternatives*: Consider stipended internships or contract specialists before taking on permanent overhead."
+            )
+            sections.insert(0, hiring_analysis)
+
     # Attendance context
     if "attendance" in context_data:
         att = context_data["attendance"]

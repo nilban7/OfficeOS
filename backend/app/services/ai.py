@@ -4,6 +4,7 @@ Handles AI configurations, capability discovery, secure authorized context gathe
 conversation sessions, message persistence, and audit logging.
 """
 
+import os
 import re
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -16,6 +17,7 @@ from sqlalchemy import case, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import get_settings
 from app.models.ai import AIConfiguration, AIConversation, AIMessage
 from app.models.asset import Asset
 from app.models.attendance import AttendanceRecord
@@ -91,12 +93,14 @@ class AIService:
         stmt = select(AIConfiguration).where(AIConfiguration.organization_id == organization_id)
         config = await session.scalar(stmt)
         if not config:
+            env_key = get_settings().groq_api_key or os.getenv("GROQ_API_KEY")
             config = AIConfiguration(
                 id=uuid.uuid4(),
                 organization_id=organization_id,
                 is_enabled=True,
                 provider="groq",
                 model_name="openai/gpt-oss-120b",
+                api_key=env_key,
                 temperature=Decimal("0.70"),
                 max_tokens_per_response=2048,
                 allowed_capabilities=[
@@ -116,6 +120,11 @@ class AIService:
             )
             session.add(config)
             await session.flush()
+        elif not config.api_key:
+            env_key = get_settings().groq_api_key or os.getenv("GROQ_API_KEY")
+            if env_key:
+                config.api_key = env_key
+                await session.flush()
         return AIConfigurationResponse.model_validate(config)
 
     @staticmethod
@@ -302,6 +311,11 @@ QUERY RULES:
             changes["model_name"] = {"old": config.model_name, "new": update_data.model_name}
             config.model_name = update_data.model_name
 
+        if update_data.api_key is not None:
+            clean_k = update_data.api_key.strip() or None
+            changes["api_key"] = {"old": "***", "new": "***"}
+            config.api_key = clean_k
+
         if update_data.temperature is not None and update_data.temperature != config.temperature:
             changes["temperature"] = {"old": str(config.temperature), "new": str(update_data.temperature)}
             config.temperature = update_data.temperature
@@ -460,7 +474,8 @@ QUERY RULES:
                     )
                 return {"error": f"Unknown tool: {fn_name}"}
 
-            provider = get_ai_provider(config_resp.provider)
+            effective_key = config_resp.api_key or get_settings().groq_api_key or os.getenv("GROQ_API_KEY")
+            provider = get_ai_provider(config_resp.provider, api_key=effective_key)
             reply_text, tokens = await provider.generate_response(
                 system_instruction=AIService.build_system_instruction(organization_id),
                 messages=[{"role": "user", "content": data.initial_message.strip()}],
@@ -657,7 +672,8 @@ QUERY RULES:
                 )
             return {"error": f"Unknown tool: {fn_name}"}
 
-        provider = get_ai_provider(config_resp.provider)
+        effective_key = config_resp.api_key or get_settings().groq_api_key or os.getenv("GROQ_API_KEY")
+        provider = get_ai_provider(config_resp.provider, api_key=effective_key)
         reply_text, tokens = await provider.generate_response(
             system_instruction=AIService.build_system_instruction(organization_id),
             messages=history,
@@ -737,7 +753,8 @@ QUERY RULES:
                 )
             return {"error": f"Unknown tool: {fn_name}"}
 
-        provider = get_ai_provider(config_resp.provider)
+        effective_key = config_resp.api_key or get_settings().groq_api_key or os.getenv("GROQ_API_KEY")
+        provider = get_ai_provider(config_resp.provider, api_key=effective_key)
         reply_text, tokens = await provider.generate_response(
             system_instruction=AIService.build_system_instruction(organization_id),
             messages=[{"role": "user", "content": prompt.strip()}],

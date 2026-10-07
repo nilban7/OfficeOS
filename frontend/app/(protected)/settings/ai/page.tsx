@@ -10,6 +10,9 @@ import {
   AlertCircle,
   ShieldAlert,
   Loader2,
+  Key,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,6 +44,8 @@ export default function AISettingsPage() {
   const [isEnabled, setIsEnabled] = React.useState(true);
   const [provider, setProvider] = React.useState("groq");
   const [modelName, setModelName] = React.useState("openai/gpt-oss-120b");
+  const [apiKey, setApiKey] = React.useState("");
+  const [showApiKey, setShowApiKey] = React.useState(false);
   const [temperature, setTemperature] = React.useState(0.7);
   const [maxTokens, setMaxTokens] = React.useState(2048);
   const [dailyLimit, setDailyLimit] = React.useState(1000);
@@ -71,6 +76,9 @@ export default function AISettingsPage() {
           }
           if (cfg.model_name) {
             setModelName(cfg.model_name);
+          }
+          if (cfg.api_key) {
+            setApiKey(cfg.api_key);
           }
           setTemperature(cfg.temperature != null ? Number(cfg.temperature) : 0.7);
           setMaxTokens(cfg.max_tokens_per_response != null ? cfg.max_tokens_per_response : 2048);
@@ -112,6 +120,7 @@ export default function AISettingsPage() {
       is_enabled: isEnabled,
       provider,
       model_name: modelName,
+      api_key: apiKey.trim() || undefined,
       temperature,
       max_tokens_per_response: maxTokens,
       daily_request_limit: dailyLimit,
@@ -308,6 +317,55 @@ export default function AISettingsPage() {
                   onChange={(e) => setTemperature(parseFloat(e.target.value))}
                   className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
                 />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Provider Credentials & API Key Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base font-bold flex items-center gap-2">
+                <Key className="h-4 w-4 text-primary-600" />
+                <span>Provider API Credentials</span>
+              </CardTitle>
+              <CardDescription>
+                Configure your organization&apos;s Groq Cloud API Key to unlock ultra-fast LLM reasoning and the &quot;What If?&quot; simulator.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-700">
+                    Groq API Key (Stored securely per organization)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="text-xs text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1"
+                  >
+                    {showApiKey ? (
+                      <>
+                        <EyeOff className="h-3.5 w-3.5" /> Hide
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="h-3.5 w-3.5" /> Reveal
+                      </>
+                    )}
+                  </button>
+                </div>
+                <div className="relative">
+                  <Input
+                    type={showApiKey ? "text" : "password"}
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="gsk_..."
+                    className="text-xs font-mono pr-10"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Leave empty to inherit the global server key if configured. Your key enables real-time tool calling and decision simulations across all devices.
+                </p>
               </div>
             </CardContent>
           </Card>
