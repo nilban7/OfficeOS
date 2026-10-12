@@ -829,8 +829,8 @@ async def approve_leave_request(
         except Exception:
             emp = None
 
-    recipient_profile_id = getattr(emp, "profile_id", None) if emp else None
-    emp_name = f"{getattr(emp, 'first_name', '')} {getattr(emp, 'last_name', '')}".strip() if emp else "Employee"
+    recipient_profile_id = emp.profile_id if emp else None
+    emp_name = f"{emp.first_name} {emp.last_name}".strip() if emp else "Employee"
 
     try:
         await AutomationService.dispatch_event(
@@ -926,8 +926,8 @@ async def reject_leave_request(
         except Exception:
             emp = None
 
-    recipient_profile_id = getattr(emp, "profile_id", None) if emp else None
-    emp_name = f"{getattr(emp, 'first_name', '')} {getattr(emp, 'last_name', '')}".strip() if emp else "Employee"
+    recipient_profile_id = emp.profile_id if emp else None
+    emp_name = f"{emp.first_name} {emp.last_name}".strip() if emp else "Employee"
 
     try:
         await AutomationService.dispatch_event(
