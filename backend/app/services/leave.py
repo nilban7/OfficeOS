@@ -284,14 +284,14 @@ def _to_request_response(rec: LeaveRequest) -> LeaveRequestResponse:
     emp_brief = None
     try:
         emp = rec.employee
-    except Exception:
+    except Exception:  # noqa: BLE001
         emp = None
 
     if emp:
         dept_name = None
         try:
             dept_name = emp.department.name if emp.department else None
-        except Exception:
+        except Exception:  # noqa: BLE001
             dept_name = None
 
         emp_brief = EmployeeBrief(
@@ -306,7 +306,7 @@ def _to_request_response(rec: LeaveRequest) -> LeaveRequestResponse:
     lt_brief = None
     try:
         lt = rec.leave_type
-    except Exception:
+    except Exception:  # noqa: BLE001
         lt = None
 
     if lt:
@@ -320,7 +320,7 @@ def _to_request_response(rec: LeaveRequest) -> LeaveRequestResponse:
     rev_brief = None
     try:
         rev = rec.reviewer
-    except Exception:
+    except Exception:  # noqa: BLE001
         rev = None
 
     if rev:
@@ -647,7 +647,7 @@ async def create_leave_request(
             actor_profile_id=actor_profile_id,
             ip_address=ip_address,
         )
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass
 
     return await get_leave_request(session, organization_id, req.id)
@@ -820,17 +820,17 @@ async def approve_leave_request(
     emp = None
     try:
         emp = rec.employee
-    except Exception:
+    except Exception:  # noqa: BLE001
         emp = None
 
     if emp is None and hasattr(session, "scalar"):
         try:
             emp = await session.scalar(select(Employee).where(Employee.id == rec.employee_id))
-        except Exception:
+        except Exception:  # noqa: BLE001
             emp = None
 
-    recipient_profile_id = emp.profile_id if emp else None
-    emp_name = f"{emp.first_name} {emp.last_name}".strip() if emp else "Employee"
+    recipient_profile_id = getattr(emp, "profile_id", None) if emp else None
+    emp_name = f"{getattr(emp, 'first_name', '')} {getattr(emp, 'last_name', '')}".strip() if emp else "Employee"
 
     try:
         await AutomationService.dispatch_event(
@@ -854,7 +854,7 @@ async def approve_leave_request(
             actor_profile_id=actor_profile_id,
             ip_address=ip_address,
         )
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass
 
     return await get_leave_request(session, organization_id, rec.id)
@@ -917,17 +917,17 @@ async def reject_leave_request(
     emp = None
     try:
         emp = rec.employee
-    except Exception:
+    except Exception:  # noqa: BLE001
         emp = None
 
     if emp is None and hasattr(session, "scalar"):
         try:
             emp = await session.scalar(select(Employee).where(Employee.id == rec.employee_id))
-        except Exception:
+        except Exception:  # noqa: BLE001
             emp = None
 
-    recipient_profile_id = emp.profile_id if emp else None
-    emp_name = f"{emp.first_name} {emp.last_name}".strip() if emp else "Employee"
+    recipient_profile_id = getattr(emp, "profile_id", None) if emp else None
+    emp_name = f"{getattr(emp, 'first_name', '')} {getattr(emp, 'last_name', '')}".strip() if emp else "Employee"
 
     try:
         await AutomationService.dispatch_event(
@@ -951,7 +951,7 @@ async def reject_leave_request(
             actor_profile_id=actor_profile_id,
             ip_address=ip_address,
         )
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass
 
     return await get_leave_request(session, organization_id, rec.id)
