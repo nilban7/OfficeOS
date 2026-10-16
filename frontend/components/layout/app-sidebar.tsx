@@ -6,37 +6,67 @@ import { usePathname } from "next/navigation";
 import { MAIN_NAVIGATION } from "@/constants/navigation";
 import { cn } from "@/lib/utils/cn";
 import { useOrganization } from "@/hooks/use-organization";
-import { Building2 } from "lucide-react";
+import { useSidebar } from "./sidebar-context";
+import { Building2, ChevronLeft, ChevronRight } from "lucide-react";
 
 export function AppSidebar() {
   const pathname = usePathname();
   const { membership, permissions } = useOrganization();
+  const { isCollapsed, toggleCollapsed } = useSidebar();
 
   const userPermissions = React.useMemo(() => {
     return new Set([...(membership?.permissions || []), ...(permissions || [])]);
   }, [membership, permissions]);
 
   return (
-    <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 border-r border-slate-200/80 bg-white shadow-subtle z-30">
-      {/* Brand / Logo */}
-      <div className="flex h-16 items-center px-6 border-b border-slate-100">
-        <Link href="/dashboard" className="flex items-center space-x-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-600 text-white shadow-subtle">
-            <Building2 className="h-5 w-5" />
+    <aside
+      className={cn(
+        "hidden md:flex md:flex-col md:fixed md:inset-y-0 border-r border-slate-200/80 bg-white shadow-subtle z-30 transition-[width] duration-200 ease-out",
+        isCollapsed ? "md:w-16" : "md:w-64"
+      )}
+      aria-label="Sidebar Navigation"
+    >
+      {/* Brand / Logo + Collapse Toggle */}
+      <div className="flex h-16 items-center justify-between px-3.5 border-b border-slate-100/90">
+        <Link
+          href="/dashboard"
+          className={cn(
+            "flex items-center space-x-3 overflow-hidden rounded-lg p-1 hover:bg-slate-50 transition-colors",
+            isCollapsed && "justify-center w-full space-x-0"
+          )}
+          title="OfficeOS Enterprise"
+        >
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary-600 to-indigo-700 text-white shadow-subtle">
+            <Building2 className="h-4.5 w-4.5" />
           </div>
-          <div>
-            <span className="font-bold text-lg text-slate-900 tracking-tight">OfficeOS</span>
-            <span className="block text-[10px] text-primary-600 font-semibold uppercase tracking-wider">
-              Enterprise
-            </span>
-          </div>
+          {!isCollapsed && (
+            <div className="flex flex-col truncate">
+              <span className="font-bold text-base text-slate-900 tracking-tight leading-tight">
+                OfficeOS
+              </span>
+              <span className="text-[10px] text-primary-600 font-semibold uppercase tracking-wider">
+                Enterprise
+              </span>
+            </div>
+          )}
         </Link>
+
+        {!isCollapsed && (
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200/80 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+            title="Collapse sidebar"
+            aria-label="Collapse sidebar"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
 
       {/* Navigation Links */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
+      <div className="flex-1 overflow-y-auto px-2.5 py-3 space-y-5">
         {MAIN_NAVIGATION.map((section, idx) => {
-          // Filter items based on permission (for UX/UI only)
           const visibleItems = section.items.filter((item) => {
             if (!item.requiredPermissions || item.requiredPermissions.length === 0) {
               return true;
@@ -47,11 +77,14 @@ export function AppSidebar() {
           if (visibleItems.length === 0) return null;
 
           return (
-            <div key={section.title || idx} className="space-y-1">
-              {section.title && (
-                <div className="px-3 pb-1.5 text-xs font-bold uppercase tracking-wider text-slate-400">
+            <div key={section.title || idx} className="space-y-0.5">
+              {!isCollapsed && section.title && (
+                <div className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400 select-none">
                   {section.title}
                 </div>
+              )}
+              {isCollapsed && (
+                <div className="my-1.5 border-t border-slate-100" />
               )}
               {visibleItems.map((item) => {
                 const isActive =
@@ -63,27 +96,42 @@ export function AppSidebar() {
                   <Link
                     key={item.href}
                     href={item.disabled ? "#" : item.href}
+                    title={isCollapsed ? item.title : undefined}
                     className={cn(
-                      "group flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
+                      "group relative flex items-center rounded-lg text-xs sm:text-sm font-medium transition-all duration-150 ease-out",
+                      isCollapsed
+                        ? "h-9 w-9 mx-auto justify-center"
+                        : "px-2.5 py-2 justify-between",
                       isActive
                         ? "bg-primary-50/90 text-primary-700 shadow-subtle font-semibold"
                         : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
                       item.disabled && "pointer-events-none opacity-50"
                     )}
                   >
-                    <div className="flex items-center space-x-3">
+                    <div className={cn("flex items-center", isCollapsed ? "justify-center" : "space-x-2.5")}>
                       <Icon
                         className={cn(
-                          "h-4 w-4 transition-colors",
+                          "h-4 w-4 flex-shrink-0 transition-colors",
                           isActive ? "text-primary-600" : "text-slate-400 group-hover:text-slate-600"
                         )}
                       />
-                      <span>{item.title}</span>
+                      {!isCollapsed && <span className="truncate">{item.title}</span>}
                     </div>
-                    {item.badge && (
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+
+                    {!isCollapsed && item.badge && (
+                      <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
                         {item.badge}
                       </span>
+                    )}
+
+                    {/* Active Left Indicator Bar */}
+                    {isActive && (
+                      <span
+                        className={cn(
+                          "absolute bg-primary-600 rounded-r-full transition-all",
+                          isCollapsed ? "left-0 top-1.5 bottom-1.5 w-1" : "-left-2.5 top-2 bottom-2 w-1"
+                        )}
+                      />
                     )}
                   </Link>
                 );
@@ -94,11 +142,23 @@ export function AppSidebar() {
       </div>
 
       {/* Sidebar Footer */}
-      <div className="border-t border-slate-100 p-4">
-        <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-500 text-center">
-          <p className="font-medium text-slate-700">OfficeOS SaaS Platform</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">v0.1.0 • Multi-tenant</p>
-        </div>
+      <div className="border-t border-slate-100 p-2.5 flex flex-col items-center">
+        {isCollapsed ? (
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200/80 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+            title="Expand sidebar"
+            aria-label="Expand sidebar"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        ) : (
+          <div className="w-full rounded-lg bg-slate-50/80 border border-slate-100 p-2 text-center">
+            <p className="text-[11px] font-semibold text-slate-700">OfficeOS Platform</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">Enterprise Cloud • v1.0</p>
+          </div>
+        )}
       </div>
     </aside>
   );

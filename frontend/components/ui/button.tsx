@@ -23,27 +23,27 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const baseStyles =
-      "inline-flex items-center justify-center font-medium transition-all duration-150 ease-out active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 select-none";
+      "inline-flex items-center justify-center font-medium transition-all duration-150 ease-out active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/80 focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50 select-none";
 
     const variants: Record<string, string> = {
       primary:
         "bg-primary-600 text-white shadow-subtle hover:bg-primary-700 hover:shadow-card active:bg-primary-800",
       secondary:
-        "bg-slate-100 text-slate-900 hover:bg-slate-200/80 active:bg-slate-300",
+        "bg-slate-100/90 text-slate-800 hover:bg-slate-200/70 active:bg-slate-200",
       outline:
-        "border border-slate-300 bg-white/50 text-slate-700 hover:bg-slate-50 hover:border-slate-400 active:bg-slate-100",
+        "border border-slate-200/90 bg-white text-slate-700 shadow-subtle hover:bg-slate-50 hover:border-slate-300 active:bg-slate-100/80",
       ghost:
-        "bg-transparent text-slate-700 hover:bg-slate-100/80 active:bg-slate-200",
+        "bg-transparent text-slate-700 hover:bg-slate-100/70 active:bg-slate-200/70",
       destructive:
         "bg-red-600 text-white shadow-subtle hover:bg-red-700 hover:shadow-card active:bg-red-800",
       link: "text-primary-600 underline-offset-4 hover:underline p-0 h-auto active:scale-100",
     };
 
     const sizes: Record<string, string> = {
-      sm: "h-8 px-3 text-xs rounded-md",
-      md: "h-10 px-4 py-2 text-sm rounded-md",
-      lg: "h-12 px-6 text-base rounded-lg",
-      icon: "h-10 w-10 p-2 rounded-md",
+      sm: "h-8 px-2.5 text-xs rounded-lg gap-1.5",
+      md: "h-9 px-3.5 py-2 text-xs sm:text-sm rounded-lg gap-2",
+      lg: "h-11 px-5 text-sm sm:text-base rounded-lg gap-2.5",
+      icon: "h-9 w-9 p-2 rounded-lg",
     };
 
     return (

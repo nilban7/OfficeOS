@@ -121,13 +121,13 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200/60 pb-5">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
             Welcome back, {greetingName}
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Here is the current overview for{" "}
+          <p className="mt-1 text-xs sm:text-sm text-slate-500">
+            Real-time organizational overview for{" "}
             <span className="font-semibold text-slate-700">
               {currentOrganization?.name || "Your Organization"}
             </span>
@@ -137,14 +137,14 @@ export default function DashboardPage() {
 
         <div className="flex items-center space-x-2.5">
           <Link href={ROUTES.REPORTS}>
-            <Button size="sm" variant="outline" className="flex items-center gap-1.5">
+            <Button size="sm" variant="outline" className="flex items-center gap-1.5 shadow-subtle">
               <BarChart3 className="h-4 w-4 text-slate-600" />
               <span>View Reports</span>
             </Button>
           </Link>
           <Link href={ROUTES.OPERATIONS}>
-            <Button size="sm" className="flex items-center gap-1.5">
-              <Plus className="mr-1.5 h-4 w-4" />
+            <Button size="sm" className="flex items-center gap-1.5 shadow-subtle">
+              <Plus className="h-4 w-4" />
               <span>New Task</span>
             </Button>
           </Link>
@@ -152,65 +152,73 @@ export default function DashboardPage() {
       </div>
 
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        <Card hover>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-600">Total Employees</CardTitle>
-            <div className="h-8 w-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+        <Card hover className="p-4 sm:p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Employees</span>
+            <div className="h-8 w-8 rounded-lg bg-blue-50/80 text-blue-600 flex items-center justify-center border border-blue-100">
               <Users className="h-4 w-4" />
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-slate-900">{totalEmployees}</div>
-            <p className="text-xs text-slate-500 mt-1 flex items-center">
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-bold text-slate-900 tabular-nums tracking-tight">
+              {totalEmployees}
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1 flex items-center">
               Active staff in organization
             </p>
-          </CardContent>
+          </div>
         </Card>
 
-        <Card hover>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-600">Active Today</CardTitle>
-            <div className="h-8 w-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+        <Card hover className="p-4 sm:p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Active Today</span>
+            <div className="h-8 w-8 rounded-lg bg-emerald-50/80 text-emerald-600 flex items-center justify-center border border-emerald-100">
               <Clock className="h-4 w-4" />
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-slate-900">{attendanceDisplay}</div>
-            <div className="text-xs text-slate-500 mt-1">
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-bold text-slate-900 tabular-nums tracking-tight">
+              {attendanceDisplay}
+            </div>
+            <div className="text-[11px] text-emerald-600 font-medium mt-1">
               {attendanceRate}
             </div>
-          </CardContent>
+          </div>
         </Card>
 
-        <Card hover>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-600">Pending Leaves</CardTitle>
-            <div className="h-8 w-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+        <Card hover className="p-4 sm:p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pending Leaves</span>
+            <div className="h-8 w-8 rounded-lg bg-amber-50/80 text-amber-600 flex items-center justify-center border border-amber-100">
               <CalendarDays className="h-4 w-4" />
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-slate-900">{pendingLeaves}</div>
-            <p className="text-xs text-amber-600 font-medium mt-1">
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-bold text-slate-900 tabular-nums tracking-tight">
+              {pendingLeaves}
+            </div>
+            <p className="text-[11px] text-amber-600 font-medium mt-1">
               {Number(pendingLeaves) > 0 ? "Requires review" : "Up to date"}
             </p>
-          </CardContent>
+          </div>
         </Card>
 
-        <Card hover>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-600">Active Projects</CardTitle>
-            <div className="h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+        <Card hover className="p-4 sm:p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Active Projects</span>
+            <div className="h-8 w-8 rounded-lg bg-indigo-50/80 text-indigo-600 flex items-center justify-center border border-indigo-100">
               <Layers className="h-4 w-4" />
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-slate-900">{activeProjects}</div>
-            <p className="text-xs text-slate-500 mt-1">
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-bold text-slate-900 tabular-nums tracking-tight">
+              {activeProjects}
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">
               Active client & internal engagements
             </p>
-          </CardContent>
+          </div>
         </Card>
       </div>
 

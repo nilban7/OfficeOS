@@ -1056,7 +1056,7 @@ export default function AttendancePage() {
                 value={formStatus}
                 onChange={(e) => setFormStatus(e.target.value as AttendanceStatus)}
                 required
-                className="mt-1 w-full rounded-md border border-slate-300 p-2 text-xs focus:ring-1 focus:ring-primary-500"
+                className="mt-1.5 w-full rounded-lg border border-slate-200/90 bg-white px-3 py-2 text-xs text-slate-800 shadow-subtle focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/15 transition-all"
               >
                 <option value="present">Present</option>
                 <option value="late">Late</option>
@@ -1067,7 +1067,7 @@ export default function AttendancePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             {/* Check In */}
             <div>
               <Label className="text-xs font-semibold text-slate-700">Clock In Time</Label>
@@ -1075,23 +1075,23 @@ export default function AttendancePage() {
                 type="datetime-local"
                 value={formCheckInAt}
                 onChange={(e) => setFormCheckInAt(e.target.value)}
-                className="mt-1 text-xs"
+                className="mt-1.5 text-xs"
               />
             </div>
 
             {/* Check Out */}
             <div>
               <Label className="text-xs font-semibold text-slate-700">
-                Clock Out Time <span className="font-normal text-slate-500">(Optional — 2nd Half / Shift End)</span>
+                Clock Out Time <span className="font-normal text-slate-400">(Optional)</span>
               </Label>
               <Input
                 type="datetime-local"
                 value={formCheckOutAt}
                 onChange={(e) => setFormCheckOutAt(e.target.value)}
-                className="mt-1 text-xs"
+                className="mt-1.5 text-xs"
               />
-              <p className="mt-1 text-[11px] text-slate-500">
-                Leave blank on 1st half / initial check-in. Clock-out can be recorded at the end of the shift.
+              <p className="mt-1 text-[11px] text-slate-400">
+                Clock-out can be recorded at shift conclusion.
               </p>
             </div>
           </div>
@@ -1102,7 +1102,7 @@ export default function AttendancePage() {
             <select
               value={formBranchId}
               onChange={(e) => setFormBranchId(e.target.value)}
-              className="mt-1 w-full rounded-md border border-slate-300 p-2 text-xs focus:ring-1 focus:ring-primary-500"
+              className="mt-1.5 w-full rounded-lg border border-slate-200/90 bg-white px-3 py-2 text-xs text-slate-800 shadow-subtle focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/15 transition-all"
             >
               <option value="">Default Employee Branch</option>
               {branches.map((b) => (
@@ -1121,19 +1121,20 @@ export default function AttendancePage() {
               value={formNotes}
               onChange={(e) => setFormNotes(e.target.value)}
               placeholder="e.g. Remote work, client site visit..."
-              className="mt-1 w-full rounded-md border border-slate-300 p-2 text-xs focus:ring-1 focus:ring-primary-500"
+              className="mt-1.5 w-full rounded-lg border border-slate-200/90 bg-white px-3 py-2 text-xs text-slate-800 shadow-subtle focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/15 transition-all"
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100 mt-2">
             <Button
               type="button"
               variant="outline"
+              size="sm"
               onClick={() => setIsMarkOpen(false)}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" size="sm" disabled={isSubmitting}>
               {isSubmitting ? "Saving..." : "Save Record"}
             </Button>
           </div>

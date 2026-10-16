@@ -59,11 +59,15 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)",
       },
       boxShadow: {
-        subtle: "0 1px 2px 0 rgb(0 0 0 / 0.04)",
-        card: "0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04)",
-        "card-hover": "0 12px 24px -4px rgb(0 0 0 / 0.06), 0 4px 6px -2px rgb(0 0 0 / 0.03)",
-        dropdown: "0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.03)",
-        modal: "0 25px 50px -12px rgb(0 0 0 / 0.15)",
+        subtle: "0 1px 2px 0 rgb(0 0 0 / 0.03)",
+        card: "0 1px 3px 0 rgb(0 0 0 / 0.03), 0 1px 2px -1px rgb(0 0 0 / 0.03)",
+        "card-hover": "0 10px 20px -3px rgb(0 0 0 / 0.05), 0 4px 6px -2px rgb(0 0 0 / 0.02)",
+        dropdown: "0 10px 25px -5px rgb(0 0 0 / 0.08), 0 8px 10px -6px rgb(0 0 0 / 0.03)",
+        modal: "0 20px 40px -10px rgb(0 0 0 / 0.12)",
+      },
+      transitionDuration: {
+        fast: "140ms",
+        normal: "200ms",
       },
       keyframes: {
         shimmer: {
@@ -72,13 +76,13 @@ const config: Config = {
           },
         },
         fadeIn: {
-          "0%": { opacity: "0" },
-          "100%": { opacity: "1" },
+          "0%": { opacity: "0", transform: "translateY(2px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
         },
       },
       animation: {
         shimmer: "shimmer 1.8s infinite",
-        "fade-in": "fadeIn 0.2s ease-out",
+        "fade-in": "fadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1)",
       },
     },
   },

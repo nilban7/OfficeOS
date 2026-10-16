@@ -11,9 +11,12 @@ import { LoadingState } from "@/components/feedback/loading-state";
 import { OrganizationProvider, useOrganization } from "@/hooks/use-organization";
 import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/constants/routes";
+import { cn } from "@/lib/utils/cn";
+import { SidebarProvider, useSidebar } from "@/components/layout/sidebar-context";
 
 function ProtectedLayoutContent({ children }: { children: React.ReactNode }) {
   const { currentOrganization, isLoadingOrgs, orgError, organizations } = useOrganization();
+  const { isCollapsed } = useSidebar();
 
   // If user has no active organization yet and it is currently loading:
   if (!currentOrganization && isLoadingOrgs) {
@@ -42,12 +45,17 @@ function ProtectedLayoutContent({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-slate-50/70 text-slate-900">
       {/* Desktop Sidebar */}
       <AppSidebar />
 
       {/* Main Content Area */}
-      <div className="md:pl-64 flex flex-col min-h-screen">
+      <div
+        className={cn(
+          "flex flex-col min-h-screen transition-[padding] duration-200 ease-out",
+          isCollapsed ? "md:pl-16" : "md:pl-64"
+        )}
+      >
         <AppHeader />
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           <PlatformAnnouncementBanner />
@@ -78,7 +86,9 @@ export default function ProtectedLayout({
 
   return (
     <OrganizationProvider>
-      <ProtectedLayoutContent>{children}</ProtectedLayoutContent>
+      <SidebarProvider>
+        <ProtectedLayoutContent>{children}</ProtectedLayoutContent>
+      </SidebarProvider>
     </OrganizationProvider>
   );
 }

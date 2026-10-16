@@ -46,9 +46,9 @@ export function AppHeader() {
 
   return (
     <>
-      <header className="sticky top-0 z-20 flex h-16 w-full items-center justify-between border-b border-slate-200/80 bg-white/80 px-4 sm:px-6 backdrop-blur-md shadow-subtle transition-all duration-200">
+      <header className="sticky top-0 z-20 flex h-16 w-full items-center justify-between border-b border-slate-200/70 bg-white/90 px-4 sm:px-6 backdrop-blur-md shadow-subtle transition-all duration-200">
         {/* Left Section: Mobile Menu Trigger + Org Switcher */}
-        <div className="flex items-center space-x-3 sm:space-x-4">
+        <div className="flex items-center space-x-2.5 sm:space-x-3.5">
           <button
             type="button"
             onClick={() => setIsMobileOpen(true)}
@@ -68,22 +68,25 @@ export function AppHeader() {
             <input
               type="text"
               placeholder="Quick search... (Press ⌘K)"
-              className="h-9 w-full rounded-lg border border-slate-200/80 bg-slate-50/70 pl-9 pr-4 text-xs text-slate-700 placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-500/10 transition-all duration-150"
+              className="h-9 w-full rounded-lg border border-slate-200/80 bg-slate-50/80 pl-9 pr-12 text-xs text-slate-700 placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/15 transition-all duration-150 cursor-pointer"
               readOnly
             />
+            <kbd className="pointer-events-none absolute right-2.5 top-2.5 inline-flex h-4 items-center rounded border border-slate-200 bg-white px-1 font-sans text-[10px] font-medium text-slate-400 shadow-sm">
+              ⌘K
+            </kbd>
           </div>
         </div>
 
         {/* Right Section: Notifications + User Menu */}
-        <div className="flex items-center space-x-2 sm:space-x-3">
+        <div className="flex items-center space-x-1.5 sm:space-x-2.5">
           <Link
             href={ROUTES.NOTIFICATIONS}
             className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
             aria-label="Notifications"
           >
-            <Bell className="h-5 w-5" />
+            <Bell className="h-4.5 w-4.5" />
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white shadow-sm ring-2 ring-white">
+              <span className="absolute top-1.5 right-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold text-white shadow-sm ring-2 ring-white">
                 {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             )}

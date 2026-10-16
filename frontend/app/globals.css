@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  --background: 210 40% 98%;
+  --background: 210 33% 99%;
   --foreground: 222.2 84% 4.9%;
 
   --card: 0 0% 100%;
@@ -31,7 +31,7 @@
   --input: 214.3 31.8% 91.4%;
   --ring: 238.7 83.5% 66.7%;
 
-  --radius: 0.5rem;
+  --radius: 0.625rem;
 }
 
 html {
@@ -54,8 +54,8 @@ body {
 
 /* Subtle modern scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -69,5 +69,15 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* Smooth motion & accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
