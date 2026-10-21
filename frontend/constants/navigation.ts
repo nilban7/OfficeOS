@@ -26,6 +26,7 @@ import {
   Megaphone,
   SlidersHorizontal,
   Sparkles,
+  FlaskConical,
 } from "lucide-react";
 import { ROUTES } from "./routes";
 import type { NavSection } from "@/types/navigation";
@@ -34,6 +35,11 @@ export const MAIN_NAVIGATION: NavSection[] = [
   {
     title: "Overview",
     items: [
+      {
+        title: "Test",
+        href: ROUTES.TEST,
+        icon: FlaskConical,
+      },
       {
         title: "Dashboard",
         href: ROUTES.DASHBOARD,

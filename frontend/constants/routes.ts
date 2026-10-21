@@ -10,6 +10,7 @@ export const ROUTES = {
   RESET_PASSWORD: "/reset-password",
 
   // Protected Routes
+  TEST: "/test",
   DASHBOARD: "/dashboard",
   REPORTS: "/reports",
   ORGANIZATION: "/organization",
