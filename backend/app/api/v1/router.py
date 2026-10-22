@@ -11,6 +11,7 @@ from app.api.v1.clients import router as clients_router
 from app.api.v1.departments import router as departments_router
 from app.api.v1.documents import router as documents_router
 from app.api.v1.employees import router as employees_router
+from app.api.v1.engagements import router as engagements_router
 from app.api.v1.finance import router as finance_router
 from app.api.v1.health import router as health_router
 from app.api.v1.internships import router as internships_router
@@ -65,4 +66,5 @@ router.include_router(ai_router)
 router.include_router(simulations_router)
 router.include_router(automations_router)
 router.include_router(admin_router)
-router.include_router(announcements_router)
+router.include_router(announcements_router)
+router.include_router(engagements_router)

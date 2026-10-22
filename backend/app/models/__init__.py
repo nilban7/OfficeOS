@@ -18,6 +18,18 @@ from app.models.identity import (
     Role,
     RolePermission,
 )
+from app.models.engagement import (
+    AgreementSignature,
+    ClientEngagement,
+    EngagementAgreement,
+    EngagementChangeRequest,
+    EngagementHandover,
+    EngagementIssue,
+    EngagementProposal,
+    EngagementUatSession,
+    EngagementUatTestCase,
+    EngagementWeeklyReport,
+)
 from app.models.internship import Internship, InternshipReview, InternshipSupervisor
 from app.models.leave import Holiday, LeaveRequest, LeaveType
 from app.models.maintenance import MaintenanceRecord, MaintenanceRequest
@@ -30,6 +42,16 @@ from app.models.saas import PlatformAnnouncement, PlatformConfiguration
 from app.models.training import TrainingEnrollment, TrainingProgram, TrainingSession
 
 __all__ = [
+    "AgreementSignature",
+    "ClientEngagement",
+    "EngagementAgreement",
+    "EngagementChangeRequest",
+    "EngagementHandover",
+    "EngagementIssue",
+    "EngagementProposal",
+    "EngagementUatSession",
+    "EngagementUatTestCase",
+    "EngagementWeeklyReport",
     "AIConfiguration",
     "AIConversation",
     "AIMessage",

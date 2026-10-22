@@ -26,6 +26,7 @@ import {
   Megaphone,
   SlidersHorizontal,
   Sparkles,
+  Handshake,
 } from "lucide-react";
 import { ROUTES } from "./routes";
 import type { NavSection } from "@/types/navigation";
@@ -108,6 +109,13 @@ export const MAIN_NAVIGATION: NavSection[] = [
         href: ROUTES.CLIENTS,
         icon: Briefcase,
         requiredPermissions: ["clients.view"],
+      },
+      {
+        title: "Client Engagements",
+        href: ROUTES.ENGAGEMENTS,
+        icon: Handshake,
+        badge: "New",
+        requiredPermissions: ["engagements.view", "clients.view"],
       },
       {
         title: "Projects",

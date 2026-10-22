@@ -17,6 +17,7 @@ export const ROUTES = {
   ATTENDANCE: "/attendance",
   LEAVE: "/leave",
   CLIENTS: "/clients",
+  ENGAGEMENTS: "/engagements",
   PROJECTS: "/projects",
   PROCUREMENT: "/procurement",
   ASSETS: "/assets",
