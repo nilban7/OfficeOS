@@ -35,12 +35,12 @@ const STAGE_LABELS: Record<EngagementStage, { label: string; step: number }> = {
   proposal: { label: "1. Proposal & Scoping", step: 1 },
   agreement: { label: "2. Agreement & e-Sign", step: 2 },
   kickoff: { label: "3. Kickoff Ready", step: 3 },
-  delivery: { label: "4. Sprints & Delivery", step: 4 },
-  weekly_reporting: { label: "5. Weekly Reporting", step: 5 },
-  uat: { label: "6. Client Mock Run (UAT)", step: 6 },
-  issues_triage: { label: "7. Query & Defect Triage", step: 7 },
-  acceptance_handover: { label: "8. Final Handover", step: 8 },
-  maintenance_support: { label: "9. SLA & Support", step: 9 },
+  delivery: { label: "4. Active Development", step: 4 },
+  weekly_reporting: { label: "5. Weekly Progress", step: 5 },
+  uat: { label: "6. Internal & Client Mock Run", step: 6 },
+  issues_triage: { label: "7. Client Queries & Triage", step: 7 },
+  acceptance_handover: { label: "8. Final Delivery & Handover", step: 8 },
+  maintenance_support: { label: "9. Warranty & SLA Support", step: 9 },
 };
 
 const HEALTH_COLORS: Record<DeliveryHealth, { badge: string; text: string }> = {
@@ -261,12 +261,12 @@ export default function EngagementsCommandCenterPage() {
             <option value="proposal">1. Proposal & Scoping</option>
             <option value="agreement">2. Agreement & e-Sign</option>
             <option value="kickoff">3. Kickoff Ready</option>
-            <option value="delivery">4. Sprints & Delivery</option>
-            <option value="weekly_reporting">5. Weekly Reporting</option>
-            <option value="uat">6. Client Mock Run (UAT)</option>
-            <option value="issues_triage">7. Query & Defect Triage</option>
-            <option value="acceptance_handover">8. Final Handover</option>
-            <option value="maintenance_support">9. SLA & Support</option>
+            <option value="delivery">4. Active Development</option>
+            <option value="weekly_reporting">5. Weekly Progress</option>
+            <option value="uat">6. Internal & Client Mock Run</option>
+            <option value="issues_triage">7. Client Queries & Triage</option>
+            <option value="acceptance_handover">8. Final Delivery & Handover</option>
+            <option value="maintenance_support">9. Warranty & SLA Support</option>
           </select>
         </div>
       </div>

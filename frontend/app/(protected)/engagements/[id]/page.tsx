@@ -39,12 +39,12 @@ const STAGES: { key: EngagementStage; label: string; icon: any }[] = [
   { key: "proposal", label: "Proposal", icon: FileText },
   { key: "agreement", label: "Agreement & Sign", icon: FileCheck2 },
   { key: "kickoff", label: "Kickoff", icon: Play },
-  { key: "delivery", label: "Delivery", icon: Layers },
-  { key: "weekly_reporting", label: "Weekly Reports", icon: CalendarDays },
+  { key: "delivery", label: "Active Dev", icon: Layers },
+  { key: "weekly_reporting", label: "Weekly Progress", icon: CalendarDays },
   { key: "uat", label: "Mock Run (UAT)", icon: ShieldCheck },
-  { key: "issues_triage", label: "Issue Triage", icon: HelpCircle },
-  { key: "acceptance_handover", label: "Handover", icon: Award },
-  { key: "maintenance_support", label: "Support & SLA", icon: Handshake },
+  { key: "issues_triage", label: "Client Queries", icon: HelpCircle },
+  { key: "acceptance_handover", label: "Final Delivery", icon: Award },
+  { key: "maintenance_support", label: "Warranty & SLA", icon: Handshake },
 ];
 
 export default function EngagementDetailPage() {
@@ -62,7 +62,23 @@ export default function EngagementDetailPage() {
   const [isUatModalOpen, setIsUatModalOpen] = React.useState(false);
   const [isIssueModalOpen, setIsIssueModalOpen] = React.useState(false);
   const [isSignModalOpen, setIsSignModalOpen] = React.useState(false);
+  const [isHandoverModalOpen, setIsHandoverModalOpen] = React.useState(false);
   const [selectedAgreement, setSelectedAgreement] = React.useState<AgreementItem | null>(null);
+
+  // Handover form state
+  const [handoverSignoffName, setHandoverSignoffName] = React.useState("");
+  const [handoverDeliverables, setHandoverDeliverables] = React.useState(true);
+  const [handoverDocs, setHandoverDocs] = React.useState(true);
+  const [handoverWarrantyStart, setHandoverWarrantyStart] = React.useState(
+    () => new Date().toISOString().split("T")[0]
+  );
+  const [handoverWarrantyEnd, setHandoverWarrantyEnd] = React.useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 90);
+    return d.toISOString().split("T")[0];
+  });
+  const [handoverSlaTier, setHandoverSlaTier] = React.useState("Tier 1 - Standard SLA");
+  const [handoverNotes, setHandoverNotes] = React.useState("");
 
   // Form states
   const [propTitle, setPropTitle] = React.useState("");
@@ -355,6 +371,36 @@ export default function EngagementDetailPage() {
     }
   };
 
+  // Final Delivery & Handover
+  const handleRecordHandover = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentOrganization?.id || !id) return;
+    setIsActionSubmitting(true);
+    setActionError(null);
+    try {
+      await apiClient.post(
+        API_ENDPOINTS.engagements.recordHandover(id),
+        {
+          deliverables_accepted: handoverDeliverables,
+          documentation_provided: handoverDocs,
+          client_signoff_name: handoverSignoffName || "Authorized Client Stakeholder",
+          warranty_start_date: handoverWarrantyStart || undefined,
+          warranty_end_date: handoverWarrantyEnd || undefined,
+          sla_tier: handoverSlaTier,
+          notes: handoverNotes || "Formal handover signoff completed.",
+        },
+        { organizationId: currentOrganization.id }
+      );
+      setIsHandoverModalOpen(false);
+      fetchEngagement();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to record final handover";
+      setActionError(msg);
+    } finally {
+      setIsActionSubmitting(false);
+    }
+  };
+
   if (isLoading) {
     return <LoadingState fullPage message="Loading engagement workspace..." />;
   }
@@ -416,6 +462,22 @@ export default function EngagementDetailPage() {
               </Button>
             </Link>
           )}
+          {engagement.project_id && !engagement.handover?.deliverables_accepted && (
+            <Button
+              size="sm"
+              onClick={() => setIsHandoverModalOpen(true)}
+              className="flex items-center gap-1.5 shadow-subtle bg-primary-600 hover:bg-primary-700 text-white"
+            >
+              <Award className="h-4 w-4" />
+              <span>Final Delivery & Handover</span>
+            </Button>
+          )}
+          {engagement.handover?.deliverables_accepted && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold shadow-subtle">
+              <Check className="h-4 w-4 text-emerald-600" />
+              <span>Delivered & Warranty Active</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -442,6 +504,8 @@ export default function EngagementDetailPage() {
                     weekly_reporting: "reports",
                     uat: "uat",
                     issues_triage: "issues",
+                    acceptance_handover: "handover",
+                    maintenance_support: "handover",
                   };
                   const targetTab = stageTabMap[stg.key];
                   if (targetTab) {
@@ -487,6 +551,10 @@ export default function EngagementDetailPage() {
           { key: "reports", label: `Weekly Reports (${engagement.weekly_reports.length})` },
           { key: "uat", label: `Mock Runs / UAT (${engagement.uat_sessions.length})` },
           { key: "issues", label: `Client Queries & Issues (${engagement.issues.length})` },
+          {
+            key: "handover",
+            label: `Final Delivery & Handover${engagement.handover?.deliverables_accepted ? " (Delivered ✓)" : ""}`,
+          },
         ].map((tab) => (
           <button
             key={tab.key}
@@ -861,6 +929,104 @@ export default function EngagementDetailPage() {
         </div>
       )}
 
+      {activeTab === "handover" && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="font-semibold text-slate-900">Final Delivery Signoff & SLA Warranty</h3>
+            {!engagement.handover?.deliverables_accepted && (
+              <Button
+                size="sm"
+                onClick={() => setIsHandoverModalOpen(true)}
+                className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                <Award className="h-4 w-4" />
+                <span>Execute Final Delivery & Handover</span>
+              </Button>
+            )}
+          </div>
+
+          <Card className="p-6 space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-slate-100 gap-2">
+              <div>
+                <span className="text-xs font-mono font-bold text-primary-600">
+                  {engagement.handover?.handover_number || "HND-DRAFT"}
+                </span>
+                <h4 className="text-lg font-bold text-slate-900 mt-0.5">
+                  Client Project Delivery & Handover Certificate
+                </h4>
+              </div>
+              <Badge variant={engagement.handover?.deliverables_accepted ? "success" : "warning"}>
+                {engagement.handover?.deliverables_accepted ? "✓ Delivered & Accepted" : "Pending Signoff"}
+              </Badge>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
+                <span className="text-slate-400 block uppercase tracking-wider mb-1">Deliverables Status</span>
+                <span className="font-semibold text-slate-800 flex items-center gap-1">
+                  {engagement.handover?.deliverables_accepted ? "✓ Accepted by Client" : "Awaiting Verification"}
+                </span>
+              </div>
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
+                <span className="text-slate-400 block uppercase tracking-wider mb-1">Documentation & Assets</span>
+                <span className="font-semibold text-slate-800">
+                  {engagement.handover?.documentation_provided ? "✓ Transferred" : "Pending Transfer"}
+                </span>
+              </div>
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
+                <span className="text-slate-400 block uppercase tracking-wider mb-1">Warranty Term</span>
+                <span className="font-semibold text-slate-800">
+                  {engagement.handover?.warranty_start_date && engagement.handover?.warranty_end_date
+                    ? `${engagement.handover.warranty_start_date} to ${engagement.handover.warranty_end_date}`
+                    : "Standard 90-Day Coverage"}
+                </span>
+              </div>
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
+                <span className="text-slate-400 block uppercase tracking-wider mb-1">SLA Tier</span>
+                <span className="font-semibold text-slate-800">
+                  {engagement.handover?.sla_tier || "Tier 1 - Standard Business Support"}
+                </span>
+              </div>
+            </div>
+
+            {engagement.handover?.client_signoff_name && (
+              <div className="p-4 rounded-xl border border-emerald-200/80 bg-emerald-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+                <div>
+                  <span className="font-semibold text-emerald-900 block">Authorized Client Sign-off</span>
+                  <span className="text-emerald-700">
+                    Signed by <strong>{engagement.handover.client_signoff_name}</strong>
+                    {engagement.handover.client_signoff_at ? ` on ${new Date(engagement.handover.client_signoff_at).toLocaleDateString()}` : ""}
+                  </span>
+                </div>
+                <div className="text-emerald-800 font-mono text-[11px] bg-emerald-100/70 px-2.5 py-1 rounded-md">
+                  Status: Delivery Completed & In Warranty
+                </div>
+              </div>
+            )}
+
+            {engagement.handover?.notes && (
+              <div className="text-xs text-slate-600 border-t border-slate-100 pt-3">
+                <strong className="text-slate-800 block mb-0.5">Handover & Delivery Notes:</strong>
+                <p className="leading-relaxed">{engagement.handover.notes}</p>
+              </div>
+            )}
+
+            {!engagement.handover?.deliverables_accepted && (
+              <div className="pt-2 text-center">
+                <Button
+                  size="md"
+                  onClick={() => setIsHandoverModalOpen(true)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-card"
+                >
+                  <Award className="h-4 w-4 mr-2" />
+                  <span>Execute Final Delivery Signoff Now</span>
+                </Button>
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
       {/* Signature Pad Modal */}
       {selectedAgreement && (
         <SignaturePadModal
@@ -1155,6 +1321,102 @@ export default function EngagementDetailPage() {
               Cancel
             </Button>
             <Button type="submit" size="sm">Log Issue</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal: Final Delivery & Handover */}
+      <Modal
+        isOpen={isHandoverModalOpen}
+        onClose={() => setIsHandoverModalOpen(false)}
+        title="Execute Final Delivery & Client Handover"
+        description="Formalize project delivery, record client acceptance, and activate the warranty & SLA period."
+      >
+        <form onSubmit={handleRecordHandover} className="space-y-4">
+          <div>
+            <Label className="text-xs font-semibold text-slate-700">Client Signoff Signatory Name *</Label>
+            <Input
+              required
+              value={handoverSignoffName}
+              onChange={(e) => setHandoverSignoffName(e.target.value)}
+              placeholder="e.g. Ananya Sen (VP Operations)"
+              className="mt-1 text-xs"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div>
+              <Label className="text-xs font-semibold text-slate-700">Warranty Start Date</Label>
+              <Input
+                type="date"
+                value={handoverWarrantyStart}
+                onChange={(e) => setHandoverWarrantyStart(e.target.value)}
+                className="mt-1 text-xs"
+              />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-slate-700">Warranty End Date</Label>
+              <Input
+                type="date"
+                value={handoverWarrantyEnd}
+                onChange={(e) => setHandoverWarrantyEnd(e.target.value)}
+                className="mt-1 text-xs"
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-xs font-semibold text-slate-700">SLA Support Tier</Label>
+            <select
+              value={handoverSlaTier}
+              onChange={(e) => setHandoverSlaTier(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-200/90 bg-white px-3 py-2 text-xs text-slate-800 shadow-subtle focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/15"
+            >
+              <option value="Tier 1 - Standard SLA">Tier 1 - Standard Business Hours Support</option>
+              <option value="Tier 2 - Premium Managed SLA">Tier 2 - 24/7 Priority Support (4h SLA)</option>
+              <option value="Enterprise SLA">Enterprise Managed Services (1h SLA)</option>
+            </select>
+          </div>
+
+          <div className="space-y-2 pt-2 border-t border-slate-100">
+            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
+              <input
+                type="checkbox"
+                checked={handoverDeliverables}
+                onChange={(e) => setHandoverDeliverables(e.target.checked)}
+                className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 h-4 w-4"
+              />
+              <span className="font-medium">All Project Deliverables Tested & Accepted by Client</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
+              <input
+                type="checkbox"
+                checked={handoverDocs}
+                onChange={(e) => setHandoverDocs(e.target.checked)}
+                className="rounded border-slate-300 text-primary-600 focus:ring-primary-500 h-4 w-4"
+              />
+              <span className="font-medium">Technical Documentation & Deployment Artifacts Transferred</span>
+            </label>
+          </div>
+
+          <div>
+            <Label className="text-xs font-semibold text-slate-700">Delivery Notes</Label>
+            <textarea
+              rows={2}
+              value={handoverNotes}
+              onChange={(e) => setHandoverNotes(e.target.value)}
+              placeholder="e.g. Staging approved with zero critical defects. Deployed to production."
+              className="mt-1 w-full rounded-lg border border-slate-200/90 bg-white px-3 py-2 text-xs text-slate-800 shadow-subtle focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/15 resize-none"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button size="sm" variant="outline" type="button" onClick={() => setIsHandoverModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" type="submit" disabled={isActionSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              {isActionSubmitting ? "Executing Handover..." : "Execute Delivery & Activate Warranty"}
+            </Button>
           </div>
         </form>
       </Modal>
