@@ -1,11 +1,10 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, require_permission
-from app.models.identity import OrganizationMembership
+from app.dependencies.tenant import require_permission
 from app.schemas.engagement import (
     AgreementCreate,
     AgreementResponse,
@@ -20,7 +19,6 @@ from app.schemas.engagement import (
     HandoverResponse,
     IssueCreate,
     IssueResponse,
-    IssueUpdate,
     ProposalCreate,
     ProposalResponse,
     SignatureCreate,
@@ -37,22 +35,24 @@ router = APIRouter(prefix="/engagements", tags=["Client Engagements"])
 
 @router.get("/overview", response_model=EngagementOverview)
 async def get_overview(
-    membership: Annotated[OrganizationMembership, Depends(require_permission("engagements.view"))],
-    db: AsyncSession = Depends(get_db),
+    session: Annotated[AsyncSession, Depends(require_permission("engagements.view"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
 ) -> EngagementOverview:
-    return await EngagementService.get_overview(db, membership.organization_id)
+    org_id = uuid.UUID(organization_header)
+    return await EngagementService.get_overview(session, org_id)
 
 
 @router.get("", response_model=list[ClientEngagementSummary])
 async def list_engagements(
-    membership: Annotated[OrganizationMembership, Depends(require_permission("engagements.view"))],
+    session: Annotated[AsyncSession, Depends(require_permission("engagements.view"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
     stage: str | None = Query(None),
     health: str | None = Query(None),
     search: str | None = Query(None),
-    db: AsyncSession = Depends(get_db),
 ) -> list[ClientEngagementSummary]:
+    org_id = uuid.UUID(organization_header)
     records = await EngagementService.list_engagements(
-        db, membership.organization_id, stage=stage, health=health, search=search
+        session, org_id, stage=stage, health=health, search=search
     )
     result = []
     for r in records:
@@ -79,10 +79,11 @@ async def list_engagements(
 @router.post("", response_model=ClientEngagementSummary, status_code=status.HTTP_201_CREATED)
 async def create_engagement(
     payload: ClientEngagementCreate,
-    membership: Annotated[OrganizationMembership, Depends(require_permission("engagements.create"))],
-    db: AsyncSession = Depends(get_db),
+    session: Annotated[AsyncSession, Depends(require_permission("engagements.create"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
 ) -> ClientEngagementSummary:
-    engagement = await EngagementService.create_engagement(db, membership.organization_id, payload)
+    org_id = uuid.UUID(organization_header)
+    engagement = await EngagementService.create_engagement(session, org_id, payload)
     return ClientEngagementSummary(
         id=engagement.id,
         engagement_code=engagement.engagement_code,
@@ -101,10 +102,11 @@ async def create_engagement(
 @router.get("/{id}", response_model=ClientEngagementDetail)
 async def get_engagement(
     id: uuid.UUID,
-    membership: Annotated[OrganizationMembership, Depends(require_permission("engagements.view"))],
-    db: AsyncSession = Depends(get_db),
+    session: Annotated[AsyncSession, Depends(require_permission("engagements.view"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
 ) -> ClientEngagementDetail:
-    engagement = await EngagementService.get_engagement_detail(db, membership.organization_id, id)
+    org_id = uuid.UUID(organization_header)
+    engagement = await EngagementService.get_engagement_detail(session, org_id, id)
     if not engagement:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Engagement not found")
 
@@ -141,13 +143,14 @@ async def get_engagement(
 async def update_engagement(
     id: uuid.UUID,
     payload: ClientEngagementUpdate,
-    membership: Annotated[OrganizationMembership, Depends(require_permission("engagements.update"))],
-    db: AsyncSession = Depends(get_db),
+    session: Annotated[AsyncSession, Depends(require_permission("engagements.update"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
 ) -> ClientEngagementDetail:
-    engagement = await EngagementService.update_engagement(db, membership.organization_id, id, payload)
+    org_id = uuid.UUID(organization_header)
+    engagement = await EngagementService.update_engagement(session, org_id, id, payload)
     if not engagement:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Engagement not found")
-    return await get_engagement(id, membership, db)
+    return await get_engagement(id, session, organization_header)
 
 
 # --- Sub-resource: Proposals ---
@@ -155,10 +158,11 @@ async def update_engagement(
 async def create_proposal(
     id: uuid.UUID,
     payload: ProposalCreate,
-    membership: Annotated[OrganizationMembership, Depends(require_permission("proposals.create"))],
-    db: AsyncSession = Depends(get_db),
+    session: Annotated[AsyncSession, Depends(require_permission("proposals.create"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
 ) -> ProposalResponse:
-    proposal = await EngagementService.create_proposal(db, membership.organization_id, id, payload)
+    org_id = uuid.UUID(organization_header)
+    proposal = await EngagementService.create_proposal(session, org_id, id, payload)
     return ProposalResponse.model_validate(proposal)
 
 
@@ -167,10 +171,11 @@ async def create_proposal(
 async def create_agreement(
     id: uuid.UUID,
     payload: AgreementCreate,
-    membership: Annotated[OrganizationMembership, Depends(require_permission("agreements.create"))],
-    db: AsyncSession = Depends(get_db),
+    session: Annotated[AsyncSession, Depends(require_permission("agreements.create"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
 ) -> AgreementResponse:
-    agreement = await EngagementService.create_agreement(db, membership.organization_id, id, payload)
+    org_id = uuid.UUID(organization_header)
+    agreement = await EngagementService.create_agreement(session, org_id, id, payload)
     return AgreementResponse.model_validate(agreement)
 
 
@@ -179,13 +184,14 @@ async def sign_agreement(
     agreement_id: uuid.UUID,
     payload: SignatureCreate,
     request: Request,
-    membership: Annotated[OrganizationMembership, Depends(require_permission("agreements.sign"))],
-    db: AsyncSession = Depends(get_db),
+    session: Annotated[AsyncSession, Depends(require_permission("agreements.sign"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
 ) -> SignatureResponse:
+    org_id = uuid.UUID(organization_header)
     client_ip = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
     sig = await EngagementService.add_signature(
-        db, membership.organization_id, agreement_id, payload, ip_address=client_ip, user_agent=user_agent
+        session, org_id, agreement_id, payload, ip_address=client_ip, user_agent=user_agent
     )
     return SignatureResponse.model_validate(sig)
 
@@ -194,10 +200,11 @@ async def sign_agreement(
 @router.post("/{id}/kickoff")
 async def kickoff_project(
     id: uuid.UUID,
-    membership: Annotated[OrganizationMembership, Depends(require_permission("engagements.manage"))],
-    db: AsyncSession = Depends(get_db),
+    session: Annotated[AsyncSession, Depends(require_permission("engagements.manage"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
 ):
-    project = await EngagementService.kickoff_project(db, membership.organization_id, id)
+    org_id = uuid.UUID(organization_header)
+    project = await EngagementService.kickoff_project(session, org_id, id)
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Engagement not found")
     return {"message": "Project successfully kicked off and linked", "project_id": str(project.id)}
@@ -208,10 +215,11 @@ async def kickoff_project(
 async def create_weekly_report(
     id: uuid.UUID,
     payload: WeeklyReportCreate,
-    membership: Annotated[OrganizationMembership, Depends(require_permission("engagements.update"))],
-    db: AsyncSession = Depends(get_db),
+    session: Annotated[AsyncSession, Depends(require_permission("engagements.update"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
 ) -> WeeklyReportResponse:
-    report = await EngagementService.create_weekly_report(db, membership.organization_id, id, payload)
+    org_id = uuid.UUID(organization_header)
+    report = await EngagementService.create_weekly_report(session, org_id, id, payload)
     return WeeklyReportResponse.model_validate(report)
 
 
@@ -220,11 +228,12 @@ async def create_weekly_report(
 async def create_uat_session(
     id: uuid.UUID,
     payload: UatSessionCreate,
-    membership: Annotated[OrganizationMembership, Depends(require_permission("uat.manage"))],
-    db: AsyncSession = Depends(get_db),
+    session: Annotated[AsyncSession, Depends(require_permission("uat.manage"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
 ) -> UatSessionResponse:
-    session = await EngagementService.create_uat_session(db, membership.organization_id, id, payload)
-    return UatSessionResponse.model_validate(session)
+    org_id = uuid.UUID(organization_header)
+    s = await EngagementService.create_uat_session(session, org_id, id, payload)
+    return UatSessionResponse.model_validate(s)
 
 
 # --- Sub-resource: Issues & Queries ---
@@ -232,10 +241,11 @@ async def create_uat_session(
 async def report_issue(
     id: uuid.UUID,
     payload: IssueCreate,
-    membership: Annotated[OrganizationMembership, Depends(require_permission("engagements.view"))],
-    db: AsyncSession = Depends(get_db),
+    session: Annotated[AsyncSession, Depends(require_permission("engagements.view"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
 ) -> IssueResponse:
-    issue = await EngagementService.create_issue(db, membership.organization_id, id, payload)
+    org_id = uuid.UUID(organization_header)
+    issue = await EngagementService.create_issue(session, org_id, id, payload)
     return IssueResponse.model_validate(issue)
 
 
@@ -244,10 +254,11 @@ async def report_issue(
 async def create_change_request(
     id: uuid.UUID,
     payload: ChangeRequestCreate,
-    membership: Annotated[OrganizationMembership, Depends(require_permission("engagements.update"))],
-    db: AsyncSession = Depends(get_db),
+    session: Annotated[AsyncSession, Depends(require_permission("engagements.update"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
 ) -> ChangeRequestResponse:
-    cr = await EngagementService.create_change_request(db, membership.organization_id, id, payload)
+    org_id = uuid.UUID(organization_header)
+    cr = await EngagementService.create_change_request(session, org_id, id, payload)
     return ChangeRequestResponse.model_validate(cr)
 
 
@@ -256,8 +267,9 @@ async def create_change_request(
 async def record_handover(
     id: uuid.UUID,
     payload: HandoverCreateOrUpdate,
-    membership: Annotated[OrganizationMembership, Depends(require_permission("engagements.manage"))],
-    db: AsyncSession = Depends(get_db),
+    session: Annotated[AsyncSession, Depends(require_permission("engagements.manage"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
 ) -> HandoverResponse:
-    handover = await EngagementService.record_handover(db, membership.organization_id, id, payload)
+    org_id = uuid.UUID(organization_header)
+    handover = await EngagementService.record_handover(session, org_id, id, payload)
     return HandoverResponse.model_validate(handover)

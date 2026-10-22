@@ -6,18 +6,6 @@ from app.models.automation import Automation, AutomationExecution
 from app.models.client import Client, ClientContact
 from app.models.document import Document, DocumentPermission, DocumentVersion
 from app.models.employee import Department, Employee
-from app.models.finance import Expense, ExpenseCategory, ExpenseItem, FinancialTransaction
-from app.models.identity import (
-    Branch,
-    MembershipRole,
-    Organization,
-    OrganizationMembership,
-    OrganizationSetting,
-    Permission,
-    Profile,
-    Role,
-    RolePermission,
-)
 from app.models.engagement import (
     AgreementSignature,
     ClientEngagement,
@@ -29,6 +17,18 @@ from app.models.engagement import (
     EngagementUatSession,
     EngagementUatTestCase,
     EngagementWeeklyReport,
+)
+from app.models.finance import Expense, ExpenseCategory, ExpenseItem, FinancialTransaction
+from app.models.identity import (
+    Branch,
+    MembershipRole,
+    Organization,
+    OrganizationMembership,
+    OrganizationSetting,
+    Permission,
+    Profile,
+    Role,
+    RolePermission,
 )
 from app.models.internship import Internship, InternshipReview, InternshipSupervisor
 from app.models.leave import Holiday, LeaveRequest, LeaveType
@@ -42,19 +42,10 @@ from app.models.saas import PlatformAnnouncement, PlatformConfiguration
 from app.models.training import TrainingEnrollment, TrainingProgram, TrainingSession
 
 __all__ = [
-    "AgreementSignature",
-    "ClientEngagement",
-    "EngagementAgreement",
-    "EngagementChangeRequest",
-    "EngagementHandover",
-    "EngagementIssue",
-    "EngagementProposal",
-    "EngagementUatSession",
-    "EngagementUatTestCase",
-    "EngagementWeeklyReport",
     "AIConfiguration",
     "AIConversation",
     "AIMessage",
+    "AgreementSignature",
     "Asset",
     "AssetAssignment",
     "AttendanceRecord",
@@ -64,11 +55,20 @@ __all__ = [
     "Branch",
     "Client",
     "ClientContact",
+    "ClientEngagement",
     "Department",
     "Document",
     "DocumentPermission",
     "DocumentVersion",
     "Employee",
+    "EngagementAgreement",
+    "EngagementChangeRequest",
+    "EngagementHandover",
+    "EngagementIssue",
+    "EngagementProposal",
+    "EngagementUatSession",
+    "EngagementUatTestCase",
+    "EngagementWeeklyReport",
     "Expense",
     "ExpenseCategory",
     "ExpenseItem",

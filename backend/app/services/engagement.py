@@ -1,14 +1,12 @@
 import hashlib
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.client import Client
 from app.models.engagement import (
     AgreementSignature,
     ClientEngagement,
@@ -30,11 +28,9 @@ from app.schemas.engagement import (
     EngagementOverview,
     HandoverCreateOrUpdate,
     IssueCreate,
-    IssueUpdate,
     ProposalCreate,
     SignatureCreate,
     UatSessionCreate,
-    UatTestCaseUpdate,
     WeeklyReportCreate,
 )
 
@@ -258,7 +254,7 @@ class EngagementService:
         user_agent: str | None = None,
     ) -> AgreementSignature:
         sig_hash = hashlib.sha256(payload.signature_data.encode("utf-8")).hexdigest()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         signature = AgreementSignature(
             organization_id=organization_id,
@@ -343,7 +339,7 @@ class EngagementService:
         c_res = await db.execute(count_q)
         r_num = f"WR-{(c_res.scalar() or 0) + 1:04d}"
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         report = EngagementWeeklyReport(
             organization_id=organization_id,
             engagement_id=engagement_id,
@@ -455,7 +451,7 @@ class EngagementService:
         h_res = await db.execute(handover_q)
         handover = h_res.scalars().first()
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if not handover:
             count_q = select(func.count(EngagementHandover.id)).where(EngagementHandover.organization_id == organization_id)
             c_res = await db.execute(count_q)

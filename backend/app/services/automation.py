@@ -486,7 +486,7 @@ class AutomationService:
             select(Automation)
             .where(
                 Automation.organization_id == organization_id,
-                Automation.is_active == True,  # noqa: E712
+                Automation.is_active == True,
                 Automation.trigger_type == "event",
             )
         )
@@ -510,20 +510,14 @@ class AutomationService:
 
             # Determine whether this automation matches the event
             is_match = False
-            if cfg_event == normalized_event:
-                is_match = True
-            elif normalized_event == "leave.approved" and (
+            if cfg_event == normalized_event or normalized_event == "leave.approved" and (
                 cfg_event in ["leave.approved", "leave_request.approve", "leave_request.approved", "leave.accepted", "leave_approval"]
                 # Also match existing rules named like "Notify on Leave Approval" created with default/custom trigger
                 or (cfg_event in ["", "custom.trigger"] and "leave" in auto.name.lower() and any(k in auto.name.lower() for k in ["approv", "accept"]))
-            ):
-                is_match = True
-            elif normalized_event == "leave.rejected" and (
+            ) or normalized_event == "leave.rejected" and (
                 cfg_event in ["leave.rejected", "leave_request.reject"]
                 or (cfg_event in ["", "custom.trigger"] and "leave" in auto.name.lower() and "reject" in auto.name.lower())
-            ):
-                is_match = True
-            elif normalized_event == "leave.requested" and (
+            ) or normalized_event == "leave.requested" and (
                 cfg_event in ["leave.requested", "leave_request.create", "leave.created"]
                 or (cfg_event in ["", "custom.trigger"] and "leave" in auto.name.lower() and any(k in auto.name.lower() for k in ["request", "submit", "apply"]))
             ):

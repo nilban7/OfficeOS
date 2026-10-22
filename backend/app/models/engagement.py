@@ -4,13 +4,11 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
-    BigInteger,
     Boolean,
     CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
-    ForeignKeyConstraint,
     Integer,
     Numeric,
     String,

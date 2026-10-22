@@ -79,7 +79,7 @@ async def get_user_permissions(
         pass
 
     if hasattr(user, "email") and getattr(user, "email", None):
-        user_email = str(getattr(user, "email")).strip().lower()
+        user_email = str(user.email).strip().lower()
         conditions.append(func.lower(Profile.email) == user_email)
 
     if not conditions:

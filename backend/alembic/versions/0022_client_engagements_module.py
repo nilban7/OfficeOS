@@ -282,9 +282,9 @@ def upgrade() -> None:
     for code, desc in CANONICAL_PERMISSIONS:
         bind.execute(
             sa.text(
-                "INSERT INTO permissions (id, code, description, module) "
-                "VALUES (:id, :code, :desc, 'engagements') "
-                "ON CONFLICT (code) DO NOTHING"
+                "INSERT INTO permissions (id, code, description) "
+                "VALUES (:id, :code, :desc) "
+                "ON CONFLICT (code) DO UPDATE SET description = EXCLUDED.description"
             ),
             {"id": str(uuid.uuid4()), "code": code, "desc": desc},
         )
@@ -307,7 +307,7 @@ def upgrade() -> None:
                         sa.text(
                             "INSERT INTO role_permissions (role_id, permission_id) "
                             "VALUES (:role_id, :perm_id) "
-                            "ON CONFLICT DO NOTHING"
+                            "ON CONFLICT (role_id, permission_id) DO NOTHING"
                         ),
                         {"role_id": role_id, "perm_id": perm_id},
                     )

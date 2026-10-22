@@ -53,7 +53,6 @@ from app.schemas.saas import (
 from app.services.audit import AuditLogService
 from app.services.identity import get_profile
 
-
 TEST_ORG_FILTERS = (
     not_(Organization.name.ilike("Org %")),
     not_(Organization.slug.ilike("org-%")),
