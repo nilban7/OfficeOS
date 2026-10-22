@@ -23,7 +23,7 @@ import { EmptyState } from "@/components/feedback/empty-state";
 import { useOrganization } from "@/hooks/use-organization";
 import { apiClient } from "@/lib/api/client";
 import { API_ENDPOINTS } from "@/lib/api/endpoints";
-import type { Client } from "@/types/client";
+import type { Client, ClientListResponse } from "@/types/client";
 import type {
   ClientEngagementSummary,
   EngagementOverview,
@@ -76,16 +76,19 @@ export default function EngagementsCommandCenterPage() {
         apiClient.get<EngagementOverview>(API_ENDPOINTS.engagements.overview, {
           organizationId: currentOrganization.id,
         }),
-        apiClient.get<ClientEngagementSummary[]>(API_ENDPOINTS.engagements.list, {
+        apiClient.get<ClientEngagementSummary[] | { items: ClientEngagementSummary[] }>(API_ENDPOINTS.engagements.list, {
           organizationId: currentOrganization.id,
         }),
-        apiClient.get<Client[]>(API_ENDPOINTS.clients.list, {
+        apiClient.get<ClientListResponse | Client[]>(API_ENDPOINTS.clients.list, {
+          params: { page_size: 100 },
           organizationId: currentOrganization.id,
         }),
       ]);
       setOverview(ovRes);
-      setEngagements(listRes || []);
-      setClients(clientsRes || []);
+      const engList = Array.isArray(listRes) ? listRes : (listRes as { items?: ClientEngagementSummary[] })?.items || [];
+      setEngagements(engList);
+      const clientList = Array.isArray(clientsRes) ? clientsRes : (clientsRes as ClientListResponse)?.items || [];
+      setClients(clientList);
     } catch {
       // Fallback
     } finally {
@@ -356,7 +359,7 @@ export default function EngagementsCommandCenterPage() {
               className="mt-1.5 w-full rounded-lg border border-slate-200/90 bg-white px-3 py-2 text-xs text-slate-800 shadow-subtle focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/15"
             >
               <option value="">-- Choose a Client --</option>
-              {clients.map((c) => (
+              {(clients || []).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name} ({c.client_code})
                 </option>

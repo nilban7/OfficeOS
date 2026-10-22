@@ -479,12 +479,12 @@ export default function EngagementDetailPage() {
             </Button>
           </div>
 
-          {engagement.proposals.length === 0 ? (
+          {(engagement.proposals || []).length === 0 ? (
             <Card className="p-8 text-center text-slate-500 text-sm">
               No proposals drafted. Create one to begin scoping.
             </Card>
           ) : (
-            engagement.proposals.map((p) => (
+            (engagement.proposals || []).map((p) => (
               <Card key={p.id} className="p-4 flex justify-between items-center">
                 <div>
                   <div className="flex items-center gap-2">
@@ -515,12 +515,12 @@ export default function EngagementDetailPage() {
             </Button>
           </div>
 
-          {engagement.agreements.length === 0 ? (
+          {(engagement.agreements || []).length === 0 ? (
             <Card className="p-8 text-center text-slate-500 text-sm">
               No legal agreements generated.
             </Card>
           ) : (
-            engagement.agreements.map((a) => (
+            (engagement.agreements || []).map((a) => (
               <Card key={a.id} className="p-5 space-y-3">
                 <div className="flex justify-between items-start">
                   <div>
@@ -551,13 +551,13 @@ export default function EngagementDetailPage() {
                 {/* Signatures List */}
                 <div className="pt-2 border-t border-slate-100">
                   <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
-                    Recorded Signatures ({a.signatures.length})
+                    Recorded Signatures ({(a.signatures || []).length})
                   </span>
-                  {a.signatures.length === 0 ? (
+                  {(a.signatures || []).length === 0 ? (
                     <p className="text-xs text-slate-400 italic">No digital signatures recorded yet.</p>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {a.signatures.map((sig) => (
+                      {(a.signatures || []).map((sig) => (
                         <div key={sig.id} className="p-2.5 rounded-lg border border-slate-200/80 bg-slate-50/50 text-xs">
                           <div className="flex justify-between font-semibold text-slate-800">
                             <span>{sig.signer_name}</span>
@@ -585,12 +585,12 @@ export default function EngagementDetailPage() {
             </Button>
           </div>
 
-          {engagement.weekly_reports.length === 0 ? (
+          {(engagement.weekly_reports || []).length === 0 ? (
             <Card className="p-8 text-center text-slate-500 text-sm">
               No weekly reports compiled yet.
             </Card>
           ) : (
-            engagement.weekly_reports.map((r) => (
+            (engagement.weekly_reports || []).map((r) => (
               <Card key={r.id} className="p-4 space-y-2">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
@@ -616,12 +616,12 @@ export default function EngagementDetailPage() {
             </Button>
           </div>
 
-          {engagement.uat_sessions.length === 0 ? (
+          {(engagement.uat_sessions || []).length === 0 ? (
             <Card className="p-8 text-center text-slate-500 text-sm">
               No UAT test runs created.
             </Card>
           ) : (
-            engagement.uat_sessions.map((u) => (
+            (engagement.uat_sessions || []).map((u) => (
               <Card key={u.id} className="p-4 space-y-3">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
@@ -644,7 +644,7 @@ export default function EngagementDetailPage() {
                 </div>
 
                 <div className="text-xs space-y-2 pt-2 border-t border-slate-100">
-                  {u.test_cases.map((tc) => (
+                  {(u.test_cases || []).map((tc) => (
                     <div key={tc.id} className="flex justify-between p-2 bg-slate-50 rounded border border-slate-200/60">
                       <div>
                         <span className="font-semibold text-slate-800">{tc.title}</span>
@@ -670,12 +670,12 @@ export default function EngagementDetailPage() {
             </Button>
           </div>
 
-          {engagement.issues.length === 0 ? (
+          {(engagement.issues || []).length === 0 ? (
             <Card className="p-8 text-center text-slate-500 text-sm">
               No open client issues or defects recorded.
             </Card>
           ) : (
-            engagement.issues.map((i) => (
+            (engagement.issues || []).map((i) => (
               <Card key={i.id} className="p-4 flex justify-between items-center">
                 <div>
                   <div className="flex items-center gap-2">
