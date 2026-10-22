@@ -100,10 +100,13 @@ export default function EngagementsCommandCenterPage() {
     fetchData();
   }, [fetchData]);
 
+  const [createError, setCreateError] = React.useState<string | null>(null);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentOrganization?.id || !clientId || !title) return;
     setIsSubmitting(true);
+    setCreateError(null);
     try {
       await apiClient.post(
         API_ENDPOINTS.engagements.create,
@@ -120,9 +123,11 @@ export default function EngagementsCommandCenterPage() {
       setTitle("");
       setDescription("");
       setContractValue("");
+      setTargetDate("");
       fetchData();
-    } catch {
-      // Handle error
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to initiate engagement";
+      setCreateError(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -350,6 +355,11 @@ export default function EngagementsCommandCenterPage() {
         description="Establish a new commercial engagement pipeline for an existing client."
       >
         <form onSubmit={handleCreate} className="space-y-4">
+          {createError && (
+            <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-xs text-rose-700">
+              {createError}
+            </div>
+          )}
           <div>
             <Label className="text-xs font-semibold text-slate-700">Select Client *</Label>
             <select
