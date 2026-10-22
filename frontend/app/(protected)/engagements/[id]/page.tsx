@@ -127,18 +127,24 @@ export default function EngagementDetailPage() {
     }
   };
 
+  const [isKickoffSubmitting, setIsKickoffSubmitting] = React.useState(false);
+
   // Kickoff Bridge
   const handleKickoff = async () => {
     if (!currentOrganization?.id || !id) return;
+    setIsKickoffSubmitting(true);
     try {
       await apiClient.post(
         API_ENDPOINTS.engagements.kickoff(id),
         {},
         { organizationId: currentOrganization.id }
       );
-      fetchEngagement();
-    } catch {
-      //
+      await fetchEngagement();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to kickoff project";
+      alert(msg);
+    } finally {
+      setIsKickoffSubmitting(false);
     }
   };
 
@@ -372,9 +378,14 @@ export default function EngagementDetailPage() {
 
         <div className="flex items-center gap-2">
           {!engagement.project_id && (engagement.current_stage === "agreement" || engagement.current_stage === "kickoff" || (engagement.agreements && engagement.agreements.length > 0)) && (
-            <Button size="sm" onClick={handleKickoff} className="flex items-center gap-1.5 shadow-subtle bg-emerald-600 hover:bg-emerald-700 text-white">
+            <Button
+              size="sm"
+              onClick={handleKickoff}
+              disabled={isKickoffSubmitting}
+              className="flex items-center gap-1.5 shadow-subtle bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
               <Play className="h-4 w-4" />
-              <span>Kickoff Project</span>
+              <span>{isKickoffSubmitting ? "Starting Delivery..." : "Kickoff Project"}</span>
             </Button>
           )}
           {engagement.project_id && (

@@ -1,6 +1,6 @@
 import hashlib
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -339,15 +339,28 @@ class EngagementService:
         # Generate project
         count_q = select(func.count(Project.id)).where(Project.organization_id == organization_id)
         c_res = await db.execute(count_q)
-        p_code = f"PRJ-{(c_res.scalar() or 0) + 1:04d}"
+        cnt = (c_res.scalar() or 0) + 1
+        p_code = f"PRJ-{cnt:04d}"
+        while True:
+            chk = await db.scalar(
+                select(Project.id).where(
+                    Project.organization_id == organization_id,
+                    Project.project_code == p_code,
+                )
+            )
+            if not chk:
+                break
+            cnt += 1
+            p_code = f"PRJ-{cnt:04d}"
 
         new_project = Project(
             organization_id=organization_id,
             client_id=engagement.client_id,
             project_code=p_code,
-            name=engagement.title,
+            name=engagement.title[:200],
             description=engagement.description or f"Execution project for {engagement.engagement_code}",
-            status="in_progress",
+            status="active",
+            start_date=date.today(),
             budget=engagement.contract_value,
             project_manager_employee_id=engagement.engagement_lead_id,
         )
