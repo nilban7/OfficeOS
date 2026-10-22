@@ -371,11 +371,19 @@ export default function EngagementDetailPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {engagement.current_stage === "agreement" && !engagement.project_id && (
-            <Button size="sm" onClick={handleKickoff} className="flex items-center gap-1.5 shadow-subtle">
+          {!engagement.project_id && (engagement.current_stage === "agreement" || engagement.current_stage === "kickoff" || (engagement.agreements && engagement.agreements.length > 0)) && (
+            <Button size="sm" onClick={handleKickoff} className="flex items-center gap-1.5 shadow-subtle bg-emerald-600 hover:bg-emerald-700 text-white">
               <Play className="h-4 w-4" />
               <span>Kickoff Project</span>
             </Button>
+          )}
+          {engagement.project_id && (
+            <Link href={`/projects/${engagement.project_id}`}>
+              <Button size="sm" variant="outline" className="flex items-center gap-1.5 shadow-subtle">
+                <Layers className="h-4 w-4 text-primary-600" />
+                <span>Open Linked Project →</span>
+              </Button>
+            </Link>
           )}
         </div>
       </div>
