@@ -184,6 +184,34 @@ class EngagementService:
         await db.refresh(engagement)
         return engagement
 
+    @staticmethod
+    async def _auto_advance_stage(
+        db: AsyncSession,
+        engagement_id: uuid.UUID,
+        target_stage: str,
+        target_progress: int,
+    ) -> None:
+        STAGE_ORDER = [
+            "proposal",
+            "agreement",
+            "kickoff",
+            "delivery",
+            "weekly_reporting",
+            "uat",
+            "issues_triage",
+            "acceptance_handover",
+            "maintenance_support",
+        ]
+        eng = await db.get(ClientEngagement, engagement_id)
+        if not eng:
+            return
+        curr_idx = STAGE_ORDER.index(eng.current_stage) if eng.current_stage in STAGE_ORDER else 0
+        tgt_idx = STAGE_ORDER.index(target_stage) if target_stage in STAGE_ORDER else 0
+        if tgt_idx > curr_idx:
+            eng.current_stage = target_stage
+        if target_progress > eng.progress_percentage:
+            eng.progress_percentage = min(100, target_progress)
+
     # --- Sub-resource Methods ---
     @staticmethod
     async def create_proposal(
@@ -264,6 +292,7 @@ class EngagementService:
             document_sha256=doc_hash,
         )
         db.add(agreement)
+        await EngagementService._auto_advance_stage(db, engagement_id, "agreement", 12)
         await db.commit()
 
         # Eager load signatures to prevent MissingGreenlet in async serializer
@@ -317,6 +346,7 @@ class EngagementService:
             existing_roles.add(payload.signer_role)
             if "internal" in existing_roles and "client" in existing_roles:
                 agreement.status = "active"
+            await EngagementService._auto_advance_stage(db, agreement.engagement_id, "kickoff", 25)
 
         await db.commit()
         await db.refresh(signature)
@@ -412,6 +442,7 @@ class EngagementService:
             published_at=now if payload.is_published else None,
         )
         db.add(report)
+        await EngagementService._auto_advance_stage(db, engagement_id, "weekly_reporting", 55)
         await db.commit()
         await db.refresh(report)
         return report
@@ -444,6 +475,7 @@ class EngagementService:
             )
             db.add(case)
 
+        await EngagementService._auto_advance_stage(db, engagement_id, "uat", 70)
         await db.commit()
 
         # Eager load test_cases to prevent MissingGreenlet in async serializer
@@ -488,6 +520,7 @@ class EngagementService:
             assigned_employee_id=payload.assigned_employee_id,
         )
         db.add(issue)
+        await EngagementService._auto_advance_stage(db, engagement_id, "issues_triage", 80)
         await db.commit()
         await db.refresh(issue)
         return issue
