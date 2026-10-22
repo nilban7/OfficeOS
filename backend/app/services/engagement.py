@@ -305,6 +305,23 @@ class EngagementService:
         return res.scalar_one()
 
     @staticmethod
+    async def delete_agreement(
+        db: AsyncSession, organization_id: uuid.UUID, engagement_id: uuid.UUID, agreement_id: uuid.UUID
+    ) -> bool:
+        stmt = select(EngagementAgreement).where(
+            EngagementAgreement.organization_id == organization_id,
+            EngagementAgreement.engagement_id == engagement_id,
+            EngagementAgreement.id == agreement_id,
+        )
+        res = await db.execute(stmt)
+        agreement = res.scalars().first()
+        if not agreement:
+            return False
+        await db.delete(agreement)
+        await db.commit()
+        return True
+
+    @staticmethod
     async def add_signature(
         db: AsyncSession,
         organization_id: uuid.UUID,

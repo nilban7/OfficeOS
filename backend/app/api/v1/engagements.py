@@ -179,6 +179,19 @@ async def create_agreement(
     return AgreementResponse.model_validate(agreement)
 
 
+@router.delete("/{id}/agreements/{agreement_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_agreement(
+    id: uuid.UUID,
+    agreement_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(require_permission("agreements.manage"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
+) -> None:
+    org_id = uuid.UUID(organization_header)
+    deleted = await EngagementService.delete_agreement(session, org_id, id, agreement_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agreement not found")
+
+
 @router.post("/agreements/{agreement_id}/signatures", response_model=SignatureResponse)
 async def sign_agreement(
     agreement_id: uuid.UUID,

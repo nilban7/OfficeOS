@@ -66,6 +66,7 @@ export const API_ENDPOINTS = {
     update: (id: string) => `/engagements/${id}`,
     createProposal: (id: string) => `/engagements/${id}/proposals`,
     createAgreement: (id: string) => `/engagements/${id}/agreements`,
+    deleteAgreement: (id: string, agreementId: string) => `/engagements/${id}/agreements/${agreementId}`,
     signAgreement: (agreementId: string) => `/engagements/agreements/${agreementId}/signatures`,
     kickoff: (id: string) => `/engagements/${id}/kickoff`,
     createWeeklyReport: (id: string) => `/engagements/${id}/weekly-reports`,

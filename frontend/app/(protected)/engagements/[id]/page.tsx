@@ -16,6 +16,7 @@ import {
   Play,
   PenTool,
   Check,
+  Trash2,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -225,6 +226,25 @@ export default function EngagementDetailPage() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to record signature";
       setActionError(msg);
+    } finally {
+      setIsActionSubmitting(false);
+    }
+  };
+
+  // Delete Agreement
+  const handleDeleteAgreement = async (agrId: string) => {
+    if (!currentOrganization?.id || !id) return;
+    if (!confirm("Are you sure you want to delete this agreement?")) return;
+    setIsActionSubmitting(true);
+    try {
+      await apiClient.delete(
+        API_ENDPOINTS.engagements.deleteAgreement(id, agrId),
+        { organizationId: currentOrganization.id }
+      );
+      fetchEngagement();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to delete agreement";
+      alert(msg);
     } finally {
       setIsActionSubmitting(false);
     }
@@ -672,18 +692,29 @@ export default function EngagementDetailPage() {
                       <strong>₹{Number(a.contract_value).toLocaleString("en-IN")}</strong>
                     </p>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setSelectedAgreement(a);
-                      setIsSignModalOpen(true);
-                    }}
-                    className="flex items-center gap-1.5"
-                  >
-                    <PenTool className="h-3.5 w-3.5" />
-                    <span>e-Sign Document</span>
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedAgreement(a);
+                        setIsSignModalOpen(true);
+                      }}
+                      className="flex items-center gap-1.5"
+                    >
+                      <PenTool className="h-3.5 w-3.5" />
+                      <span>e-Sign Document</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDeleteAgreement(a.id)}
+                      className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-2 h-auto"
+                      title="Delete Agreement"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Signatures List */}
