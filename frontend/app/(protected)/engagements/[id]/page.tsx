@@ -17,6 +17,7 @@ import {
   PenTool,
   Check,
   Trash2,
+  Download,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,10 @@ import { useOrganization } from "@/hooks/use-organization";
 import { apiClient } from "@/lib/api/client";
 import { API_ENDPOINTS } from "@/lib/api/endpoints";
 import { SignaturePadModal } from "@/components/engagements/signature-pad-modal";
+import {
+  EngagementReportModal,
+  type ReportType,
+} from "@/components/engagements/engagement-report-modal";
 import type {
   ClientEngagementDetail,
   EngagementStage,
@@ -64,6 +69,17 @@ export default function EngagementDetailPage() {
   const [isSignModalOpen, setIsSignModalOpen] = React.useState(false);
   const [isHandoverModalOpen, setIsHandoverModalOpen] = React.useState(false);
   const [selectedAgreement, setSelectedAgreement] = React.useState<AgreementItem | null>(null);
+
+  // Report viewer modal
+  const [reportModalOpen, setReportModalOpen] = React.useState(false);
+  const [reportType, setReportType] = React.useState<ReportType>("agreement");
+  const [reportData, setReportData] = React.useState<any>(null);
+
+  const openReport = (type: ReportType, data: any) => {
+    setReportType(type);
+    setReportData(data);
+    setReportModalOpen(true);
+  };
 
   // Handover form state
   const [handoverSignoffName, setHandoverSignoffName] = React.useState("");
@@ -764,6 +780,15 @@ export default function EngagementDetailPage() {
                     <Button
                       size="sm"
                       variant="outline"
+                      onClick={() => openReport("agreement", a)}
+                      className="flex items-center gap-1.5"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      <span>Download Report</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
                       onClick={() => {
                         setSelectedAgreement(a);
                         setIsSignModalOpen(true);
@@ -835,6 +860,15 @@ export default function EngagementDetailPage() {
                     <span className="text-xs text-slate-500 font-medium">{r.week_start_date} to {r.week_end_date}</span>
                     <Badge variant="success">Published</Badge>
                   </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openReport("weekly_report", r)}
+                    className="flex items-center gap-1.5 text-xs h-8"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>Download Report</span>
+                  </Button>
                 </div>
                 <p className="text-xs text-slate-700 leading-relaxed">{r.executive_summary}</p>
               </Card>
@@ -868,16 +902,27 @@ export default function EngagementDetailPage() {
                     </span>
                     <Badge variant="default">{u.status}</Badge>
                   </div>
-                  {u.staging_url && (
-                    <a
-                      href={u.staging_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs text-primary-600 hover:underline"
+                  <div className="flex items-center gap-2">
+                    {u.staging_url && (
+                      <a
+                        href={u.staging_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-primary-600 hover:underline mr-1"
+                      >
+                        Open Staging URL ↗
+                      </a>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openReport("uat_session", u)}
+                      className="flex items-center gap-1.5 text-xs h-8"
                     >
-                      Open Staging URL ↗
-                    </a>
-                  )}
+                      <Download className="h-3.5 w-3.5" />
+                      <span>Download Test Report</span>
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="text-xs space-y-2 pt-2 border-t border-slate-100">
@@ -933,16 +978,29 @@ export default function EngagementDetailPage() {
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <h3 className="font-semibold text-slate-900">Final Delivery Signoff & SLA Warranty</h3>
-            {!engagement.handover?.deliverables_accepted && (
-              <Button
-                size="sm"
-                onClick={() => setIsHandoverModalOpen(true)}
-                className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
-              >
-                <Award className="h-4 w-4" />
-                <span>Execute Final Delivery & Handover</span>
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {engagement.handover && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => openReport("handover", engagement.handover)}
+                  className="flex items-center gap-1.5"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Download Handover Certificate</span>
+                </Button>
+              )}
+              {!engagement.handover?.deliverables_accepted && (
+                <Button
+                  size="sm"
+                  onClick={() => setIsHandoverModalOpen(true)}
+                  className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  <Award className="h-4 w-4" />
+                  <span>Execute Final Delivery & Handover</span>
+                </Button>
+              )}
+            </div>
           </div>
 
           <Card className="p-6 space-y-5">
@@ -955,9 +1013,22 @@ export default function EngagementDetailPage() {
                   Client Project Delivery & Handover Certificate
                 </h4>
               </div>
-              <Badge variant={engagement.handover?.deliverables_accepted ? "success" : "warning"}>
-                {engagement.handover?.deliverables_accepted ? "✓ Delivered & Accepted" : "Pending Signoff"}
-              </Badge>
+              <div className="flex items-center gap-2">
+                {engagement.handover && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openReport("handover", engagement.handover)}
+                    className="flex items-center gap-1.5 text-xs h-8"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>Download Certificate</span>
+                  </Button>
+                )}
+                <Badge variant={engagement.handover?.deliverables_accepted ? "success" : "warning"}>
+                  {engagement.handover?.deliverables_accepted ? "✓ Delivered & Accepted" : "Pending Signoff"}
+                </Badge>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
@@ -1420,6 +1491,17 @@ export default function EngagementDetailPage() {
           </div>
         </form>
       </Modal>
+
+      {/* Structured Report Download / Print Modal */}
+      <EngagementReportModal
+        isOpen={reportModalOpen}
+        onClose={() => setReportModalOpen(false)}
+        reportType={reportType}
+        data={reportData}
+        organizationName={currentOrganization?.name || "OfficeOS Enterprise"}
+        engagementTitle={engagement?.title || "Client Engagement"}
+        clientName={engagement?.client_name || "Client"}
+      />
     </div>
   );
 }

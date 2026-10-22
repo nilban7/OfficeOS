@@ -81,3 +81,29 @@ body {
   }
 }
 
+/* Printable Document Styles */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-document,
+  #printable-document * {
+    visibility: visible;
+  }
+  #printable-document {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 24px;
+    background: white !important;
+    color: black !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
