@@ -191,7 +191,19 @@ class EngagementService:
     ) -> EngagementProposal:
         count_q = select(func.count(EngagementProposal.id)).where(EngagementProposal.organization_id == organization_id)
         c_res = await db.execute(count_q)
-        p_num = f"PROP-{(c_res.scalar() or 0) + 1:04d}"
+        cnt = (c_res.scalar() or 0) + 1
+        p_num = f"PROP-{cnt:04d}"
+        while True:
+            chk = await db.scalar(
+                select(EngagementProposal.id).where(
+                    EngagementProposal.organization_id == organization_id,
+                    EngagementProposal.proposal_number == p_num,
+                )
+            )
+            if not chk:
+                break
+            cnt += 1
+            p_num = f"PROP-{cnt:04d}"
 
         proposal = EngagementProposal(
             organization_id=organization_id,
@@ -218,7 +230,19 @@ class EngagementService:
     ) -> EngagementAgreement:
         count_q = select(func.count(EngagementAgreement.id)).where(EngagementAgreement.organization_id == organization_id)
         c_res = await db.execute(count_q)
-        a_num = f"AGR-{(c_res.scalar() or 0) + 1:04d}"
+        cnt = (c_res.scalar() or 0) + 1
+        a_num = f"AGR-{cnt:04d}"
+        while True:
+            chk = await db.scalar(
+                select(EngagementAgreement.id).where(
+                    EngagementAgreement.organization_id == organization_id,
+                    EngagementAgreement.agreement_number == a_num,
+                )
+            )
+            if not chk:
+                break
+            cnt += 1
+            a_num = f"AGR-{cnt:04d}"
 
         # Calculate initial SHA-256 for document content
         content = payload.document_content or f"Agreement {a_num}: {payload.title}"
@@ -241,8 +265,15 @@ class EngagementService:
         )
         db.add(agreement)
         await db.commit()
-        await db.refresh(agreement)
-        return agreement
+
+        # Eager load signatures to prevent MissingGreenlet in async serializer
+        stmt = (
+            select(EngagementAgreement)
+            .options(selectinload(EngagementAgreement.signatures))
+            .where(EngagementAgreement.id == agreement.id)
+        )
+        res = await db.execute(stmt)
+        return res.scalar_one()
 
     @staticmethod
     async def add_signature(
@@ -337,7 +368,19 @@ class EngagementService:
     ) -> EngagementWeeklyReport:
         count_q = select(func.count(EngagementWeeklyReport.id)).where(EngagementWeeklyReport.organization_id == organization_id)
         c_res = await db.execute(count_q)
-        r_num = f"WR-{(c_res.scalar() or 0) + 1:04d}"
+        cnt = (c_res.scalar() or 0) + 1
+        r_num = f"WR-{cnt:04d}"
+        while True:
+            chk = await db.scalar(
+                select(EngagementWeeklyReport.id).where(
+                    EngagementWeeklyReport.organization_id == organization_id,
+                    EngagementWeeklyReport.report_number == r_num,
+                )
+            )
+            if not chk:
+                break
+            cnt += 1
+            r_num = f"WR-{cnt:04d}"
 
         now = datetime.now(UTC)
         report = EngagementWeeklyReport(
@@ -389,8 +432,15 @@ class EngagementService:
             db.add(case)
 
         await db.commit()
-        await db.refresh(session)
-        return session
+
+        # Eager load test_cases to prevent MissingGreenlet in async serializer
+        stmt = (
+            select(EngagementUatSession)
+            .options(selectinload(EngagementUatSession.test_cases))
+            .where(EngagementUatSession.id == session.id)
+        )
+        res = await db.execute(stmt)
+        return res.scalar_one()
 
     @staticmethod
     async def create_issue(
@@ -398,7 +448,19 @@ class EngagementService:
     ) -> EngagementIssue:
         count_q = select(func.count(EngagementIssue.id)).where(EngagementIssue.organization_id == organization_id)
         c_res = await db.execute(count_q)
-        i_num = f"ISS-{(c_res.scalar() or 0) + 1:04d}"
+        cnt = (c_res.scalar() or 0) + 1
+        i_num = f"ISS-{cnt:04d}"
+        while True:
+            chk = await db.scalar(
+                select(EngagementIssue.id).where(
+                    EngagementIssue.organization_id == organization_id,
+                    EngagementIssue.issue_number == i_num,
+                )
+            )
+            if not chk:
+                break
+            cnt += 1
+            i_num = f"ISS-{cnt:04d}"
 
         issue = EngagementIssue(
             organization_id=organization_id,
@@ -423,7 +485,19 @@ class EngagementService:
     ) -> EngagementChangeRequest:
         count_q = select(func.count(EngagementChangeRequest.id)).where(EngagementChangeRequest.organization_id == organization_id)
         c_res = await db.execute(count_q)
-        cr_num = f"CR-{(c_res.scalar() or 0) + 1:04d}"
+        cnt = (c_res.scalar() or 0) + 1
+        cr_num = f"CR-{cnt:04d}"
+        while True:
+            chk = await db.scalar(
+                select(EngagementChangeRequest.id).where(
+                    EngagementChangeRequest.organization_id == organization_id,
+                    EngagementChangeRequest.cr_number == cr_num,
+                )
+            )
+            if not chk:
+                break
+            cnt += 1
+            cr_num = f"CR-{cnt:04d}"
 
         cr = EngagementChangeRequest(
             organization_id=organization_id,

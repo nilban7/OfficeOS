@@ -89,6 +89,9 @@ export default function EngagementDetailPage() {
   const [issType, setIssType] = React.useState("bug");
   const [issReporter, setIssReporter] = React.useState("");
 
+  const [actionError, setActionError] = React.useState<string | null>(null);
+  const [isActionSubmitting, setIsActionSubmitting] = React.useState(false);
+
   const fetchEngagement = React.useCallback(async () => {
     if (!currentOrganization?.id || !id) return;
     setIsLoading(true);
@@ -143,6 +146,8 @@ export default function EngagementDetailPage() {
   const handleCreateProposal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentOrganization?.id || !id) return;
+    setIsActionSubmitting(true);
+    setActionError(null);
     try {
       await apiClient.post(
         API_ENDPOINTS.engagements.createProposal(id),
@@ -159,8 +164,11 @@ export default function EngagementDetailPage() {
       setPropAmount("");
       setPropScope("");
       fetchEngagement();
-    } catch {
-      //
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to create proposal";
+      setActionError(msg);
+    } finally {
+      setIsActionSubmitting(false);
     }
   };
 
@@ -168,6 +176,8 @@ export default function EngagementDetailPage() {
   const handleCreateAgreement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentOrganization?.id || !id) return;
+    setIsActionSubmitting(true);
+    setActionError(null);
     try {
       await apiClient.post(
         API_ENDPOINTS.engagements.createAgreement(id),
@@ -185,20 +195,33 @@ export default function EngagementDetailPage() {
       setAgrValue("");
       setAgrContent("");
       fetchEngagement();
-    } catch {
-      //
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to create agreement";
+      setActionError(msg);
+    } finally {
+      setIsActionSubmitting(false);
     }
   };
 
   // Sign Agreement
   const handleSignAgreement = async (data: any) => {
     if (!currentOrganization?.id || !selectedAgreement) return;
-    await apiClient.post(
-      API_ENDPOINTS.engagements.signAgreement(selectedAgreement.id),
-      data,
-      { organizationId: currentOrganization.id }
-    );
-    fetchEngagement();
+    setIsActionSubmitting(true);
+    setActionError(null);
+    try {
+      await apiClient.post(
+        API_ENDPOINTS.engagements.signAgreement(selectedAgreement.id),
+        data,
+        { organizationId: currentOrganization.id }
+      );
+      setIsSignModalOpen(false);
+      fetchEngagement();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to record signature";
+      setActionError(msg);
+    } finally {
+      setIsActionSubmitting(false);
+    }
   };
 
   // Create Weekly Report
@@ -208,6 +231,8 @@ export default function EngagementDetailPage() {
     const now = new Date();
     const lastWeek = new Date();
     lastWeek.setDate(now.getDate() - 7);
+    setIsActionSubmitting(true);
+    setActionError(null);
     try {
       await apiClient.post(
         API_ENDPOINTS.engagements.createWeeklyReport(id),
@@ -227,8 +252,11 @@ export default function EngagementDetailPage() {
       setRepAccomplishments("");
       setRepNextPlans("");
       fetchEngagement();
-    } catch {
-      //
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to publish weekly report";
+      setActionError(msg);
+    } finally {
+      setIsActionSubmitting(false);
     }
   };
 
@@ -236,6 +264,8 @@ export default function EngagementDetailPage() {
   const handleCreateUat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentOrganization?.id || !id) return;
+    setIsActionSubmitting(true);
+    setActionError(null);
     try {
       await apiClient.post(
         API_ENDPOINTS.engagements.createUatSession(id),
@@ -260,8 +290,11 @@ export default function EngagementDetailPage() {
       setUatInstruction("");
       setUatExpected("");
       fetchEngagement();
-    } catch {
-      //
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to initiate UAT session";
+      setActionError(msg);
+    } finally {
+      setIsActionSubmitting(false);
     }
   };
 
@@ -269,6 +302,8 @@ export default function EngagementDetailPage() {
   const handleCreateIssue = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentOrganization?.id || !id) return;
+    setIsActionSubmitting(true);
+    setActionError(null);
     try {
       await apiClient.post(
         API_ENDPOINTS.engagements.createIssue(id),
@@ -286,8 +321,11 @@ export default function EngagementDetailPage() {
       setIssDesc("");
       setIssReporter("");
       fetchEngagement();
-    } catch {
-      //
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to log issue";
+      setActionError(msg);
+    } finally {
+      setIsActionSubmitting(false);
     }
   };
 
@@ -758,6 +796,11 @@ export default function EngagementDetailPage() {
         description="Create a formal contract ready for electronic digital signatures."
       >
         <form onSubmit={handleCreateAgreement} className="space-y-4">
+          {actionError && (
+            <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-xs text-rose-700">
+              {actionError}
+            </div>
+          )}
           <div>
             <Label className="text-xs font-semibold text-slate-700">Agreement Title *</Label>
             <Input
@@ -808,7 +851,9 @@ export default function EngagementDetailPage() {
             <Button type="button" variant="outline" size="sm" onClick={() => setIsAgreementModalOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" size="sm">Create Agreement</Button>
+            <Button type="submit" size="sm" disabled={isActionSubmitting || !agrTitle || !agrValue}>
+              {isActionSubmitting ? "Creating..." : "Create Agreement"}
+            </Button>
           </div>
         </form>
       </Modal>
