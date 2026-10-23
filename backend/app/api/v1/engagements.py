@@ -46,10 +46,10 @@ async def get_overview(
 async def list_engagements(
     session: Annotated[AsyncSession, Depends(require_permission("engagements.view"))],
     organization_header: Annotated[str, Header(alias="X-Organization-Id")],
-    stage: str | None = Query(None),
-    health: str | None = Query(None),
-    search: str | None = Query(None),
-    project_id: uuid.UUID | None = Query(None),
+    stage: Annotated[str | None, Query()] = None,
+    health: Annotated[str | None, Query()] = None,
+    search: Annotated[str | None, Query()] = None,
+    project_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> list[ClientEngagementSummary]:
     org_id = uuid.UUID(organization_header)
     records = await EngagementService.list_engagements(

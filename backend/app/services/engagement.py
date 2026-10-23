@@ -1,6 +1,6 @@
 import hashlib
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -411,7 +411,7 @@ class EngagementService:
             name=engagement.title[:200],
             description=engagement.description or f"Execution project for {engagement.engagement_code}",
             status="active",
-            start_date=date.today(),
+            start_date=datetime.now(UTC).date(),
             budget=engagement.contract_value,
             project_manager_employee_id=engagement.engagement_lead_id,
         )
