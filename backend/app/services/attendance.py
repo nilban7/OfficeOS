@@ -396,10 +396,35 @@ async def check_in_employee(
         # Resolve user's linked employee
         target_emp = await resolve_employee_for_user(session, organization_id, actor_auth_user_id)
         if target_emp is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No employee record is linked to your user account in this organization",
-            )
+            if is_admin_or_manager:
+                user_profile = await session.scalar(select(Profile).where(Profile.auth_user_id == actor_auth_user_id))
+                if user_profile:
+                    first_name = user_profile.first_name or "Admin"
+                    last_name = user_profile.last_name or "User"
+                    emp_code = f"EMP-{uuid.uuid4().hex[:6].upper()}"
+                    new_emp = Employee(
+                        id=uuid.uuid4(),
+                        organization_id=organization_id,
+                        profile_id=user_profile.id,
+                        employee_code=emp_code,
+                        first_name=first_name,
+                        last_name=last_name,
+                        designation="Administrator",
+                        employment_type="full_time",
+                        status="active",
+                        date_of_joining=datetime.now(UTC).date(),
+                        work_email=user_profile.email,
+                        is_active=True,
+                    )
+                    session.add(new_emp)
+                    await session.flush()
+                    target_emp = new_emp
+
+            if target_emp is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No employee record is linked to your user account in this organization. Please ask HR or an administrator to link an employee record for your account.",
+                )
 
     if not target_emp.is_active or target_emp.status == "terminated":
         raise HTTPException(
