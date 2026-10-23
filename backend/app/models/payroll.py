@@ -22,6 +22,7 @@ from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from app.models.employee import Employee
+    from app.models.project import Project
 
 
 class SalaryStructure(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -185,3 +186,137 @@ class Payslip(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ),
         CheckConstraint("net_pay >= 0", name="ck_payslips_net_pay"),
     )
+
+
+class Bonus(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "bonuses"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    bonus_type: Mapped[str] = mapped_column(String(30), nullable=False, default="bulk")
+    calculation_type: Mapped[str] = mapped_column(String(30), nullable=False, default="fixed")
+    calculation_base: Mapped[str | None] = mapped_column(String(50), nullable=True, default="base_salary")
+    rate_or_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False, default=Decimal("0.00"))
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="USD")
+    period_month: Mapped[int] = mapped_column(Integer, nullable=False)
+    period_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="draft")
+    total_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False, default=Decimal("0.00"))
+    employee_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    project_reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    target_department_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("departments.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("profiles.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    approved_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("profiles.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    rejected_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("profiles.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    cancelled_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("profiles.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    allocations: Mapped[list["BonusAllocation"]] = relationship(
+        "BonusAllocation",
+        back_populates="bonus",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    project: Mapped["Project | None"] = relationship("Project", lazy="selectin")
+
+    __table_args__ = (
+        UniqueConstraint("organization_id", "id", name="uq_bonuses_org_id"),
+        CheckConstraint("rate_or_amount >= 0", name="ck_bonuses_rate_or_amount"),
+        CheckConstraint("total_amount >= 0", name="ck_bonuses_total_amount"),
+        CheckConstraint("period_month BETWEEN 1 AND 12", name="ck_bonuses_period_month"),
+        CheckConstraint("period_year >= 2020", name="ck_bonuses_period_year"),
+        CheckConstraint(
+            "status IN ('draft', 'pending_approval', 'approved', 'included_in_payroll', 'paid', 'rejected', 'cancelled')",
+            name="ck_bonuses_status",
+        ),
+    )
+
+
+class BonusAllocation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "bonus_allocations"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    bonus_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("bonuses.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    employee_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("employees.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False, default=Decimal("0.00"))
+    percentage_rate: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    calculation_base_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="USD")
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="draft")
+    payroll_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("payrolls.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    payslip_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("payslips.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    period_month: Mapped[int] = mapped_column(Integer, nullable=False)
+    period_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    bonus: Mapped["Bonus"] = relationship("Bonus", back_populates="allocations")
+    employee: Mapped["Employee"] = relationship("Employee", lazy="selectin")
+
+    __table_args__ = (
+        UniqueConstraint("organization_id", "id", name="uq_bonus_allocations_org_id"),
+        UniqueConstraint("organization_id", "bonus_id", "employee_id", name="uq_bonus_allocations_org_bonus_emp"),
+        CheckConstraint("amount >= 0", name="ck_bonus_allocations_amount"),
+        CheckConstraint(
+            "status IN ('draft', 'pending_approval', 'approved', 'included_in_payroll', 'paid', 'rejected', 'cancelled')",
+            name="ck_bonus_allocations_status",
+        ),
+    )
+

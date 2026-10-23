@@ -23,9 +23,10 @@ from app.models.leave import Holiday, LeaveRequest, LeaveType
 from app.models.maintenance import MaintenanceRecord, MaintenanceRequest
 from app.models.notification import Notification, NotificationPreference
 from app.models.operation import OperationChecklist, OperationTask, OperationTaskAssignee
-from app.models.payroll import Payroll, Payslip, SalaryStructure
+from app.models.payroll import Bonus, BonusAllocation, Payroll, Payslip, SalaryStructure
 from app.models.procurement import PurchaseOrder, PurchaseOrderItem, PurchaseRequest, Vendor
 from app.models.project import Project, ProjectMember
+from app.models.reimbursement import ReimbursementClaim
 from app.models.saas import PlatformAnnouncement, PlatformConfiguration
 from app.models.training import TrainingEnrollment, TrainingProgram, TrainingSession
 
@@ -39,6 +40,8 @@ __all__ = [
     "AuditLog",
     "Automation",
     "AutomationExecution",
+    "Bonus",
+    "BonusAllocation",
     "Branch",
     "Client",
     "ClientContact",
@@ -79,6 +82,7 @@ __all__ = [
     "PurchaseOrder",
     "PurchaseOrderItem",
     "PurchaseRequest",
+    "ReimbursementClaim",
     "Role",
     "RolePermission",
     "SalaryStructure",

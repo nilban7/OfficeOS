@@ -80,6 +80,7 @@ RESTRICTED_TABLE_PERMISSIONS = {
     "salary_structures": "payroll.view",
     "payroll_items": "payroll.view",
     "payroll_runs": "payroll.view",
+    "reimbursement_claims": "reimbursements.view",
     "audit_logs": "audit_logs.view",
 }
 
