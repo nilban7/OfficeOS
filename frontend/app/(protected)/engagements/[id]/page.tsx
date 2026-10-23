@@ -589,73 +589,174 @@ export default function EngagementDetailPage() {
       {/* Tab Contents */}
       {activeTab === "overview" && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Quick Lifecycle Actions Banner */}
-          <div className="md:col-span-3 bg-gradient-to-r from-primary-50/60 via-slate-50 to-emerald-50/60 border border-slate-200/90 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-subtle">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="flex h-2 w-2 rounded-full bg-primary-600 animate-pulse" />
-                <h4 className="text-sm font-semibold text-slate-900">Recommended Next Step</h4>
+          {/* Dynamic Lifecycle Status & Action Banner */}
+          {engagement.handover?.deliverables_accepted || engagement.current_stage === "maintenance_support" ? (
+            <div className="md:col-span-3 bg-gradient-to-r from-emerald-50/80 via-white to-emerald-50/50 border border-emerald-200/90 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-subtle">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-100" />
+                  <h4 className="text-sm font-bold text-emerald-950">
+                    Project Delivered • Active SLA Warranty & Support
+                  </h4>
+                  <Badge variant="success">Completed 100%</Badge>
+                </div>
+                <p className="text-xs text-slate-600 mt-1.5 max-w-2xl leading-relaxed">
+                  All project deliverables have been verified and officially accepted by{" "}
+                  <strong>{engagement.handover?.client_signoff_name || "the client"}</strong>. The engagement is now in active SLA warranty maintenance coverage.
+                </p>
               </div>
-              <p className="text-xs text-slate-600 mt-1 max-w-2xl">
-                {engagement.agreements.length === 0
-                  ? "Draft a formal SOW or contract agreement to proceed with client digital signing and unlock project kickoff."
-                  : !engagement.agreements.some((a) => a.status === "active")
-                  ? "Agreements are pending. Draw digital signature with canvas e-Sign to execute the contract and activate delivery."
-                  : !engagement.project_id
-                  ? "Contract signed and active! Click 'Kickoff Project' in the header to instantiate an operational project."
-                  : "Operational project active! Submit Weekly Progress Reports, execute UAT Mock Runs, or triage Client Queries."}
-              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                {engagement.handover && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openReport("handover", engagement.handover)}
+                    className="text-xs flex items-center gap-1.5 bg-white border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>Download Certificate</span>
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setActiveTab("handover")}
+                  className="text-xs bg-white"
+                >
+                  <span>View Handover Terms</span>
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setActiveTab("issues");
+                    setIsIssueModalOpen(true);
+                  }}
+                  className="text-xs flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Log Support Ticket</span>
+                </Button>
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setActiveTab("proposals");
-                  setIsProposalModalOpen(true);
-                }}
-                className="text-xs flex items-center gap-1.5 bg-white"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Create Proposal</span>
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  setActiveTab("agreements");
-                  setIsAgreementModalOpen(true);
-                }}
-                className="text-xs flex items-center gap-1.5"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Draft Agreement</span>
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setActiveTab("reports");
-                  setIsWeeklyReportModalOpen(true);
-                }}
-                className="text-xs flex items-center gap-1.5 bg-white"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Weekly Report</span>
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setActiveTab("uat");
-                  setIsUatModalOpen(true);
-                }}
-                className="text-xs flex items-center gap-1.5 bg-white"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Mock Run (UAT)</span>
-              </Button>
+          ) : (
+            <div className="md:col-span-3 bg-gradient-to-r from-primary-50/60 via-slate-50 to-emerald-50/60 border border-slate-200/90 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-subtle">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="flex h-2 w-2 rounded-full bg-primary-600 animate-pulse" />
+                  <h4 className="text-sm font-semibold text-slate-900">
+                    {engagement.uat_sessions.length > 0
+                      ? "Recommended: Final Delivery Signoff"
+                      : engagement.project_id
+                      ? "Recommended: Active Sprints & Weekly Reports"
+                      : engagement.agreements.some((a) => a.status === "active")
+                      ? "Recommended: Kickoff Project"
+                      : "Recommended Next Step"}
+                  </h4>
+                </div>
+                <p className="text-xs text-slate-600 mt-1 max-w-2xl">
+                  {engagement.agreements.length === 0
+                    ? "Draft a formal SOW or contract agreement to proceed with client digital signing and unlock project kickoff."
+                    : !engagement.agreements.some((a) => a.status === "active")
+                    ? "Agreements are pending. Draw digital signature with canvas e-Sign to execute the contract and activate delivery."
+                    : !engagement.project_id
+                    ? "Contract signed and active! Click 'Kickoff Project' in the header to instantiate an operational project."
+                    : engagement.uat_sessions.length > 0
+                    ? "UAT mock runs are recorded. When ready, execute final delivery to activate the 90-day SLA warranty."
+                    : "Operational project active! Submit Weekly Progress Reports, execute UAT Mock Runs, or triage Client Queries."}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {engagement.uat_sessions.length > 0 ? (
+                  <>
+                    <Button
+                      size="sm"
+                      onClick={() => setIsHandoverModalOpen(true)}
+                      className="text-xs flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                      <Award className="h-3.5 w-3.5" />
+                      <span>Execute Final Delivery</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setActiveTab("reports");
+                        setIsWeeklyReportModalOpen(true);
+                      }}
+                      className="text-xs flex items-center gap-1.5 bg-white"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Weekly Report</span>
+                    </Button>
+                  </>
+                ) : engagement.project_id ? (
+                  <>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setActiveTab("reports");
+                        setIsWeeklyReportModalOpen(true);
+                      }}
+                      className="text-xs flex items-center gap-1.5"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Weekly Report</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setActiveTab("uat");
+                        setIsUatModalOpen(true);
+                      }}
+                      className="text-xs flex items-center gap-1.5 bg-white"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Mock Run (UAT)</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setActiveTab("issues");
+                        setIsIssueModalOpen(true);
+                      }}
+                      className="text-xs flex items-center gap-1.5 bg-white"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Log Query</span>
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setActiveTab("proposals");
+                        setIsProposalModalOpen(true);
+                      }}
+                      className="text-xs flex items-center gap-1.5 bg-white"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Create Proposal</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setActiveTab("agreements");
+                        setIsAgreementModalOpen(true);
+                      }}
+                      className="text-xs flex items-center gap-1.5"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Draft Agreement</span>
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           <Card className="md:col-span-2 p-5 space-y-4">
             <h3 className="font-semibold text-slate-900 text-base">Scope & Commercial Objectives</h3>
