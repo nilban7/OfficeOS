@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Building2, CheckCircle, Printer } from "lucide-react";
+import { ArrowLeft, Building2, CheckCircle, Printer, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LoadingState } from "@/components/feedback/loading-state";
 import { ErrorState } from "@/components/feedback/error-state";
@@ -56,6 +56,9 @@ export default function PayslipDetailPage() {
 
   const earningsList = Object.entries(slip.earnings_breakdown || {});
   const deductionsList = Object.entries(slip.deductions_breakdown || {});
+
+  const bonusList = earningsList.filter(([title]) => title.toLowerCase().startsWith("bonus"));
+  const slipBonusTotal = bonusList.reduce((sum, [, amt]) => sum + Number(amt || 0), 0);
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -122,6 +125,33 @@ export default function PayslipDetailPage() {
           </div>
         </div>
 
+        {/* Bonus Incentive Box (if present on this slip) */}
+        {slipBonusTotal > 0 && (
+          <div className="bg-amber-50/75 border border-amber-200 rounded-lg p-4 my-4 flex items-center justify-between text-sm print:bg-slate-50 print:border-slate-300">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 print:hidden flex-shrink-0">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-bold text-slate-900">
+                  Approved Bonus & Incentive Included
+                </p>
+                <p className="text-xs text-slate-600">
+                  {bonusList.map(([t]) => t).join(", ")}
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                Total Bonus Award
+              </span>
+              <span className="text-base font-extrabold text-emerald-700 print:text-slate-900">
+                +${slipBonusTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Earnings & Deductions Breakdown Tables */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-6 border-b border-slate-200">
           {/* Earnings (Left) */}
@@ -131,14 +161,32 @@ export default function PayslipDetailPage() {
             </h3>
             <table className="w-full mt-3 text-sm">
               <tbody className="divide-y divide-slate-100">
-                {earningsList.map(([title, amount]) => (
-                  <tr key={title} className="py-2 flex justify-between items-center">
-                    <td className="text-slate-600">{title}</td>
-                    <td className="font-medium text-slate-900 text-right">
-                      ${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                ))}
+                {earningsList.map(([title, amount]) => {
+                  const isBonus = title.toLowerCase().startsWith("bonus");
+                  return (
+                    <tr
+                      key={title}
+                      className={`py-2 flex justify-between items-center ${
+                        isBonus
+                          ? "bg-amber-50/70 px-2 rounded-md my-0.5 border border-amber-200/60 print:bg-slate-50 print:border-slate-300"
+                          : ""
+                      }`}
+                    >
+                      <td className="text-slate-700 flex items-center gap-1.5 font-medium">
+                        {isBonus && <Sparkles className="h-3.5 w-3.5 text-amber-500 print:hidden" />}
+                        <span>{title}</span>
+                        {isBonus && (
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded ml-1 print:border print:border-slate-400 print:bg-transparent print:text-slate-900">
+                            Bonus
+                          </span>
+                        )}
+                      </td>
+                      <td className={`font-semibold text-right ${isBonus ? "text-emerald-700 font-bold" : "text-slate-900"}`}>
+                        {isBonus ? "+" : ""}${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
               <tfoot>
                 <tr className="border-t border-slate-300 pt-2 flex justify-between items-center font-bold text-slate-900">
@@ -192,6 +240,11 @@ export default function PayslipDetailPage() {
               Total Net Payout
             </span>
             <p className="text-sm text-slate-500 mt-0.5">Disbursed via {slip.payment_method.replace("_", " ")}</p>
+            {slipBonusTotal > 0 && (
+              <p className="text-xs text-amber-700 font-medium mt-1">
+                Includes ${slipBonusTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} in approved bonus awards
+              </p>
+            )}
           </div>
           <div className="mt-4 sm:mt-0 text-right">
             <span className="text-3xl font-extrabold text-emerald-600">

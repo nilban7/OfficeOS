@@ -15,6 +15,7 @@ import {
   Activity,
   DollarSign,
   Banknote,
+  Receipt,
   FileText,
   Bell,
   ShieldCheck,
@@ -88,6 +89,18 @@ export const MAIN_NAVIGATION: NavSection[] = [
         requiredPermissions: ["leave.view", "leave:read"],
       },
       {
+        title: "Payroll & Salary",
+        href: ROUTES.PAYROLL,
+        icon: Banknote,
+        requiredPermissions: ["payroll.view", "payslips.view", "payslips.view_own"],
+      },
+      {
+        title: "Reimbursements",
+        href: ROUTES.REIMBURSEMENTS,
+        icon: Receipt,
+        requiredPermissions: ["reimbursements.view", "reimbursements.create", "reimbursements:read"],
+      },
+      {
         title: "Training",
         href: ROUTES.TRAINING,
         icon: GraduationCap,
@@ -157,12 +170,6 @@ export const MAIN_NAVIGATION: NavSection[] = [
         href: ROUTES.FINANCE,
         icon: DollarSign,
         requiredPermissions: ["finance.view", "finance:read"],
-      },
-      {
-        title: "Payroll & Salary",
-        href: ROUTES.PAYROLL,
-        icon: Banknote,
-        requiredPermissions: ["payroll.view", "payslips.view", "payslips.view_own"],
       },
       {
         title: "Documents",

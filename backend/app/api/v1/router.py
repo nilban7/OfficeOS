@@ -27,6 +27,7 @@ from app.api.v1.payroll import router as payroll_router
 from app.api.v1.projects import router as projects_router
 from app.api.v1.purchase_orders import router as purchase_orders_router
 from app.api.v1.purchase_requests import router as purchase_requests_router
+from app.api.v1.reimbursements import router as reimbursements_router
 from app.api.v1.reports import router as reports_router
 from app.api.v1.simulations import router as simulations_router
 from app.api.v1.training_enrollments import router as training_enrollments_router
@@ -57,6 +58,7 @@ router.include_router(internships_router)
 router.include_router(operations_router)
 router.include_router(finance_router)
 router.include_router(payroll_router)
+router.include_router(reimbursements_router)
 router.include_router(documents_router)
 router.include_router(notifications_router)
 router.include_router(preferences_router)

@@ -29,6 +29,7 @@ export const ROUTES = {
   PAYROLL: "/payroll",
   PAYROLL_RUNS: "/payroll/runs",
   PAYROLL_SLIPS: "/payroll/slips",
+  REIMBURSEMENTS: "/reimbursements",
   DOCUMENTS: "/documents",
   NOTIFICATIONS: "/notifications",
   AUDIT_LOGS: "/audit-logs",
