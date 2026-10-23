@@ -168,6 +168,12 @@ async def get_org_attendance_summary(
     status_code=status.HTTP_201_CREATED,
     summary="Clock-in / check-in for attendance",
 )
+@router.post(
+    "/clock-in",
+    response_model=ApiSuccess[AttendanceDetailResponse],
+    status_code=status.HTTP_201_CREATED,
+    summary="Clock-in / check-in for attendance (alias)",
+)
 async def clock_in_attendance(
     data: AttendanceCheckInRequest,
     request: Request,
@@ -193,9 +199,61 @@ async def clock_in_attendance(
 
 
 @router.post(
+    "/check-out",
+    response_model=ApiSuccess[AttendanceDetailResponse],
+    summary="Self clock-out / check-out for attendance",
+)
+@router.post(
+    "/clock-out",
+    response_model=ApiSuccess[AttendanceDetailResponse],
+    summary="Self clock-out / check-out for attendance (alias)",
+)
+async def clock_out_self_attendance(
+    data: AttendanceCheckOutRequest,
+    request: Request,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(require_permission("attendance.update"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
+) -> ApiSuccess[AttendanceDetailResponse]:
+    org_id = UUID(organization_header)
+    actor_id = await get_actor_profile_id(session, current_user)
+    is_admin_or_mgr = await check_is_admin_or_manager(session, current_user)
+    ip = get_ip_address(request)
+
+    # Resolve today's attendance record for current user
+    today_rec = await get_user_today_attendance(
+        session=session,
+        organization_id=org_id,
+        auth_user_id=UUID(current_user.id),
+    )
+    if today_rec is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active check-in record found for today to clock out from",
+        )
+
+    record = await check_out_employee(
+        session=session,
+        organization_id=org_id,
+        attendance_id=today_rec.id,
+        data=data,
+        actor_auth_user_id=UUID(current_user.id),
+        actor_profile_id=actor_id,
+        is_admin_or_manager=is_admin_or_mgr,
+        ip_address=ip,
+    )
+    return ApiSuccess(data=record, message="Clock-out recorded successfully")
+
+
+@router.post(
     "/{attendance_id}/check-out",
     response_model=ApiSuccess[AttendanceDetailResponse],
     summary="Clock-out / check-out for attendance",
+)
+@router.post(
+    "/{attendance_id}/clock-out",
+    response_model=ApiSuccess[AttendanceDetailResponse],
+    summary="Clock-out / check-out for attendance (alias)",
 )
 async def clock_out_attendance(
     attendance_id: UUID,
