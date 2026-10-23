@@ -65,7 +65,7 @@ class ClientEngagement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     organization: Mapped["Organization"] = relationship("Organization", foreign_keys=[organization_id])
     client: Mapped["Client"] = relationship("Client", foreign_keys=[client_id])
-    project: Mapped["Project | None"] = relationship("Project", foreign_keys=[project_id])
+    project: Mapped["Project | None"] = relationship("Project", back_populates="engagement", foreign_keys=[project_id])
     engagement_lead: Mapped["Employee | None"] = relationship("Employee", foreign_keys=[engagement_lead_id])
 
     proposals: Mapped[list["EngagementProposal"]] = relationship(

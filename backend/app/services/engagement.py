@@ -102,6 +102,7 @@ class EngagementService:
         stage: str | None = None,
         health: str | None = None,
         search: str | None = None,
+        project_id: uuid.UUID | None = None,
     ) -> list[ClientEngagement]:
         query = (
             select(ClientEngagement)
@@ -115,6 +116,8 @@ class EngagementService:
             query = query.where(ClientEngagement.delivery_health == health)
         if search:
             query = query.where(ClientEngagement.title.ilike(f"%{search}%"))
+        if project_id:
+            query = query.where(ClientEngagement.project_id == project_id)
 
         result = await db.execute(query)
         return list(result.scalars().all())
@@ -132,6 +135,7 @@ class EngagementService:
         engagement = ClientEngagement(
             organization_id=organization_id,
             client_id=payload.client_id,
+            project_id=payload.project_id,
             engagement_code=code,
             title=payload.title,
             description=payload.description,
@@ -139,9 +143,9 @@ class EngagementService:
             currency=payload.currency,
             target_completion_date=payload.target_completion_date,
             engagement_lead_id=payload.engagement_lead_id,
-            current_stage="proposal",
+            current_stage="delivery" if payload.project_id else "proposal",
             delivery_health="on_track",
-            progress_percentage=0,
+            progress_percentage=15 if payload.project_id else 0,
         )
         db.add(engagement)
         await db.commit()

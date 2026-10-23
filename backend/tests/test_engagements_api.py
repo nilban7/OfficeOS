@@ -182,3 +182,19 @@ def test_engagement_valid_stages_and_health():
     assert req.title == "Enterprise Migration"
     assert req.contract_value == Decimal("50000.00")
     assert req.currency == "INR"
+    assert req.project_id is None
+
+
+def test_client_engagement_create_with_project_id():
+    client_id = uuid4()
+    project_id = uuid4()
+    req = ClientEngagementCreate(
+        client_id=client_id,
+        project_id=project_id,
+        title="Web Platform Overhaul",
+        contract_value=Decimal("75000.00"),
+    )
+    assert req.title == "Web Platform Overhaul"
+    assert req.project_id == project_id
+    assert req.client_id == client_id
+

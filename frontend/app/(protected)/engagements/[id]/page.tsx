@@ -18,6 +18,7 @@ import {
   Check,
   Trash2,
   Download,
+  Link as LinkIcon,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ import {
   EngagementReportModal,
   type ReportType,
 } from "@/components/engagements/engagement-report-modal";
+import type { Project } from "@/types/project";
 import type {
   ClientEngagementDetail,
   EngagementStage,
@@ -161,6 +163,47 @@ export default function EngagementDetailPage() {
   };
 
   const [isKickoffSubmitting, setIsKickoffSubmitting] = React.useState(false);
+  const [isAttachProjectModalOpen, setIsAttachProjectModalOpen] = React.useState(false);
+  const [availableProjects, setAvailableProjects] = React.useState<Project[]>([]);
+  const [selectedProjectIdToAttach, setSelectedProjectIdToAttach] = React.useState("");
+  const [isAttachSubmitting, setIsAttachSubmitting] = React.useState(false);
+
+  // Attach Existing Project Handlers
+  const handleOpenAttachProject = async () => {
+    if (!currentOrganization?.id) return;
+    try {
+      const res = await apiClient.get<{ items: Project[] } | Project[]>(API_ENDPOINTS.projects.list, {
+        params: { page_size: 100 },
+        organizationId: currentOrganization.id,
+      });
+      const list = Array.isArray(res) ? res : (res as { items?: Project[] })?.items || [];
+      setAvailableProjects(list);
+      setIsAttachProjectModalOpen(true);
+    } catch {
+      alert("Failed to load workspace projects.");
+    }
+  };
+
+  const handleAttachProjectSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProjectIdToAttach || !currentOrganization?.id || !id) return;
+    setIsAttachSubmitting(true);
+    try {
+      await apiClient.patch(
+        API_ENDPOINTS.engagements.update(id),
+        { project_id: selectedProjectIdToAttach, current_stage: "delivery" },
+        { organizationId: currentOrganization.id }
+      );
+      setIsAttachProjectModalOpen(false);
+      setSelectedProjectIdToAttach("");
+      await fetchEngagement();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to attach project";
+      alert(msg);
+    } finally {
+      setIsAttachSubmitting(false);
+    }
+  };
 
   // Kickoff Bridge
   const handleKickoff = async () => {
@@ -459,16 +502,27 @@ export default function EngagementDetailPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {!engagement.project_id && (engagement.current_stage === "agreement" || engagement.current_stage === "kickoff" || (engagement.agreements && engagement.agreements.length > 0)) && (
-            <Button
-              size="sm"
-              onClick={handleKickoff}
-              disabled={isKickoffSubmitting}
-              className="flex items-center gap-1.5 shadow-subtle bg-emerald-600 hover:bg-emerald-700 text-white"
-            >
-              <Play className="h-4 w-4" />
-              <span>{isKickoffSubmitting ? "Starting Delivery..." : "Kickoff Project"}</span>
-            </Button>
+          {!engagement.project_id && (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleOpenAttachProject}
+                className="flex items-center gap-1.5 shadow-subtle bg-white"
+              >
+                <LinkIcon className="h-4 w-4 text-primary-600" />
+                <span>Attach Project</span>
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleKickoff}
+                disabled={isKickoffSubmitting}
+                className="flex items-center gap-1.5 shadow-subtle bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                <Play className="h-4 w-4" />
+                <span>{isKickoffSubmitting ? "Starting Delivery..." : "Kickoff Project"}</span>
+              </Button>
+            </>
           )}
           {engagement.project_id && (
             <Link href={`/projects/${engagement.project_id}`}>
@@ -773,7 +827,25 @@ export default function EngagementDetailPage() {
                       View Operational Project →
                     </Link>
                   ) : (
-                    "Pending Agreement Sign-off"
+                    <div className="flex items-center gap-2 mt-1">
+                      <button
+                        type="button"
+                        onClick={handleOpenAttachProject}
+                        className="text-xs text-primary-600 hover:underline flex items-center gap-1 font-medium"
+                      >
+                        <LinkIcon className="h-3 w-3" />
+                        Attach Project
+                      </button>
+                      <span className="text-slate-300">•</span>
+                      <button
+                        type="button"
+                        onClick={handleKickoff}
+                        className="text-xs text-emerald-600 hover:underline flex items-center gap-1 font-medium"
+                      >
+                        <Play className="h-3 w-3" />
+                        Kickoff
+                      </button>
+                    </div>
                   )}
                 </span>
               </div>
@@ -1614,6 +1686,55 @@ export default function EngagementDetailPage() {
         engagementTitle={engagement?.title || "Client Engagement"}
         clientName={engagement?.client_name || "Client"}
       />
+
+      {/* Attach Existing Project Modal */}
+      <Modal
+        isOpen={isAttachProjectModalOpen}
+        onClose={() => setIsAttachProjectModalOpen(false)}
+        title="Attach Existing Workspace Project"
+      >
+        <form onSubmit={handleAttachProjectSubmit} className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Connect an already created project from your organization to this engagement ({engagement?.engagement_code} • {engagement?.title}).
+          </p>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="attach_project_select">Select Project</Label>
+            <select
+              id="attach_project_select"
+              value={selectedProjectIdToAttach}
+              onChange={(e) => setSelectedProjectIdToAttach(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              required
+            >
+              <option value="">-- Choose a Project --</option>
+              {availableProjects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.project_code}: {p.name} {p.client_name ? `(${p.client_name})` : ""} [{p.status}]
+                </option>
+              ))}
+            </select>
+            {availableProjects.length === 0 && (
+              <p className="text-xs text-muted-foreground italic mt-1">
+                No projects found in this organization. You can use &quot;1-Click Kickoff&quot; to automatically create one.
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+            <Button type="button" variant="outline" onClick={() => setIsAttachProjectModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={isAttachSubmitting || !selectedProjectIdToAttach}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              {isAttachSubmitting ? "Attaching..." : "Attach Project"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

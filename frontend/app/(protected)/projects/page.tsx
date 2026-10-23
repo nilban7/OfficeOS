@@ -19,6 +19,7 @@ import {
   ShieldAlert,
   ChevronLeft,
   ChevronRight,
+  Briefcase,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -531,8 +532,18 @@ export default function ProjectsPage() {
                           >
                             {project.name}
                           </Link>
-                          <div className="flex items-center gap-2 mt-0.5">
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                             <span className="font-mono text-xs text-muted-foreground">{project.project_code}</span>
+                            {project.engagement_code && (
+                              <Link
+                                href={`/engagements/${project.engagement_id}`}
+                                className="inline-flex items-center gap-1 font-mono text-[11px] font-semibold text-primary hover:underline bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded"
+                                title={`Linked Engagement: ${project.engagement_title || project.engagement_code}`}
+                              >
+                                <Briefcase className="h-2.5 w-2.5" />
+                                <span>{project.engagement_code}</span>
+                              </Link>
+                            )}
                             {project.budget && (
                               <span className="text-xs text-muted-foreground">
                                 • ${Number(project.budget).toLocaleString()}

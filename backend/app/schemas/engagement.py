@@ -292,6 +292,8 @@ class ClientEngagementCreate(BaseModel):
     currency: str = "INR"
     target_completion_date: date | None = None
     engagement_lead_id: uuid.UUID | None = None
+    project_id: uuid.UUID | None = None
+
 
 
 class ClientEngagementUpdate(BaseModel):

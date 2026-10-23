@@ -49,10 +49,11 @@ async def list_engagements(
     stage: str | None = Query(None),
     health: str | None = Query(None),
     search: str | None = Query(None),
+    project_id: uuid.UUID | None = Query(None),
 ) -> list[ClientEngagementSummary]:
     org_id = uuid.UUID(organization_header)
     records = await EngagementService.list_engagements(
-        session, org_id, stage=stage, health=health, search=search
+        session, org_id, stage=stage, health=health, search=search, project_id=project_id
     )
     result = []
     for r in records:
@@ -89,6 +90,7 @@ async def create_engagement(
         engagement_code=engagement.engagement_code,
         title=engagement.title,
         client_id=engagement.client_id,
+        project_id=engagement.project_id,
         current_stage=engagement.current_stage,
         delivery_health=engagement.delivery_health,
         progress_percentage=engagement.progress_percentage,

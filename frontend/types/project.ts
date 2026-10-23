@@ -41,6 +41,10 @@ export interface Project {
   project_manager_name?: string | null;
   project_manager_code?: string | null;
   members_count?: number;
+  engagement_id?: string | null;
+  engagement_code?: string | null;
+  engagement_title?: string | null;
+  engagement_stage?: string | null;
 }
 
 export interface ProjectDetail extends Project {

@@ -24,6 +24,7 @@ import { useOrganization } from "@/hooks/use-organization";
 import { apiClient } from "@/lib/api/client";
 import { API_ENDPOINTS } from "@/lib/api/endpoints";
 import type { Client, ClientListResponse } from "@/types/client";
+import type { Project } from "@/types/project";
 import type {
   ClientEngagementSummary,
   EngagementOverview,
@@ -55,12 +56,14 @@ export default function EngagementsCommandCenterPage() {
   const [overview, setOverview] = React.useState<EngagementOverview | null>(null);
   const [engagements, setEngagements] = React.useState<ClientEngagementSummary[]>([]);
   const [clients, setClients] = React.useState<Client[]>([]);
+  const [projects, setProjects] = React.useState<Project[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [search, setSearch] = React.useState("");
   const [stageFilter, setStageFilter] = React.useState<string>("");
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
 
   // New Engagement Form
+  const [selectedProjectId, setSelectedProjectId] = React.useState("");
   const [clientId, setClientId] = React.useState("");
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
@@ -72,7 +75,7 @@ export default function EngagementsCommandCenterPage() {
     if (!currentOrganization?.id) return;
     setIsLoading(true);
     try {
-      const [ovRes, listRes, clientsRes] = await Promise.all([
+      const [ovRes, listRes, clientsRes, projectsRes] = await Promise.all([
         apiClient.get<EngagementOverview>(API_ENDPOINTS.engagements.overview, {
           organizationId: currentOrganization.id,
         }),
@@ -83,12 +86,18 @@ export default function EngagementsCommandCenterPage() {
           params: { page_size: 100 },
           organizationId: currentOrganization.id,
         }),
+        apiClient.get<{ items: Project[] } | Project[]>(API_ENDPOINTS.projects.list, {
+          params: { page_size: 100 },
+          organizationId: currentOrganization.id,
+        }),
       ]);
       setOverview(ovRes);
       const engList = Array.isArray(listRes) ? listRes : (listRes as { items?: ClientEngagementSummary[] })?.items || [];
       setEngagements(engList);
       const clientList = Array.isArray(clientsRes) ? clientsRes : (clientsRes as ClientListResponse)?.items || [];
       setClients(clientList);
+      const projList = Array.isArray(projectsRes) ? projectsRes : (projectsRes as { items?: Project[] })?.items || [];
+      setProjects(projList);
     } catch {
       // Fallback
     } finally {
@@ -99,6 +108,19 @@ export default function EngagementsCommandCenterPage() {
   React.useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const handleProjectSelect = (projId: string) => {
+    setSelectedProjectId(projId);
+    if (!projId) return;
+    const proj = projects.find((p) => p.id === projId);
+    if (proj) {
+      if (!title) setTitle(`${proj.name} Engagement`);
+      if (proj.client_id) setClientId(proj.client_id);
+      if (!contractValue && proj.budget) setContractValue(String(proj.budget));
+      if (!targetDate && proj.end_date) setTargetDate(proj.end_date);
+      if (!description && proj.description) setDescription(proj.description);
+    }
+  };
 
   const [createError, setCreateError] = React.useState<string | null>(null);
 
@@ -116,10 +138,12 @@ export default function EngagementsCommandCenterPage() {
           description: description || null,
           contract_value: contractValue ? parseFloat(contractValue) : null,
           target_completion_date: targetDate || null,
+          project_id: selectedProjectId || null,
         },
         { organizationId: currentOrganization.id }
       );
       setIsCreateOpen(false);
+      setSelectedProjectId("");
       setTitle("");
       setDescription("");
       setContractValue("");
@@ -360,6 +384,25 @@ export default function EngagementsCommandCenterPage() {
               {createError}
             </div>
           )}
+          <div>
+            <Label className="text-xs font-semibold text-slate-700">Link Existing Project (Optional)</Label>
+            <select
+              value={selectedProjectId}
+              onChange={(e) => handleProjectSelect(e.target.value)}
+              className="mt-1.5 w-full rounded-lg border border-slate-200/90 bg-white px-3 py-2 text-xs text-slate-800 shadow-subtle focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/15"
+            >
+              <option value="">-- No project (Create commercial engagement first) --</option>
+              {(projects || []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.project_code}: {p.name} {p.client_name ? `(${p.client_name})` : ""}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Select an already created project to immediately bind this engagement lifecycle to it.
+            </p>
+          </div>
+
           <div>
             <Label className="text-xs font-semibold text-slate-700">Select Client *</Label>
             <select

@@ -21,6 +21,7 @@ from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 if TYPE_CHECKING:
     from app.models.client import Client
     from app.models.employee import Employee
+    from app.models.engagement import ClientEngagement
     from app.models.identity import Organization
 
 
@@ -55,6 +56,12 @@ class Project(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         cascade="all, delete-orphan",
         order_by="desc(ProjectMember.created_at)",
         foreign_keys="[ProjectMember.project_id]",
+    )
+    engagement: Mapped["ClientEngagement | None"] = relationship(
+        "ClientEngagement",
+        back_populates="project",
+        uselist=False,
+        foreign_keys="[ClientEngagement.project_id]",
     )
 
     __table_args__ = (

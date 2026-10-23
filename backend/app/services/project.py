@@ -57,6 +57,7 @@ def _build_project_response(project: Project) -> ProjectResponse:
     client = project.client if hasattr(project, "client") and project.client is not None else None
     pm = project.project_manager if hasattr(project, "project_manager") and project.project_manager is not None else None
     pm_name = f"{pm.first_name} {pm.last_name}".strip() if pm else None
+    engagement = project.engagement if hasattr(project, "engagement") and project.engagement is not None else None
 
     return ProjectResponse(
         id=project.id,
@@ -77,7 +78,12 @@ def _build_project_response(project: Project) -> ProjectResponse:
         project_manager_name=pm_name,
         project_manager_code=pm.employee_code if pm else None,
         members_count=len(members),
+        engagement_id=engagement.id if engagement else None,
+        engagement_code=engagement.engagement_code if engagement else None,
+        engagement_title=engagement.title if engagement else None,
+        engagement_stage=engagement.current_stage if engagement else None,
     )
+
 
 
 def _build_project_detail_response(project: Project) -> ProjectDetailResponse:
@@ -152,6 +158,7 @@ async def list_projects(
             selectinload(Project.client),
             selectinload(Project.project_manager),
             selectinload(Project.members),
+            selectinload(Project.engagement),
         )
         .order_by(order_clause, Project.id.asc())
         .offset((page - 1) * page_size)
@@ -185,6 +192,7 @@ async def get_project(
             selectinload(Project.client),
             selectinload(Project.project_manager),
             selectinload(Project.members).selectinload(ProjectMember.employee),
+            selectinload(Project.engagement),
         )
         .where(
             Project.id == project_id,

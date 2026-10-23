@@ -39,6 +39,18 @@ export interface ClientEngagementSummary {
   created_at: string;
 }
 
+export interface ClientEngagementCreateInput {
+  client_id: string;
+  title: string;
+  description?: string | null;
+  contract_value?: number | string | null;
+  currency?: string;
+  target_completion_date?: string | null;
+  engagement_lead_id?: string | null;
+  project_id?: string | null;
+}
+
+
 export interface ProposalItem {
   id: string;
   organization_id: string;

@@ -155,7 +155,12 @@ class ProjectResponse(ProjectBase):
     project_manager_name: str | None = None
     project_manager_code: str | None = None
     members_count: int = 0
+    engagement_id: UUID | None = None
+    engagement_code: str | None = None
+    engagement_title: str | None = None
+    engagement_stage: str | None = None
 
 
 class ProjectDetailResponse(ProjectResponse):
     members: list[ProjectMemberResponse] = []
+
