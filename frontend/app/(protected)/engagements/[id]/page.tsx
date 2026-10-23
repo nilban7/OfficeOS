@@ -736,10 +736,21 @@ export default function EngagementDetailPage() {
                   </div>
                   <p className="text-xs text-slate-500 mt-1">{p.scope_of_work}</p>
                 </div>
-                <div className="text-right">
-                  <div className="font-bold text-slate-900 text-base">
-                    ₹{Number(p.total_amount).toLocaleString("en-IN")}
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <div className="font-bold text-slate-900 text-base">
+                      ₹{Number(p.total_amount).toLocaleString("en-IN")}
+                    </div>
                   </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openReport("proposal", p)}
+                    className="flex items-center gap-1.5 text-xs h-8"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>Download Proposal</span>
+                  </Button>
                 </div>
               </Card>
             ))

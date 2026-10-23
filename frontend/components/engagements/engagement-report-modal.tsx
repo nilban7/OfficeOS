@@ -10,7 +10,7 @@ import {
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 
-export type ReportType = "agreement" | "handover" | "weekly_report" | "uat_session";
+export type ReportType = "proposal" | "agreement" | "handover" | "weekly_report" | "uat_session";
 
 interface EngagementReportModalProps {
   isOpen: boolean;
@@ -145,7 +145,38 @@ export function EngagementReportModal({
     let content = "";
     let filename = "report.md";
 
-    if (reportType === "agreement") {
+    if (reportType === "proposal") {
+      filename = `${data.proposal_number || "Proposal"}_Commercial_Proposal.md`;
+      content = `# COMMERCIAL PROPOSAL & SCOPE OF WORK
+**Proposal Ref**: ${data.proposal_number || "PRP-0001"} (v${data.version || 1})
+**Title**: ${data.title}
+**Organization**: ${organizationName}
+**Client**: ${clientName}
+**Engagement**: ${engagementTitle}
+**Proposed Investment**: ₹${Number(data.total_amount || 0).toLocaleString("en-IN")} ${data.currency || "INR"}
+**Status**: ${(data.status || "draft").toUpperCase()}
+**Valid Until**: ${data.valid_until || "30 days from issuance"}
+**Payment Terms**: ${data.payment_terms || "Standard milestone-based invoicing"}
+
+---
+
+## Scope of Work & Deliverables
+${data.scope_of_work || "Commercial scope of deliverables and project milestones outlined for this engagement."}
+
+---
+
+## Commercial Quotation & Investment
+- **Total Proposed Fee**: ₹${Number(data.total_amount || 0).toLocaleString("en-IN")} ${data.currency || "INR"}
+- **Payment Structure**: ${data.payment_terms || "Standard milestone billing"}
+
+---
+
+## Client Acceptance
+**Status**: ${data.status === "accepted" ? `Accepted by ${clientName}${data.accepted_at ? ` on ${new Date(data.accepted_at).toLocaleDateString()}` : ""}` : "Pending Client Review & Formal Signoff"}
+
+*Generated securely by OfficeOS Enterprise SaaS Platform.*
+`;
+    } else if (reportType === "agreement") {
       filename = `${data.agreement_number || "Agreement"}_Executed_Report.md`;
       content = `# LEGAL AGREEMENT & EXECUTION RECORD
 **Document Ref**: ${data.agreement_number}
@@ -325,6 +356,7 @@ ${(data.test_cases || [])
               </span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
+              {reportType === "proposal" && "Commercial Proposal & Scope of Work"}
               {reportType === "agreement" && "Formal Commercial Agreement"}
               {reportType === "handover" && "Project Handover & Acceptance Certificate"}
               {reportType === "weekly_report" && "Weekly Progress Status Report"}
@@ -339,7 +371,8 @@ ${(data.test_cases || [])
             <div>
               Ref:{" "}
               <strong className="text-slate-900">
-                {data.agreement_number ||
+                {data.proposal_number ||
+                  data.agreement_number ||
                   data.handover_number ||
                   data.report_number ||
                   data.build_version ||
@@ -354,6 +387,71 @@ ${(data.test_cases || [])
             </div>
           </div>
         </div>
+
+        {/* 0. Commercial Proposal */}
+        {reportType === "proposal" && (
+          <div className="space-y-6 text-xs sm:text-sm">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
+              <div>
+                <span className="text-slate-400 block text-[11px] uppercase tracking-wider mb-0.5">Proposal Ref</span>
+                <span className="font-bold text-slate-800 uppercase font-mono">{data.proposal_number || "PRP-0001"}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[11px] uppercase tracking-wider mb-0.5">Proposed Value</span>
+                <span className="font-bold text-slate-900">₹{Number(data.total_amount || 0).toLocaleString("en-IN")}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[11px] uppercase tracking-wider mb-0.5">Status</span>
+                <span className={`font-bold capitalize ${data.status === "accepted" ? "text-emerald-700" : "text-primary-700"}`}>
+                  {data.status || "Draft"}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[11px] uppercase tracking-wider mb-0.5">Validity</span>
+                <span className="font-bold text-slate-800">{data.valid_until || "30 Days"}</span>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-bold text-slate-900 text-sm uppercase tracking-wider mb-2 border-b border-slate-200 pb-1">
+                Scope of Work & Technical Deliverables
+              </h4>
+              <p className="text-slate-700 leading-relaxed whitespace-pre-line text-xs">
+                {data.scope_of_work || "Commercial scope of deliverables and project milestones outlined for this engagement."}
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider">
+                Commercial Investment Summary
+              </h4>
+              <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-200">
+                <span className="text-slate-600">Fixed Project Fee:</span>
+                <span className="font-bold font-mono text-slate-900">₹{Number(data.total_amount || 0).toLocaleString("en-IN")} {data.currency || "INR"}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-600">Payment Terms:</span>
+                <span className="font-medium text-slate-800">{data.payment_terms || "Standard milestone billing"}</span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl border border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+              <div>
+                <span className="font-semibold text-slate-900 block">Client Review & Acceptance</span>
+                <span className="text-slate-500">
+                  {data.status === "accepted"
+                    ? `Officially accepted by ${clientName}`
+                    : `Pending approval and e-Sign contract conversion`}
+                </span>
+              </div>
+              <div className={`font-mono text-[11px] px-2.5 py-1 rounded-md font-semibold ${
+                data.status === "accepted" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700"
+              }`}>
+                {data.status === "accepted" ? "✓ Accepted" : "Proposal Draft / Pending"}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 1. Agreement Report */}
         {reportType === "agreement" && (
