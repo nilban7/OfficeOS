@@ -34,9 +34,111 @@ export function EngagementReportModal({
   if (!isOpen || !data) return null;
 
   const handlePrint = () => {
-    if (typeof window !== "undefined") {
+    if (typeof window === "undefined") return;
+
+    const printElement = document.getElementById("printable-document");
+    if (!printElement) {
       window.print();
+      return;
     }
+
+    // Create an invisible iframe for isolated printing
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute(
+      "style",
+      "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;z-index:-1;"
+    );
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      window.print();
+      return;
+    }
+
+    // Collect all stylesheets and style elements to retain Tailwind & fonts
+    let styles = "";
+    document.querySelectorAll("link[rel='stylesheet'], style").forEach((node) => {
+      styles += node.outerHTML;
+    });
+
+    const docTitle =
+      data.title ||
+      data.session_title ||
+      data.agreement_number ||
+      data.handover_number ||
+      data.report_number ||
+      "Document";
+
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="utf-8" />
+          <title>${docTitle} — OfficeOS</title>
+          ${styles}
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 15mm 15mm 15mm 15mm;
+            }
+            *, *::before, *::after {
+              box-sizing: border-box;
+            }
+            html, body {
+              background: #ffffff !important;
+              color: #0f172a !important;
+              font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              width: 100% !important;
+              height: auto !important;
+              min-height: 100% !important;
+              overflow: visible !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            #printable-document {
+              max-height: none !important;
+              height: auto !important;
+              overflow: visible !important;
+              padding: 0 !important;
+              margin: 0 !important;
+              border: none !important;
+            }
+            .no-print {
+              display: none !important;
+            }
+            .grid, table, tr, [class*="rounded-"], [class*="border-"] {
+              break-inside: avoid !important;
+              page-break-inside: avoid !important;
+            }
+          </style>
+        </head>
+        <body>
+          <div id="printable-document" class="p-0 text-slate-900 space-y-6">
+            ${printElement.innerHTML}
+          </div>
+        </body>
+      </html>
+    `);
+    doc.close();
+
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch {
+        window.print();
+      } finally {
+        setTimeout(() => {
+          if (document.body.contains(iframe)) {
+            document.body.removeChild(iframe);
+          }
+        }, 1500);
+      }
+    }, 250);
   };
 
   const handleDownloadMarkdown = () => {
@@ -212,7 +314,7 @@ ${(data.test_cases || [])
       </div>
 
       {/* Printable Document Body */}
-      <div id="printable-document" className="p-8 sm:p-10 bg-white text-slate-900 space-y-6 max-h-[80vh] overflow-y-auto">
+      <div id="printable-document" className="p-8 sm:p-10 bg-white text-slate-900 space-y-6 max-h-[80vh] overflow-y-auto print:max-h-none print:overflow-visible print:p-0">
         {/* Document Header */}
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between pb-6 border-b-2 border-slate-900 gap-4">
           <div>

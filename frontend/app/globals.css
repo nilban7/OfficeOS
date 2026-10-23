@@ -83,27 +83,70 @@ body {
 
 /* Printable Document Styles */
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 15mm;
+  }
+
+  html, body {
+    height: auto !important;
+    min-height: 100% !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* When printing, hide all main application chrome */
   body * {
     visibility: hidden;
   }
+
+  /* Reveal only the printable document and its children */
   #printable-document,
   #printable-document * {
     visibility: visible;
   }
-  #printable-document {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    margin: 0;
-    padding: 24px;
-    background: white !important;
-    color: black !important;
+
+  /* Reset any modal containers or dialog wrappers */
+  [role="dialog"],
+  [role="dialog"] > div,
+  [role="dialog"] div {
+    position: static !important;
+    display: block !important;
+    transform: none !important;
     max-height: none !important;
     overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
   }
+
+  #printable-document {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+
   .no-print {
     display: none !important;
+  }
+
+  .grid, table, tr, [class*="rounded-"], [class*="border-"] {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
 }
 
