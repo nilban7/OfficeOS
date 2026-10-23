@@ -126,6 +126,15 @@ def _to_detail_response(rec: AttendanceRecord) -> AttendanceDetailResponse:
         check_out_at=rec.check_out_at,
         status=rec.status,
         notes=rec.notes,
+        latitude=rec.latitude,
+        longitude=rec.longitude,
+        location_name=rec.location_name,
+        location_accuracy=rec.location_accuracy,
+        verification_method=rec.verification_method or "web",
+        check_out_latitude=rec.check_out_latitude,
+        check_out_longitude=rec.check_out_longitude,
+        check_out_location_name=rec.check_out_location_name,
+        device_info=rec.device_info,
         created_at=rec.created_at,
         updated_at=rec.updated_at,
     )
@@ -138,6 +147,7 @@ async def list_attendance(
     department_id: UUID | None = None,
     branch_id: UUID | None = None,
     status_filter: str | None = None,
+    verification_method: str | None = None,
     start_date: date | None = None,
     end_date: date | None = None,
     search: str | None = None,
@@ -160,6 +170,9 @@ async def list_attendance(
 
     if status_filter:
         base_filter.append(AttendanceRecord.status == status_filter)
+
+    if verification_method:
+        base_filter.append(AttendanceRecord.verification_method == verification_method)
 
     if start_date is not None:
         base_filter.append(AttendanceRecord.work_date >= start_date)
@@ -433,6 +446,12 @@ async def check_in_employee(
         check_out_at=None,
         status="present",
         notes=data.notes.strip() if data.notes else None,
+        latitude=data.latitude,
+        longitude=data.longitude,
+        location_name=data.location_name.strip() if data.location_name else None,
+        location_accuracy=data.location_accuracy,
+        verification_method=data.verification_method or "web",
+        device_info=data.device_info.strip() if data.device_info else None,
         created_at=now,
         updated_at=now,
     )
@@ -452,6 +471,8 @@ async def check_in_employee(
             "work_date": str(calc_date),
             "check_in_at": rec.check_in_at.isoformat() if rec.check_in_at else None,
             "status": rec.status,
+            "verification_method": rec.verification_method,
+            "location_name": rec.location_name,
         },
         ip_address=ip_address,
     )
@@ -497,6 +518,12 @@ async def check_out_employee(
         )
 
     rec.check_out_at = check_out_time
+    if data.latitude is not None:
+        rec.check_out_latitude = data.latitude
+    if data.longitude is not None:
+        rec.check_out_longitude = data.longitude
+    if data.location_name:
+        rec.check_out_location_name = data.location_name.strip()
     if data.notes:
         if rec.notes:
             rec.notes = f"{rec.notes}\n{data.notes.strip()}"
@@ -515,6 +542,7 @@ async def check_out_employee(
             "employee_id": str(rec.employee_id),
             "work_date": str(rec.work_date),
             "check_out_at": rec.check_out_at.isoformat() if rec.check_out_at else None,
+            "check_out_location_name": rec.check_out_location_name,
         },
         ip_address=ip_address,
     )
@@ -584,6 +612,15 @@ async def create_attendance(
         check_out_at=data.check_out_at,
         status=data.status,
         notes=data.notes.strip() if data.notes else None,
+        latitude=data.latitude,
+        longitude=data.longitude,
+        location_name=data.location_name.strip() if data.location_name else None,
+        location_accuracy=data.location_accuracy,
+        verification_method=data.verification_method or "manual",
+        check_out_latitude=data.check_out_latitude,
+        check_out_longitude=data.check_out_longitude,
+        check_out_location_name=data.check_out_location_name.strip() if data.check_out_location_name else None,
+        device_info=data.device_info.strip() if data.device_info else None,
         created_at=now,
         updated_at=now,
     )
@@ -693,6 +730,25 @@ async def update_attendance(
     if "notes" in data.model_fields_set and data.notes != rec.notes:
         changes["notes"] = {"from": rec.notes, "to": data.notes}
         rec.notes = data.notes
+
+    if "latitude" in data.model_fields_set and data.latitude != rec.latitude:
+        rec.latitude = data.latitude
+    if "longitude" in data.model_fields_set and data.longitude != rec.longitude:
+        rec.longitude = data.longitude
+    if "location_name" in data.model_fields_set and data.location_name != rec.location_name:
+        rec.location_name = data.location_name
+    if "location_accuracy" in data.model_fields_set and data.location_accuracy != rec.location_accuracy:
+        rec.location_accuracy = data.location_accuracy
+    if "verification_method" in data.model_fields_set and data.verification_method != rec.verification_method:
+        rec.verification_method = data.verification_method or rec.verification_method
+    if "check_out_latitude" in data.model_fields_set and data.check_out_latitude != rec.check_out_latitude:
+        rec.check_out_latitude = data.check_out_latitude
+    if "check_out_longitude" in data.model_fields_set and data.check_out_longitude != rec.check_out_longitude:
+        rec.check_out_longitude = data.check_out_longitude
+    if "check_out_location_name" in data.model_fields_set and data.check_out_location_name != rec.check_out_location_name:
+        rec.check_out_location_name = data.check_out_location_name
+    if "device_info" in data.model_fields_set and data.device_info != rec.device_info:
+        rec.device_info = data.device_info
 
     rec.updated_at = datetime.now(UTC)
 

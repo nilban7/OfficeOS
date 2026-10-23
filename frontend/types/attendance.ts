@@ -38,6 +38,15 @@ export interface AttendanceRecord {
   check_out_at?: string | null;
   status: AttendanceStatus | string;
   notes?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  location_name?: string | null;
+  location_accuracy?: number | null;
+  verification_method?: "web" | "geolocation" | "fingerprint" | "biometric" | "manual" | string;
+  check_out_latitude?: number | null;
+  check_out_longitude?: number | null;
+  check_out_location_name?: string | null;
+  device_info?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -50,11 +59,21 @@ export interface AttendanceCheckInRequest {
   work_date?: string;
   check_in_at?: string;
   notes?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  location_name?: string | null;
+  location_accuracy?: number | null;
+  verification_method?: "web" | "geolocation" | "fingerprint" | "biometric" | "manual" | string;
+  device_info?: string | null;
 }
 
 export interface AttendanceCheckOutRequest {
   check_out_at?: string;
   notes?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  location_name?: string | null;
+  location_accuracy?: number | null;
 }
 
 export interface AttendanceCreate {
@@ -65,6 +84,15 @@ export interface AttendanceCreate {
   check_out_at?: string | null;
   branch_id?: string | null;
   notes?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  location_name?: string | null;
+  location_accuracy?: number | null;
+  verification_method?: "web" | "geolocation" | "fingerprint" | "biometric" | "manual" | string;
+  check_out_latitude?: number | null;
+  check_out_longitude?: number | null;
+  check_out_location_name?: string | null;
+  device_info?: string | null;
 }
 
 export interface AttendanceUpdate {
@@ -74,6 +102,15 @@ export interface AttendanceUpdate {
   check_out_at?: string | null;
   branch_id?: string | null;
   notes?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  location_name?: string | null;
+  location_accuracy?: number | null;
+  verification_method?: "web" | "geolocation" | "fingerprint" | "biometric" | "manual" | string;
+  check_out_latitude?: number | null;
+  check_out_longitude?: number | null;
+  check_out_location_name?: string | null;
+  device_info?: string | null;
 }
 
 export interface AttendanceSummary {

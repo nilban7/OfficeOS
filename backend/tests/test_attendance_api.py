@@ -314,6 +314,70 @@ async def test_clock_in_success(auth_context) -> None:
 
 
 @pytest.mark.asyncio
+async def test_clock_in_with_geolocation_and_fingerprint(auth_context) -> None:
+    org_id = uuid.UUID(auth_context["org_id"])
+    mock_session = AsyncMock()
+    mock_session.flush = AsyncMock()
+
+    emp = _create_mock_employee(org_id)
+    rec_created = AttendanceRecord(
+        id=uuid.uuid4(),
+        organization_id=org_id,
+        employee_id=emp.id,
+        employee=emp,
+        branch_id=emp.branch.id if emp.branch else None,
+        branch=emp.branch,
+        work_date=datetime.now(UTC).date(),
+        check_in_at=datetime.now(UTC),
+        check_out_at=None,
+        status="present",
+        notes="Fingerprint scan at front desk",
+        latitude=22.572645,
+        longitude=88.363892,
+        location_name="Salt Lake Sector V, Kolkata",
+        location_accuracy=12.5,
+        verification_method="fingerprint",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    mock_session.scalars.side_effect = [
+        ["attendance.create"],  # require_permission
+        ["attendance.create"],  # check_is_admin_or_manager
+    ]
+    mock_session.scalar.side_effect = [
+        auth_context["profile"],  # get_actor_profile_id
+        emp,  # resolve_employee_for_user
+        None,  # duplicate check
+        rec_created,  # get_attendance
+    ]
+
+    app.dependency_overrides[get_tenant_session] = lambda: mock_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.post(
+                "/api/v1/attendance/check-in",
+                headers=auth_context["headers"],
+                json={
+                    "notes": "Fingerprint scan at front desk",
+                    "latitude": 22.572645,
+                    "longitude": 88.363892,
+                    "location_name": "Salt Lake Sector V, Kolkata",
+                    "location_accuracy": 12.5,
+                    "verification_method": "fingerprint",
+                },
+            )
+        assert res.status_code == 201
+        body = res.json()
+        assert body["success"] is True
+        assert body["data"]["status"] == "present"
+        assert body["data"]["verification_method"] == "fingerprint"
+        assert body["data"]["location_name"] == "Salt Lake Sector V, Kolkata"
+    finally:
+        app.dependency_overrides.pop(get_tenant_session, None)
+
+
+@pytest.mark.asyncio
 async def test_clock_in_duplicate_conflict(auth_context) -> None:
     org_id = uuid.UUID(auth_context["org_id"])
     mock_session = AsyncMock()
