@@ -120,29 +120,42 @@ export default function DashboardPage() {
   const greetingName =
     user?.firstName || user?.fullName || user?.email?.split("@")[0] || "OfficeOS Leader";
 
-  // Guaranteed 7-Day Attendance Bar items (Mon through Sun)
+  // Official 5-Day Workweek Attendance (Mon – Fri, excluding weekends)
   const attendanceBars: BarChartItem[] = React.useMemo(() => {
-    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    const currentDayIdx = (new Date().getDay() + 6) % 7;
+    const workDays = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+    // JS getDay(): 0 is Sunday, 1 is Monday ... 5 is Friday, 6 is Saturday
+    const currentDay = new Date().getDay();
     const totalStaff = overview?.active_employees_count || 4;
 
-    if (attendance?.daily_trends && attendance.daily_trends.length >= 7) {
-      return attendance.daily_trends.slice(-7).map((d) => {
-        const dateObj = new Date(d.date);
-        const dayLabel = dateObj.toLocaleDateString("en-US", { weekday: "short" });
-        return {
-          label: dayLabel,
-          value: d.present_count,
-          formattedValue: `${d.present_count} / ${totalStaff} Present`,
-          colorClass: d.present_count > 0 ? "bg-primary-600" : "bg-slate-300",
-        };
-      });
+    if (attendance?.daily_trends && attendance.daily_trends.length > 0) {
+      const filtered = attendance.daily_trends
+        .filter((d) => {
+          const day = new Date(d.date).getDay();
+          return day >= 1 && day <= 5;
+        })
+        .slice(-5);
+
+      if (filtered.length === 5) {
+        return filtered.map((d) => {
+          const dateObj = new Date(d.date);
+          const dayLabel = dateObj.toLocaleDateString("en-US", { weekday: "short" });
+          return {
+            label: dayLabel,
+            value: d.present_count,
+            formattedValue: `${d.present_count} / ${totalStaff} Present`,
+            colorClass: d.present_count > 0 ? "bg-primary-600" : "bg-slate-300",
+          };
+        });
+      }
     }
 
-    // Default clean 7-day pattern
-    return days.map((day, idx) => {
-      const isToday = idx === currentDayIdx;
-      const isPast = idx < currentDayIdx;
+    // Default clean 5-workday pattern (Mon – Fri)
+    return workDays.map((day, idx) => {
+      const isToday = currentDay >= 1 && currentDay <= 5 && idx === currentDay - 1;
+      const isPast =
+        (currentDay >= 1 && currentDay <= 5 && idx < currentDay - 1) ||
+        currentDay === 0 ||
+        currentDay === 6;
       const count = isToday
         ? overview?.attendance_today_count || 0
         : isPast
@@ -309,16 +322,16 @@ export default function DashboardPage() {
               <div>
                 <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
                   <BarChart3 className="h-4 w-4 text-primary-600" />
-                  <span>Weekly Attendance Velocity</span>
+                  <span>Workday Attendance (Mon – Fri)</span>
                 </CardTitle>
                 <CardDescription className="text-xs text-slate-500 mt-0.5">
-                  Daily employee presence across the 7-day operational cycle.
+                  Daily employee presence across the official Monday to Friday workweek.
                 </CardDescription>
               </div>
-              <Badge variant="success">86.4% Avg</Badge>
+              <Badge variant="success">Mon – Fri Active</Badge>
             </div>
 
-            {/* Clean 7-Bar Chart */}
+            {/* Clean 5-Workday Bar Chart */}
             <div className="pt-6 pb-2">
               <SimpleBarChart items={attendanceBars} height={170} maxVal={overview?.active_employees_count || 4} />
             </div>
@@ -327,7 +340,7 @@ export default function DashboardPage() {
           {/* Clean Metric Footer */}
           <div className="grid grid-cols-3 gap-3 pt-4 border-t border-slate-100 text-xs">
             <div>
-              <span className="text-slate-400 block text-[11px]">Weekly Average</span>
+              <span className="text-slate-400 block text-[11px]">Workweek Average</span>
               <strong className="text-slate-800 text-sm">86.4%</strong>
             </div>
             <div>
@@ -335,8 +348,8 @@ export default function DashboardPage() {
               <strong className="text-emerald-600 text-sm">97.8%</strong>
             </div>
             <div>
-              <span className="text-slate-400 block text-[11px]">Tracking Mode</span>
-              <strong className="text-slate-800 text-sm">Geo-Verified</strong>
+              <span className="text-slate-400 block text-[11px]">Work Schedule</span>
+              <strong className="text-slate-800 text-sm">Mon – Fri Office</strong>
             </div>
           </div>
         </Card>

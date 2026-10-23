@@ -52,7 +52,7 @@ export function SimpleBarChart({
               {/* Bar */}
               <div
                 className={cn(
-                  "w-full max-w-[42px] mx-auto rounded-t-md transition-all duration-300 hover:opacity-85",
+                  "w-full max-w-[52px] mx-auto rounded-t-lg transition-all duration-300 hover:opacity-85",
                   item.colorClass || "bg-primary-600"
                 )}
                 style={{ height: `${Math.max(pct, 4)}%` }}
