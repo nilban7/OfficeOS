@@ -1,7 +1,17 @@
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -39,6 +49,19 @@ class AttendanceRecord(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     check_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="present", server_default="present", index=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Geolocation & Biometric fields
+    latitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7), nullable=True)
+    longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7), nullable=True)
+    location_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    location_accuracy: Mapped[Decimal | None] = mapped_column(Numeric(8, 2), nullable=True)
+    verification_method: Mapped[str] = mapped_column(
+        String(32), default="web", server_default="web", index=True
+    )
+    check_out_latitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7), nullable=True)
+    check_out_longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7), nullable=True)
+    check_out_location_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    device_info: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     organization: Mapped[Organization] = relationship()
     employee: Mapped[Employee] = relationship()

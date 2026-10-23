@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -38,6 +39,15 @@ class AttendanceListItemResponse(BaseModel):
     check_out_at: datetime | None = None
     status: str
     notes: str | None = None
+    latitude: Decimal | None = None
+    longitude: Decimal | None = None
+    location_name: str | None = None
+    location_accuracy: Decimal | None = None
+    verification_method: str = "web"
+    check_out_latitude: Decimal | None = None
+    check_out_longitude: Decimal | None = None
+    check_out_location_name: str | None = None
+    device_info: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -52,11 +62,21 @@ class AttendanceCheckInRequest(BaseModel):
     work_date: date | None = None
     check_in_at: datetime | None = None
     notes: str | None = Field(None, max_length=1000)
+    latitude: Decimal | None = None
+    longitude: Decimal | None = None
+    location_name: str | None = Field(None, max_length=255)
+    location_accuracy: Decimal | None = None
+    verification_method: str = Field("web", max_length=32)
+    device_info: str | None = Field(None, max_length=255)
 
 
 class AttendanceCheckOutRequest(BaseModel):
     check_out_at: datetime | None = None
     notes: str | None = Field(None, max_length=1000)
+    latitude: Decimal | None = None
+    longitude: Decimal | None = None
+    location_name: str | None = Field(None, max_length=255)
+    location_accuracy: Decimal | None = None
 
 
 class AttendanceCreate(BaseModel):
@@ -67,6 +87,15 @@ class AttendanceCreate(BaseModel):
     check_out_at: datetime | None = None
     branch_id: UUID | None = None
     notes: str | None = Field(None, max_length=1000)
+    latitude: Decimal | None = None
+    longitude: Decimal | None = None
+    location_name: str | None = Field(None, max_length=255)
+    location_accuracy: Decimal | None = None
+    verification_method: str = Field("manual", max_length=32)
+    check_out_latitude: Decimal | None = None
+    check_out_longitude: Decimal | None = None
+    check_out_location_name: str | None = Field(None, max_length=255)
+    device_info: str | None = Field(None, max_length=255)
 
     @model_validator(mode="after")
     def validate_times(self) -> "AttendanceCreate":
@@ -82,6 +111,15 @@ class AttendanceUpdate(BaseModel):
     check_out_at: datetime | None = None
     branch_id: UUID | None = None
     notes: str | None = Field(None, max_length=1000)
+    latitude: Decimal | None = None
+    longitude: Decimal | None = None
+    location_name: str | None = Field(None, max_length=255)
+    location_accuracy: Decimal | None = None
+    verification_method: str | None = Field(None, max_length=32)
+    check_out_latitude: Decimal | None = None
+    check_out_longitude: Decimal | None = None
+    check_out_location_name: str | None = Field(None, max_length=255)
+    device_info: str | None = Field(None, max_length=255)
 
     @model_validator(mode="after")
     def validate_times(self) -> "AttendanceUpdate":

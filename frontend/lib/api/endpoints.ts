@@ -32,6 +32,8 @@ export const API_ENDPOINTS = {
   },
   attendance: {
     list: "/attendance",
+    create: "/attendance",
+    summary: "/attendance/summary",
     clockIn: "/attendance/clock-in",
     clockOut: "/attendance/clock-out",
   },
