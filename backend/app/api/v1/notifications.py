@@ -80,6 +80,21 @@ async def get_unread_count(
     return ApiSuccess(data=UnreadCountResponse(unread_count=count))
 
 
+@router.post("/mark-all-read", response_model=ApiSuccess[MarkAllReadResponse])
+async def mark_all_as_read(
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(require_permission("notifications.mark_read"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
+) -> ApiSuccess[MarkAllReadResponse]:
+    """Mark all unread notifications as read for the authenticated user in the current tenant."""
+    org_id = UUID(organization_header)
+    recipient_id = await _resolve_profile_id(session, current_user)
+
+    count = await NotificationService.mark_all_as_read(session, org_id, recipient_id)
+    await session.commit()
+    return ApiSuccess(data=MarkAllReadResponse(marked_count=count))
+
+
 @router.get("/{notification_id}", response_model=ApiSuccess[NotificationResponse])
 async def get_notification(
     notification_id: UUID,
@@ -131,21 +146,6 @@ async def mark_as_unread(
     )
     await session.commit()
     return ApiSuccess(data=NotificationResponse.model_validate(item))
-
-
-@router.post("/mark-all-read", response_model=ApiSuccess[MarkAllReadResponse])
-async def mark_all_as_read(
-    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(require_permission("notifications.mark_read"))],
-    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
-) -> ApiSuccess[MarkAllReadResponse]:
-    """Mark all unread notifications as read for the authenticated user in the current tenant."""
-    org_id = UUID(organization_header)
-    recipient_id = await _resolve_profile_id(session, current_user)
-
-    count = await NotificationService.mark_all_as_read(session, org_id, recipient_id)
-    await session.commit()
-    return ApiSuccess(data=MarkAllReadResponse(marked_count=count))
 
 
 @router.delete("/{notification_id}", response_model=ApiSuccess[NotificationResponse])

@@ -101,6 +101,24 @@ async def create_engagement(
     )
 
 
+# --- Agreement Signatures ---
+@router.post("/agreements/{agreement_id}/signatures", response_model=SignatureResponse)
+async def sign_agreement(
+    agreement_id: uuid.UUID,
+    payload: SignatureCreate,
+    request: Request,
+    session: Annotated[AsyncSession, Depends(require_permission("agreements.sign"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
+) -> SignatureResponse:
+    org_id = uuid.UUID(organization_header)
+    client_ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+    sig = await EngagementService.add_signature(
+        session, org_id, agreement_id, payload, ip_address=client_ip, user_agent=user_agent
+    )
+    return SignatureResponse.model_validate(sig)
+
+
 @router.get("/{id}", response_model=ClientEngagementDetail)
 async def get_engagement(
     id: uuid.UUID,
@@ -192,23 +210,6 @@ async def delete_agreement(
     deleted = await EngagementService.delete_agreement(session, org_id, id, agreement_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agreement not found")
-
-
-@router.post("/agreements/{agreement_id}/signatures", response_model=SignatureResponse)
-async def sign_agreement(
-    agreement_id: uuid.UUID,
-    payload: SignatureCreate,
-    request: Request,
-    session: Annotated[AsyncSession, Depends(require_permission("agreements.sign"))],
-    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
-) -> SignatureResponse:
-    org_id = uuid.UUID(organization_header)
-    client_ip = request.client.host if request.client else None
-    user_agent = request.headers.get("user-agent")
-    sig = await EngagementService.add_signature(
-        session, org_id, agreement_id, payload, ip_address=client_ip, user_agent=user_agent
-    )
-    return SignatureResponse.model_validate(sig)
 
 
 # --- Kickoff Integration ---
