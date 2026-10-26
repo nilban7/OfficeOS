@@ -743,7 +743,7 @@ export default function AttendancePage() {
       </div>
 
       {/* Top Summary Metrics */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         <Card className="bg-white border-slate-200 shadow-sm">
           <CardContent className="p-4">
             <span className="text-xs font-medium text-slate-500 block">Total Active</span>
@@ -758,11 +758,9 @@ export default function AttendancePage() {
           <CardContent className="p-4">
             <span className="text-xs font-medium text-emerald-600 block">Present Today</span>
             <span className="text-2xl font-bold text-emerald-700 mt-1 block">
-              {(summary?.present_count ?? 0) + (summary?.half_day_count ?? 0)}
+              {summary?.present_count ?? 0}
             </span>
-            <span className="text-[11px] text-slate-400">
-              {summary?.present_count ?? 0} on time{summary?.half_day_count ? ` • ${summary.half_day_count} half-day` : ""}
-            </span>
+            <span className="text-[11px] text-slate-400">On time clock-ins</span>
           </CardContent>
         </Card>
 
@@ -777,6 +775,16 @@ export default function AttendancePage() {
         </Card>
 
         <Card className="bg-white border-slate-200 shadow-sm">
+          <CardContent className="p-4">
+            <span className="text-xs font-medium text-purple-600 block">Half Day Today</span>
+            <span className="text-2xl font-bold text-purple-700 mt-1 block">
+              {summary?.half_day_count ?? 0}
+            </span>
+            <span className="text-[11px] text-slate-400">Half-day shifts</span>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white border-slate-200 shadow-sm col-span-2 sm:col-span-1">
           <CardContent className="p-4">
             <span className="text-xs font-medium text-rose-600 block">Absent / Leave</span>
             <span className="text-2xl font-bold text-rose-700 mt-1 block">
