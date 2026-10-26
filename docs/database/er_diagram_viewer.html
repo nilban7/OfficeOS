@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OfficeOS — Full Database ER Diagram Viewer & Exporter</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    body {
+      background: #0f172a;
+      color: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    header {
+      background: #1e293b;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #334155;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      z-index: 10;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #38bdf8;
+      letter-spacing: -0.025em;
+    }
+    .brand span {
+      font-size: 13px;
+      color: #94a3b8;
+    }
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    button {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+    button:hover {
+      background: #2563eb;
+      transform: translateY(-1px);
+    }
+    button.btn-emerald {
+      background: #10b981;
+    }
+    button.btn-emerald:hover {
+      background: #059669;
+    }
+    button.btn-secondary {
+      background: #334155;
+      color: #e2e8f0;
+    }
+    button.btn-secondary:hover {
+      background: #475569;
+    }
+    #viewport {
+      flex: 1;
+      width: 100%;
+      height: calc(100vh - 65px);
+      position: relative;
+      overflow: hidden;
+      background: radial-gradient(circle, #1e293b 10%, #0f172a 90%);
+    }
+    #diagram-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    svg {
+      width: 100%;
+      height: 100%;
+    }
+    .controls {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(30, 41, 59, 0.85);
+      backdrop-filter: blur(8px);
+      padding: 6px;
+      border-radius: 8px;
+      border: 1px solid #475569;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      z-index: 5;
+    }
+    .ctrl-btn {
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      background: #334155;
+    }
+    .ctrl-btn:hover {
+      background: #475569;
+    }
+    #loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 16px;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>OfficeOS</h1>
+      <span>Database Entity-Relationship (ER) Architecture</span>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" onclick="copyMermaidCode()">📋 Copy Mermaid</button>
+      <button class="btn-emerald" onclick="downloadPNG()">🖼️ Download PNG</button>
+      <button onclick="downloadSVG()">⬇️ Download SVG (Vector)</button>
+    </div>
+  </header>
+
+  <div id="viewport">
+    <div id="loading">Rendering high-resolution diagram...</div>
+    <div id="diagram-container">
+      <pre class="mermaid" id="mermaid-code">
+erDiagram
+    ORGANIZATIONS ||--o{ PROFILES : "has members via"
+    ORGANIZATIONS ||--o{ ORGANIZATION_MEMBERSHIPS : "contains"
+    PROFILES ||--o{ ORGANIZATION_MEMBERSHIPS : "belongs to"
+    ORGANIZATIONS ||--o{ BRANCHES : "operates"
+    ORGANIZATIONS ||--o{ DEPARTMENTS : "contains"
+    ORGANIZATIONS ||--o{ EMPLOYEES : "employs"
+    ORGANIZATIONS ||--o{ ROLES : "defines"
+    ROLES ||--o{ ROLE_PERMISSIONS : "granted"
+    PERMISSIONS ||--o{ ROLE_PERMISSIONS : "includes"
+    ORGANIZATION_MEMBERSHIPS ||--o{ MEMBERSHIP_ROLES : "assigned"
+    ROLES ||--o{ MEMBERSHIP_ROLES : "references"
+
+    BRANCHES ||--o{ EMPLOYEES : "stationed at"
+    DEPARTMENTS ||--o{ EMPLOYEES : "assigned to"
+    PROFILES ||--o| EMPLOYEES : "linked user"
+    ORGANIZATION_MEMBERSHIPS ||--o| EMPLOYEES : "membership ref"
+
+    EMPLOYEES ||--o{ ATTENDANCE_RECORDS : "clocks in/out"
+    BRANCHES ||--o{ ATTENDANCE_RECORDS : "location"
+    EMPLOYEES ||--o{ LEAVE_REQUESTS : "requests"
+    LEAVE_TYPES ||--o{ LEAVE_REQUESTS : "classified under"
+    ORGANIZATIONS ||--o{ HOLIDAYS : "observes"
+
+    EMPLOYEES ||--o{ SALARY_STRUCTURES : "baseline pay"
+    ORGANIZATIONS ||--o{ PAYROLLS : "runs"
+    PAYROLLS ||--o{ PAYSLIPS : "disburses"
+    EMPLOYEES ||--o{ PAYSLIPS : "receives"
+    ORGANIZATIONS ||--o{ BONUSES : "campaigns"
+    BONUSES ||--o{ BONUS_ALLOCATIONS : "allocates"
+    EMPLOYEES ||--o{ BONUS_ALLOCATIONS : "awarded to"
+    PAYROLLS ||--o{ BONUS_ALLOCATIONS : "included in"
+    EMPLOYEES ||--o{ REIMBURSEMENT_CLAIMS : "submits"
+
+    ORGANIZATIONS ||--o{ CLIENTS : "serves"
+    CLIENTS ||--o{ CLIENT_CONTACTS : "has contacts"
+    CLIENTS ||--o{ PROJECTS : "funds"
+    PROJECTS ||--o{ PROJECT_MEMBERS : "staffed by"
+    EMPLOYEES ||--o{ PROJECT_MEMBERS : "member"
+    PROJECTS ||--o{ CLIENT_ENGAGEMENTS : "formalized as"
+    CLIENT_ENGAGEMENTS ||--o{ PROPOSALS : "contains"
+    CLIENT_ENGAGEMENTS ||--o{ AGREEMENTS : "signed via"
+    AGREEMENTS ||--o{ DIGITAL_SIGNATURES : "executed with"
+    CLIENT_ENGAGEMENTS ||--o{ WEEKLY_REPORTS : "tracks progress"
+    CLIENT_ENGAGEMENTS ||--o{ UAT_SESSIONS : "tests"
+    UAT_SESSIONS ||--o{ UAT_TEST_CASES : "verifies"
+    CLIENT_ENGAGEMENTS ||--o{ ENGAGEMENT_ISSUES : "logs"
+    CLIENT_ENGAGEMENTS ||--o{ CHANGE_REQUESTS : "scopes"
+    CLIENT_ENGAGEMENTS ||--o| PROJECT_HANDOVERS : "concludes"
+
+    ORGANIZATIONS ||--o{ VENDORS : "contracts"
+    ORGANIZATIONS ||--o{ PURCHASE_REQUESTS : "generates"
+    PURCHASE_REQUESTS ||--o{ PURCHASE_REQUEST_ITEMS : "details"
+    PURCHASE_REQUESTS ||--o| PURCHASE_ORDERS : "converts to"
+    VENDORS ||--o{ PURCHASE_ORDERS : "fulfills"
+    PURCHASE_ORDERS ||--o{ PURCHASE_ORDER_ITEMS : "contains"
+
+    ORGANIZATIONS ||--o{ ASSETS : "owns"
+    EMPLOYEES ||--o{ ASSETS : "custodian"
+    ASSETS ||--o{ MAINTENANCE_REQUESTS : "service requested"
+    ASSETS ||--o{ MAINTENANCE_RECORDS : "servicing logged"
+    VENDORS ||--o{ MAINTENANCE_RECORDS : "serviced by"
+
+    ORGANIZATIONS ||--o{ FINANCE_ACCOUNTS : "holds"
+    FINANCE_ACCOUNTS ||--o{ FINANCE_TRANSACTIONS : "records"
+    ORGANIZATIONS ||--o{ FINANCE_BUDGETS : "plans"
+
+    ORGANIZATIONS ||--o{ TRAINING_PROGRAMS : "conducts"
+    TRAINING_PROGRAMS ||--o{ TRAINING_SESSIONS : "schedules"
+    TRAINING_SESSIONS ||--o{ TRAINING_ENROLLMENTS : "enrolls"
+    EMPLOYEES ||--o{ TRAINING_ENROLLMENTS : "attends"
+
+    ORGANIZATIONS ||--o{ INTERNSHIPS : "hosts"
+    EMPLOYEES ||--o{ INTERNSHIPS : "mentors"
+    INTERNSHIPS ||--o{ INTERNSHIP_EVALUATIONS : "grades"
+
+    ORGANIZATIONS ||--o{ DOCUMENTS : "stores"
+    DOCUMENTS ||--o{ DOCUMENT_VERSIONS : "versions"
+
+    ORGANIZATIONS ||--o{ NOTIFICATIONS : "dispatches"
+    PROFILES ||--o{ NOTIFICATIONS : "receives"
+    PROFILES ||--o{ NOTIFICATION_PREFERENCES : "configures"
+
+    ORGANIZATIONS ||--o{ AUDIT_LOGS : "logs events"
+    ORGANIZATIONS ||--o{ AUTOMATION_WORKFLOWS : "triggers"
+    AUTOMATION_WORKFLOWS ||--o{ AUTOMATION_EXECUTIONS : "runs"
+    ORGANIZATIONS ||--o{ AI_CONVERSATIONS : "interacts"
+    AI_CONVERSATIONS ||--o{ AI_MESSAGES : "dialogue"
+      </pre>
+    </div>
+
+    <div class="controls">
+      <button class="ctrl-btn" onclick="panZoomInstance.zoomIn()" title="Zoom In">+</button>
+      <button class="ctrl-btn" onclick="panZoomInstance.zoomOut()" title="Zoom Out">−</button>
+      <button class="ctrl-btn" onclick="panZoomInstance.resetZoom(); panZoomInstance.center()" title="Reset">⟲</button>
+    </div>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      securityLevel: 'loose',
+      er: {
+        useMaxWidth: false,
+        layoutDirection: 'TB',
+        minEntityWidth: 140,
+        minEntityHeight: 80
+      }
+    });
+
+    let panZoomInstance = null;
+
+    window.addEventListener('load', async () => {
+      setTimeout(() => {
+        const svgEl = document.querySelector('#diagram-container svg');
+        if (svgEl) {
+          svgEl.style.width = '100%';
+          svgEl.style.height = '100%';
+          document.getElementById('loading').style.display = 'none';
+          panZoomInstance = svgPanZoom(svgEl, {
+            zoomEnabled: true,
+            controlIconsEnabled: false,
+            fit: true,
+            center: true,
+            minZoom: 0.2,
+            maxZoom: 10
+          });
+        }
+      }, 500);
+    });
+
+    function downloadSVG() {
+      const svgEl = document.querySelector('#diagram-container svg');
+      if (!svgEl) return alert('Diagram not ready yet');
+      const serializer = new XMLSerializer();
+      let source = serializer.serializeToString(svgEl);
+      if (!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)) {
+        source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+      }
+      const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'OfficeOS_ER_Diagram.svg';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function downloadPNG() {
+      const svgEl = document.querySelector('#diagram-container svg');
+      if (!svgEl) return alert('Diagram not ready yet');
+      const serializer = new XMLSerializer();
+      let source = serializer.serializeToString(svgEl);
+      const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = function() {
+        const bbox = svgEl.getBBox();
+        const canvas = document.createElement('canvas');
+        const scale = 2; // 2x for retina sharpness
+        canvas.width = Math.max(bbox.width * scale, 1600);
+        canvas.height = Math.max(bbox.height * scale, 1200);
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        const a = document.createElement('a');
+        a.href = canvas.toDataURL('image/png');
+        a.download = 'OfficeOS_ER_Diagram.png';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      };
+      img.src = url;
+    }
+
+    function copyMermaidCode() {
+      const raw = document.getElementById('mermaid-code').innerText;
+      navigator.clipboard.writeText(raw).then(() => {
+        alert('Mermaid ER code copied to clipboard!');
+      });
+    }
+  </script>
+</body>
+</html>
