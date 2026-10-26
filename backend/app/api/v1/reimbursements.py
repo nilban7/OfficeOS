@@ -3,14 +3,12 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import AuthenticatedUser
 from app.dependencies.auth import get_current_user
 from app.dependencies.tenant import get_tenant_session, require_permission
 from app.models.employee import Employee
-from app.models.identity import OrganizationMembership, Profile
 from app.schemas.common import ApiSuccess, PaginatedData
 from app.schemas.reimbursement import (
     ReimbursementClaimCreate,
@@ -20,6 +18,7 @@ from app.schemas.reimbursement import (
     ReimbursementReviewAction,
     ReimbursementSummaryKPI,
 )
+from app.services.attendance import resolve_employee_for_user
 from app.services.identity import get_user_permissions
 from app.services.reimbursement import ReimbursementService
 
@@ -36,28 +35,7 @@ FULL_REIMBURSEMENT_PERMISSIONS = {
 async def _resolve_employee(
     session: AsyncSession, organization_id: UUID, auth_user_id: UUID
 ) -> Employee | None:
-    query = (
-        select(Employee)
-        .join(Profile, Profile.id == Employee.profile_id)
-        .where(
-            Profile.auth_user_id == auth_user_id,
-            Employee.organization_id == organization_id,
-        )
-    )
-    emp = await session.scalar(query)
-    if emp is not None:
-        return emp
-
-    fallback_query = (
-        select(Employee)
-        .join(OrganizationMembership, OrganizationMembership.id == Employee.membership_id)
-        .join(Profile, Profile.id == OrganizationMembership.profile_id)
-        .where(
-            Profile.auth_user_id == auth_user_id,
-            OrganizationMembership.organization_id == organization_id,
-        )
-    )
-    return await session.scalar(fallback_query)
+    return await resolve_employee_for_user(session, organization_id, auth_user_id)
 
 
 @router.get(
