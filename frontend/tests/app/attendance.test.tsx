@@ -233,6 +233,7 @@ describe("AttendancePage Component", () => {
 
     expect(screen.getByText("Present Today")).toBeInTheDocument();
     expect(screen.getByText("Late Today")).toBeInTheDocument();
+    expect(screen.getByText("Half Day Today")).toBeInTheDocument();
     expect(screen.getByText("Alice Smith")).toBeInTheDocument();
     expect(screen.getByText("EMP-001 • Staff Engineer")).toBeInTheDocument();
     expect(screen.getByText("Regular shift")).toBeInTheDocument();
