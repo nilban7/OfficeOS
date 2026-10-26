@@ -117,7 +117,11 @@ class ReportsService:
         stmt = select(
             select(func.count(Employee.id)).where(Employee.organization_id == organization_id, Employee.status == "active").scalar_subquery().label("active_emp_count"),
             select(func.count(AttendanceRecord.id)).where(AttendanceRecord.organization_id == organization_id, AttendanceRecord.work_date == today).scalar_subquery().label("total_att_records_today"),
-            select(func.count(AttendanceRecord.id)).where(AttendanceRecord.organization_id == organization_id, AttendanceRecord.work_date == today, AttendanceRecord.status == "present").scalar_subquery().label("att_today_count"),
+            select(func.count(AttendanceRecord.id)).where(
+                AttendanceRecord.organization_id == organization_id,
+                AttendanceRecord.work_date == today,
+                AttendanceRecord.status.in_(["present", "late", "half_day"]),
+            ).scalar_subquery().label("att_today_count"),
             select(func.count(LeaveRequest.id)).where(LeaveRequest.organization_id == organization_id, LeaveRequest.status == "pending").scalar_subquery().label("pending_leaves"),
             select(func.count(Project.id)).where(Project.organization_id == organization_id, Project.status.in_(["active", "in_progress"])).scalar_subquery().label("active_projects"),
             select(func.count(Client.id)).where(Client.organization_id == organization_id, Client.status == "active").scalar_subquery().label("active_clients"),

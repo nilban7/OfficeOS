@@ -290,6 +290,17 @@ export default function AttendancePage() {
     return () => clearTimeout(t);
   }, [globalSuccess]);
 
+  // Invalidate cached dashboard overview so it refreshes immediately
+  const invalidateDashboardCache = React.useCallback(() => {
+    if (typeof window !== "undefined" && currentOrganization?.id) {
+      try {
+        localStorage.removeItem(`officeos_cached_overview_${currentOrganization.id}`);
+      } catch {
+        // Ignore
+      }
+    }
+  }, [currentOrganization?.id]);
+
   // Geolocation Acquisition Helper
   const acquireLocation = React.useCallback(async () => {
     if (typeof window === "undefined" || !navigator.geolocation) {
@@ -373,6 +384,7 @@ export default function AttendancePage() {
       );
       void fetchSummary();
       void fetchAttendanceList();
+      invalidateDashboardCache();
     } catch (err) {
       const msg = err instanceof ApiException ? err.message : "Failed to clock in";
       setGlobalError(msg);
@@ -413,6 +425,7 @@ export default function AttendancePage() {
       );
       void fetchSummary();
       void fetchAttendanceList();
+      invalidateDashboardCache();
     } catch (err) {
       const msg = err instanceof ApiException ? err.message : "Failed to clock out";
       setGlobalError(msg);
@@ -517,6 +530,7 @@ export default function AttendancePage() {
       void fetchSummary();
       void fetchAttendanceList();
       void fetchMyToday();
+      invalidateDashboardCache();
     } catch (err) {
       const msg = err instanceof ApiException ? err.message : "Failed to create attendance";
       setFormError(msg);
@@ -570,6 +584,7 @@ export default function AttendancePage() {
       void fetchSummary();
       void fetchAttendanceList();
       void fetchMyToday();
+      invalidateDashboardCache();
     } catch (err) {
       const msg = err instanceof ApiException ? err.message : "Failed to update attendance";
       setFormError(msg);
@@ -600,6 +615,7 @@ export default function AttendancePage() {
       void fetchSummary();
       void fetchAttendanceList();
       void fetchMyToday();
+      invalidateDashboardCache();
     } catch (err) {
       const msg = err instanceof ApiException ? err.message : "Failed to delete attendance";
       setGlobalError(msg);
@@ -632,21 +648,36 @@ export default function AttendancePage() {
     return `${hours}h ${minutes}m`;
   };
 
+  // Helper function to format date cleanly
+  const formatDate = (dateStr?: string | null): string => {
+    if (!dateStr) return "-";
+    try {
+      const parts = dateStr.split("-");
+      if (parts.length === 3) {
+        const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      }
+      return dateStr;
+    } catch {
+      return dateStr;
+    }
+  };
+
   // Status Badge Helper
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "present":
-        return <Badge variant="success">Present</Badge>;
+        return <Badge variant="success" className="whitespace-nowrap px-2.5 py-0.5 text-xs font-semibold">Present</Badge>;
       case "late":
-        return <Badge variant="warning">Late</Badge>;
+        return <Badge variant="warning" className="whitespace-nowrap px-2.5 py-0.5 text-xs font-semibold">Late</Badge>;
       case "half_day":
-        return <Badge variant="secondary">Half Day</Badge>;
+        return <Badge variant="secondary" className="whitespace-nowrap px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">Half Day</Badge>;
       case "absent":
-        return <Badge variant="destructive">Absent</Badge>;
+        return <Badge variant="destructive" className="whitespace-nowrap px-2.5 py-0.5 text-xs font-semibold">Absent</Badge>;
       case "on_leave":
-        return <Badge variant="info">On Leave</Badge>;
+        return <Badge variant="info" className="whitespace-nowrap px-2.5 py-0.5 text-xs font-semibold">On Leave</Badge>;
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge variant="outline" className="whitespace-nowrap px-2.5 py-0.5 text-xs font-semibold">{status}</Badge>;
     }
   };
 
@@ -727,9 +758,11 @@ export default function AttendancePage() {
           <CardContent className="p-4">
             <span className="text-xs font-medium text-emerald-600 block">Present Today</span>
             <span className="text-2xl font-bold text-emerald-700 mt-1 block">
-              {summary?.present_count ?? 0}
+              {(summary?.present_count ?? 0) + (summary?.half_day_count ?? 0)}
             </span>
-            <span className="text-[11px] text-slate-400">On time attendance</span>
+            <span className="text-[11px] text-slate-400">
+              {summary?.present_count ?? 0} on time{summary?.half_day_count ? ` • ${summary.half_day_count} half-day` : ""}
+            </span>
           </CardContent>
         </Card>
 
@@ -750,7 +783,7 @@ export default function AttendancePage() {
               {(summary?.absent_count ?? 0) + (summary?.on_leave_count ?? 0)}
             </span>
             <span className="text-[11px] text-slate-400">
-              {summary?.on_leave_count ?? 0} on approved leave
+              {summary?.absent_count ?? 0} absent • {summary?.on_leave_count ?? 0} on leave
             </span>
           </CardContent>
         </Card>
@@ -1134,119 +1167,120 @@ export default function AttendancePage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <table className="w-full text-left text-sm min-w-[1050px]">
+                <thead className="bg-slate-50/90 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
                   <tr>
-                    <th className="px-6 py-3.5">Employee</th>
-                    <th className="px-6 py-3.5">Department / Branch</th>
-                    <th className="px-6 py-3.5">Date</th>
-                    <th className="px-6 py-3.5">Clock In</th>
-                    <th className="px-6 py-3.5">Clock Out</th>
-                    <th className="px-6 py-3.5">Duration</th>
-                    <th className="px-6 py-3.5">Status</th>
-                    <th className="px-6 py-3.5">Verification & Location</th>
-                    <th className="px-6 py-3.5 text-right">Actions</th>
+                    <th className="px-6 py-3.5 whitespace-nowrap min-w-[240px]">Employee</th>
+                    <th className="px-6 py-3.5 whitespace-nowrap min-w-[180px]">Department / Branch</th>
+                    <th className="px-6 py-3.5 whitespace-nowrap min-w-[120px]">Date</th>
+                    <th className="px-6 py-3.5 whitespace-nowrap min-w-[95px]">Clock In</th>
+                    <th className="px-6 py-3.5 whitespace-nowrap min-w-[110px]">Clock Out</th>
+                    <th className="px-6 py-3.5 whitespace-nowrap min-w-[85px]">Duration</th>
+                    <th className="px-6 py-3.5 whitespace-nowrap min-w-[105px]">Status</th>
+                    <th className="px-6 py-3.5 whitespace-nowrap min-w-[180px]">Verification & Location</th>
+                    <th className="px-6 py-3.5 whitespace-nowrap min-w-[130px] text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {attendanceData.items.map((rec) => (
                     <tr key={rec.id} className="hover:bg-slate-50/70 transition-colors">
                       {/* Employee */}
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-3">
-                          <div className="h-9 w-9 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-xs">
+                          <div className="h-9 w-9 shrink-0 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-xs ring-2 ring-white shadow-xs">
                             {rec.employee?.first_name?.[0] || "E"}
                           </div>
-                          <div>
-                            <span className="font-semibold text-slate-800 block text-sm">
+                          <div className="min-w-0">
+                            <span className="font-semibold text-slate-900 block text-sm leading-tight whitespace-nowrap">
                               {rec.employee
                                 ? `${rec.employee.first_name} ${rec.employee.last_name}`
                                 : "Unknown Employee"}
                             </span>
-                            <span className="text-xs text-slate-400">
-                              {rec.employee?.employee_code || "—"} •{" "}
-                              {rec.employee?.designation || "—"}
+                            <span className="text-xs text-slate-500 mt-0.5 block whitespace-nowrap">
+                              {rec.employee?.employee_code || "—"} • {rec.employee?.designation || "—"}
                             </span>
                           </div>
                         </div>
                       </td>
 
                       {/* Department / Branch */}
-                      <td className="px-6 py-4 text-xs text-slate-600">
-                        <div className="font-medium text-slate-800">
+                      <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-600">
+                        <div className="font-medium text-slate-800 whitespace-nowrap">
                           {rec.employee?.department_name || "—"}
                         </div>
-                        <div className="text-slate-400">
-                          {rec.branch?.name || rec.employee?.branch_name || "—"}
+                        <div className="text-slate-400 text-[11px] whitespace-nowrap flex items-center gap-1 mt-0.5">
+                          <MapPin className="h-2.5 w-2.5 text-slate-400 shrink-0" />
+                          <span>{rec.branch?.name || rec.employee?.branch_name || "Headquarters"}</span>
                         </div>
                       </td>
 
                       {/* Date */}
-                      <td className="px-6 py-4 text-xs font-medium text-slate-700">
-                        {rec.work_date}
+                      <td className="px-6 py-4 whitespace-nowrap text-xs font-semibold text-slate-700">
+                        {formatDate(rec.work_date)}
                       </td>
 
                       {/* Clock In */}
-                      <td className="px-6 py-4 text-xs text-slate-700 font-medium">
+                      <td className="px-6 py-4 whitespace-nowrap font-mono text-xs text-slate-800 font-medium">
                         {formatTime(rec.check_in_at)}
                       </td>
 
                       {/* Clock Out */}
-                      <td className="px-6 py-4 text-xs">
+                      <td className="px-6 py-4 whitespace-nowrap text-xs">
                         {rec.check_out_at ? (
-                          <span className="text-slate-700 font-medium">
+                          <span className="font-mono text-slate-800 font-medium whitespace-nowrap">
                             {formatTime(rec.check_out_at)}
                           </span>
                         ) : rec.check_in_at ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 whitespace-nowrap">
+                            <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
                             In Progress
                           </span>
                         ) : (
-                          <span className="text-slate-400">—</span>
+                          <span className="text-slate-400 whitespace-nowrap">—</span>
                         )}
                       </td>
 
                       {/* Duration */}
-                      <td className="px-6 py-4 text-xs font-semibold text-slate-700">
+                      <td className="px-6 py-4 whitespace-nowrap font-mono text-xs font-semibold text-slate-700">
                         {calculateDuration(rec.check_in_at, rec.check_out_at)}
                       </td>
 
                       {/* Status */}
-                      <td className="px-6 py-4">{getStatusBadge(rec.status)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(rec.status)}</td>
 
                       {/* Verification & Location */}
-                      <td className="px-6 py-4 text-xs">
-                        <div className="flex flex-col gap-1 items-start">
+                      <td className="px-6 py-4 whitespace-nowrap text-xs">
+                        <div className="flex flex-col gap-1 items-start whitespace-nowrap">
                           {rec.verification_method === "fingerprint" || rec.verification_method === "biometric" ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-violet-50 text-violet-700 border border-violet-200">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-violet-50 text-violet-700 border border-violet-200 whitespace-nowrap">
                               <Fingerprint className="h-3 w-3" /> Fingerprint
                             </span>
                           ) : rec.latitude && rec.longitude ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                              <MapPin className="h-3 w-3" /> GPS Verified
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
+                              <Navigation className="h-3 w-3" /> GPS Verified
                             </span>
                           ) : rec.verification_method === "manual" ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
                               <Edit2 className="h-3 w-3" /> Manual (HR)
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
                               <Clock className="h-3 w-3" /> Web Portal
                             </span>
                           )}
 
                           {rec.location_name ? (
-                            <span className="text-[11px] text-slate-500 flex items-center gap-1 max-w-[170px] truncate" title={rec.location_name}>
+                            <span className="text-[11px] text-slate-500 flex items-center gap-1 max-w-[200px] truncate whitespace-nowrap" title={rec.location_name}>
                               <MapPin className="h-2.5 w-2.5 text-slate-400 shrink-0" /> {rec.location_name}
                             </span>
                           ) : rec.latitude && rec.longitude ? (
-                            <span className="text-[10px] text-slate-400 font-mono">
+                            <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap">
                               {Number(rec.latitude).toFixed(3)}°, {Number(rec.longitude).toFixed(3)}°
                             </span>
                           ) : null}
 
                           {rec.notes ? (
-                            <span className="text-[11px] text-slate-500 italic max-w-[170px] truncate" title={rec.notes}>
+                            <span className="text-[11px] text-slate-500 italic max-w-[200px] truncate whitespace-nowrap block" title={rec.notes}>
                               {rec.notes}
                             </span>
                           ) : null}
@@ -1254,8 +1288,8 @@ export default function AttendancePage() {
                       </td>
 
                       {/* Actions */}
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                           {!rec.check_out_at && rec.check_in_at && (isPrivileged || rec.employee_id === myTodayRecord?.employee_id) && canUpdate && (
                             <Button
                               variant="outline"
@@ -1264,10 +1298,11 @@ export default function AttendancePage() {
                                 setQuickClockOutRecord(rec);
                                 setIsQuickClockOutOpen(true);
                               }}
-                              className="text-xs h-7 px-2 text-rose-600 border-rose-200 hover:bg-rose-50"
+                              className="text-xs h-7 px-2.5 text-rose-600 border-rose-200 hover:bg-rose-50 whitespace-nowrap font-medium flex items-center gap-1"
                               title="Clock out"
                             >
-                              <LogOut className="h-3.5 w-3.5 mr-1" /> Clock Out
+                              <LogOut className="h-3.5 w-3.5" />
+                              <span>Clock Out</span>
                             </Button>
                           )}
                           {isPrivileged && canUpdate && (
@@ -1275,7 +1310,7 @@ export default function AttendancePage() {
                               variant="ghost"
                               size="sm"
                               onClick={() => openEditModal(rec)}
-                              className="h-8 w-8 p-0 text-slate-500 hover:text-slate-900"
+                              className="h-8 w-8 p-0 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100"
                               title="Edit attendance"
                             >
                               <Edit2 className="h-4 w-4" />
@@ -1286,7 +1321,7 @@ export default function AttendancePage() {
                               variant="ghost"
                               size="sm"
                               onClick={() => openDeleteModal(rec)}
-                              className="h-8 w-8 p-0 text-rose-500 hover:text-rose-700"
+                              className="h-8 w-8 p-0 text-rose-500 hover:text-rose-700 rounded-md hover:bg-rose-50"
                               title="Delete record"
                             >
                               <Trash2 className="h-4 w-4" />

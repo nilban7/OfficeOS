@@ -123,44 +123,37 @@ export default function DashboardPage() {
   // Official 5-Day Workweek Attendance (Mon – Fri, excluding weekends)
   const attendanceBars: BarChartItem[] = React.useMemo(() => {
     const workDays = ["Mon", "Tue", "Wed", "Thu", "Fri"];
-    // JS getDay(): 0 is Sunday, 1 is Monday ... 5 is Friday, 6 is Saturday
     const currentDay = new Date().getDay();
     const totalStaff = overview?.active_employees_count || 4;
 
-    if (attendance?.daily_trends && attendance.daily_trends.length > 0) {
-      const filtered = attendance.daily_trends
-        .filter((d) => {
-          const day = new Date(d.date).getDay();
-          return day >= 1 && day <= 5;
-        })
-        .slice(-5);
-
-      if (filtered.length === 5) {
-        return filtered.map((d) => {
-          const dateObj = new Date(d.date);
-          const dayLabel = dateObj.toLocaleDateString("en-US", { weekday: "short" });
-          return {
-            label: dayLabel,
-            value: d.present_count,
-            formattedValue: `${d.present_count} / ${totalStaff} Present`,
-            colorClass: d.present_count > 0 ? "bg-primary-600" : "bg-slate-300",
-          };
-        });
+    // Map day-of-week -> active count from trends (sum of present, late, half_day)
+    const dayMap = new Map<number, number>();
+    if (attendance?.daily_trends) {
+      for (const d of attendance.daily_trends) {
+        const dObj = new Date(d.date);
+        const dayNum = dObj.getDay();
+        const activeCount = (d.present_count || 0) + (d.late_count || 0) + (d.half_day_count || 0);
+        dayMap.set(dayNum, activeCount);
       }
     }
 
-    // Default clean 5-workday pattern (Mon – Fri)
     return workDays.map((day, idx) => {
-      const isToday = currentDay >= 1 && currentDay <= 5 && idx === currentDay - 1;
+      const dayNum = idx + 1; // 1 = Mon, 5 = Fri
+      const isToday = currentDay === dayNum;
       const isPast =
-        (currentDay >= 1 && currentDay <= 5 && idx < currentDay - 1) ||
+        (currentDay >= 1 && currentDay <= 5 && dayNum < currentDay) ||
         currentDay === 0 ||
         currentDay === 6;
-      const count = isToday
-        ? overview?.attendance_today_count || 0
-        : isPast
-        ? Math.max(1, totalStaff - (idx % 2 === 0 ? 0 : 1))
-        : 0;
+
+      let count = 0;
+      if (isToday) {
+        count = overview?.attendance_today_count ?? (dayMap.get(dayNum) ?? 0);
+      } else if (dayMap.has(dayNum)) {
+        count = dayMap.get(dayNum)!;
+      } else if (isPast) {
+        count = Math.max(1, totalStaff - (idx % 2 === 0 ? 0 : 1));
+      }
+
       return {
         label: day,
         value: count,
