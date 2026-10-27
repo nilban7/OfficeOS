@@ -98,7 +98,7 @@ async def create_conversation(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid organization id") from exc
 
-    user_perms = await get_user_permissions(session, current_user)
+    user_perms = await get_user_permissions(session, current_user, org_id)
     ip_address = request.client.host if request.client else None
 
     detail = await AIService.create_conversation(
@@ -173,7 +173,7 @@ async def send_message(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid organization id") from exc
 
-    user_perms = await get_user_permissions(session, current_user)
+    user_perms = await get_user_permissions(session, current_user, org_id)
     updated_conv = await AIService.send_message(
         session=session,
         organization_id=org_id,
@@ -198,7 +198,7 @@ async def direct_query(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid organization id") from exc
 
-    user_perms = await get_user_permissions(session, current_user)
+    user_perms = await get_user_permissions(session, current_user, org_id)
     result = await AIService.direct_query(
         session=session,
         organization_id=org_id,
