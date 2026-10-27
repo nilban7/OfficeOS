@@ -141,10 +141,13 @@ class AIService:
 
     @staticmethod
     def build_system_instruction(organization_id: UUID) -> str:
+        current_date_str = datetime.now(UTC).strftime("%Y-%m-%d")
         return f"""You are the OfficeOS AI Assistant for organization '{organization_id}'.
+Today's date is: {current_date_str}.
 You have access to live database queries via the `query_database` tool.
-Always use `query_database` whenever the user asks for specific records, counts, salaries, payroll, clients, branches, projects, or attendance.
+Always use `query_database` when answering questions about attendance, employees, branches, clients, payroll, etc.
 Every SELECT query MUST include WHERE organization_id = '{organization_id}'.
+DO NOT emit preliminary thought messages (such as "Let me check..."). Simply call the `query_database` tool immediately or provide the final answer.
 
 Key Database Tables & Schemas:
 - employees (id, employee_code, first_name, last_name, designation, department_id, status, employment_type, date_of_joining)
@@ -154,7 +157,9 @@ Key Database Tables & Schemas:
 - client_engagements (id, client_id, project_id, title, engagement_code, current_stage, delivery_health, progress_percentage, contract_value, currency)
 - projects (id, name, project_code, status, budget, start_date, end_date)
 - operation_tasks (id, title, priority, status, due_date)
-- attendance_records (id, employee_id, date, status, check_in_time, check_out_time, work_hours)
+- attendance_records (id, employee_id, branch_id, work_date, check_in_at, check_out_at, status, notes)
+  * Note: Use `work_date` (NOT `date`), `check_in_at` (timestamp), `check_out_at` (timestamp).
+  * To check who is present today: query `attendance_records` where `work_date = '{current_date_str}'` and `status = 'present'`.
 - leave_requests (id, employee_id, leave_type_id, start_date, end_date, total_days, status)
 - leave_types (id, name)
 - salary_structures (id, employee_id, base_salary, hra, payment_frequency, is_active)
@@ -885,12 +890,47 @@ Important Rules:
             tot = att_res.total or 0
             pres = (att_res.present or 0) + (att_res.late or 0)
             rate = f"{(pres / tot * 100):.1f}" if tot > 0 else "0.0"
+            today = datetime.now(UTC).date()
+            today_att_stmt = (
+                select(
+                    Employee.first_name,
+                    Employee.last_name,
+                    Employee.employee_code,
+                    Employee.designation,
+                    AttendanceRecord.status,
+                    AttendanceRecord.check_in_at,
+                    AttendanceRecord.check_out_at,
+                )
+                .join(Employee, AttendanceRecord.employee_id == Employee.id)
+                .where(
+                    AttendanceRecord.organization_id == organization_id,
+                    AttendanceRecord.work_date == today,
+                )
+                .order_by(AttendanceRecord.check_in_at.asc().nulls_last())
+            )
+            today_rows = (await session.execute(today_att_stmt)).all()
+            today_present = [
+                {
+                    "name": f"{r.first_name} {r.last_name}",
+                    "code": r.employee_code,
+                    "designation": r.designation,
+                    "status": r.status,
+                    "check_in": r.check_in_at.strftime("%I:%M %p") if r.check_in_at else "N/A",
+                    "check_out": r.check_out_at.strftime("%I:%M %p") if r.check_out_at else "In Progress",
+                }
+                for r in today_rows
+                if r.status in ("present", "late")
+            ]
+
             context["attendance"] = {
                 "total_records": tot,
                 "present_count": att_res.present or 0,
                 "late_count": att_res.late or 0,
                 "absent_count": att_res.absent or 0,
                 "attendance_rate": rate,
+                "today_date": str(today),
+                "today_present_count": len(today_present),
+                "today_present_employees": today_present,
             }
 
         # 3. Leave

@@ -98,10 +98,18 @@ def synthesize_context_response(
     # Attendance context
     if "attendance" in context_data:
         att = context_data["attendance"]
+        today_att = att.get("today_present_employees", [])
+        today_lines = ""
+        if today_att:
+            t_lines = [f"  • **{e.get('name')}** ({e.get('code', 'N/A')}) — {e.get('designation', 'Staff')} [In: {e.get('check_in')}]" for e in today_att]
+            today_lines = f"\n\n**Present Today ({att.get('today_date', 'Today')})**:\n" + "\n".join(t_lines)
+
         sections.append(
-            f"⏱️ **Attendance Summary (Recent)**:\n"
-            f"- Attendance Rate: {att.get('attendance_rate', '0.0')}%\n"
+            f"⏱️ **Attendance Summary**:\n"
+            f"- Today's Attendees: {att.get('today_present_count', 0)} present.\n"
+            f"- Cumulative Attendance Rate: {att.get('attendance_rate', '0.0')}%\n"
             f"- Present: {att.get('present_count', 0)} | Late check-ins: {att.get('late_count', 0)} | Absences: {att.get('absent_count', 0)}."
+            f"{today_lines}"
         )
 
     # Leave context
