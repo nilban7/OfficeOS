@@ -41,6 +41,15 @@ from app.models.project import Project, ProjectMember
 from app.models.reimbursement import ReimbursementClaim
 from app.models.saas import PlatformAnnouncement, PlatformConfiguration
 from app.models.training import TrainingEnrollment, TrainingProgram, TrainingSession
+from app.models.travel import (
+    TravelActivityLog,
+    TravelExpense,
+    TravelItinerary,
+    TravelMember,
+    TravelPayment,
+    TravelSettlement,
+    TravelTrip,
+)
 
 __all__ = [
     "AIConfiguration",
@@ -111,5 +120,12 @@ __all__ = [
     "TrainingEnrollment",
     "TrainingProgram",
     "TrainingSession",
+    "TravelActivityLog",
+    "TravelExpense",
+    "TravelItinerary",
+    "TravelMember",
+    "TravelPayment",
+    "TravelSettlement",
+    "TravelTrip",
     "Vendor",
 ]

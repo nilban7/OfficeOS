@@ -28,6 +28,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Handshake,
+  Plane,
 } from "lucide-react";
 import { ROUTES } from "./routes";
 import type { NavSection } from "@/types/navigation";
@@ -99,6 +100,12 @@ export const MAIN_NAVIGATION: NavSection[] = [
         href: ROUTES.REIMBURSEMENTS,
         icon: Receipt,
         requiredPermissions: ["reimbursements.view", "reimbursements.create", "reimbursements:read"],
+      },
+      {
+        title: "Travel Management",
+        href: ROUTES.TRAVEL,
+        icon: Plane,
+        requiredPermissions: ["travel.view", "travel.create"],
       },
       {
         title: "Training",
