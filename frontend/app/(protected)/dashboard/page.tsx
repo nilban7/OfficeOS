@@ -117,8 +117,23 @@ export default function DashboardPage() {
     };
   }, [currentOrganization?.id]);
 
-  const greetingName =
-    user?.firstName || user?.fullName || user?.email?.split("@")[0] || "OfficeOS Leader";
+  const greetingName = React.useMemo(() => {
+    if (user?.firstName) return user.firstName;
+    if (user?.fullName && user.fullName.toLowerCase() !== "officeos") return user.fullName;
+    const prefix = user?.email?.split("@")[0] || "";
+    if (prefix.toLowerCase() === "officeos" || prefix.toLowerCase().includes("niladri") || prefix.toLowerCase().includes("nilban")) {
+      return "Niladri";
+    }
+    return prefix ? prefix.charAt(0).toUpperCase() + prefix.slice(1) : "Leader";
+  }, [user]);
+
+  const todayFormatted = React.useMemo(() => {
+    return new Date().toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+  }, []);
 
   // Official 5-Day Workweek Attendance (Mon – Fri, excluding weekends)
   const attendanceBars: BarChartItem[] = React.useMemo(() => {
@@ -197,29 +212,45 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Clean, Elegant Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200/80 pb-5">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
-            Welcome back, {greetingName}
-          </h1>
-          <p className="mt-1 text-xs sm:text-sm text-slate-500">
-            Real-time organizational overview for{" "}
-            <span className="font-semibold text-slate-700">
-              {currentOrganization?.name || "Niladri Organization Workflow"}
+      {/* Minimalist, Branded Dashboard Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200/70 pb-5">
+        <div className="space-y-1.5">
+          {/* Branded Organization Pill with Live Status Indicator */}
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary-50 text-primary-700 border border-primary-200/60 shadow-2xs">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>{currentOrganization?.name || "Niladri Organization Workflow"}</span>
             </span>
-            .
+            <span className="text-slate-300">•</span>
+            <span className="text-[11px] font-medium text-slate-400">
+              {todayFormatted}
+            </span>
+          </div>
+
+          {/* Minimalist Branded Title */}
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
+            Welcome back,{" "}
+            <span className="bg-gradient-to-r from-primary-600 via-indigo-600 to-indigo-700 bg-clip-text text-transparent">
+              {greetingName}
+            </span>
+          </h1>
+
+          {/* Clean Contextual Subtitle */}
+          <p className="text-xs sm:text-sm text-slate-500 font-normal">
+            Here&apos;s your workspace pulse, attendance trends, and active operations today.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2 shrink-0">
           <Link href={ROUTES.ENGAGEMENTS}>
-            <Button size="sm" variant="outline" className="text-xs">
-              Client Engagements
+            <Button size="sm" variant="outline" className="text-xs h-9 px-3.5 border-slate-200 text-slate-700 hover:bg-slate-50 shadow-2xs">
+              <Briefcase className="h-3.5 w-3.5 mr-1.5 text-slate-400" />
+              <span>Engagements</span>
             </Button>
           </Link>
           <Link href={ROUTES.PROJECTS}>
-            <Button size="sm" className="text-xs flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700">
+            <Button size="sm" className="text-xs h-9 px-3.5 flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white shadow-xs">
               <Plus className="h-3.5 w-3.5" />
               <span>New Project</span>
             </Button>
