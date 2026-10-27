@@ -38,6 +38,7 @@ html {
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -45,6 +46,16 @@ body {
   background: hsl(var(--background));
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   min-height: 100vh;
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+}
+
+/* Mobile Touch & Safe Area Ergonomics */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: min(0vmin, env(safe-area-inset-left));
+    padding-right: min(0vmin, env(safe-area-inset-right));
+  }
 }
 
 /* Tabular figures for clean vertical alignment in metrics and data tables */

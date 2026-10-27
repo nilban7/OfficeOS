@@ -55,7 +55,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
+        <div className="flex-1 overflow-y-auto px-4 py-4 pb-12 space-y-6">
           {MAIN_NAVIGATION.map((section, idx) => {
             const visibleItems = section.items.filter((item) => {
               if (!item.requiredPermissions || item.requiredPermissions.length === 0) {

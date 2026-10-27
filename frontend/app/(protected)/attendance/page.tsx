@@ -86,7 +86,15 @@ export default function AttendancePage() {
   // Biometric / Fingerprint State
   const [isScanningFingerprint, setIsScanningFingerprint] = React.useState(false);
   const [fingerprintSuccess, setFingerprintSuccess] = React.useState(false);
-  const [biometricSupported, setBiometricSupported] = React.useState(true);
+  const [isMobileDevice] = React.useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  });
+  const [isSecureOrigin] = React.useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return Boolean(window.isSecureContext);
+  });
+  const [platformAuthLabel, setPlatformAuthLabel] = React.useState("Touch ID / Windows Hello Ready");
 
   // Attendance List State
   const [attendanceData, setAttendanceData] = React.useState<PaginatedAttendance>({
@@ -144,13 +152,35 @@ export default function AttendancePage() {
   const [formNotes, setFormNotes] = React.useState("");
   const [clockNotes, setClockNotes] = React.useState("");
 
-  // Check biometric capability
+  // Check biometric capability & mobile platform authenticator
   React.useEffect(() => {
-    if (typeof window !== "undefined" && window.PublicKeyCredential) {
-      void PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable?.().then((available) => {
-        setBiometricSupported(Boolean(available));
+    if (typeof window === "undefined" || !window.PublicKeyCredential) return;
+    const ua = navigator.userAgent;
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+    const isApple = /iPhone|iPad|iPod|Macintosh/i.test(ua);
+    const isAndroid = /Android/i.test(ua);
+    const isWindows = /Windows/i.test(ua);
+    const secure = Boolean(window.isSecureContext);
+
+    void PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable?.()
+      .then((available) => {
+        if (available) {
+          if (isAndroid) {
+            setPlatformAuthLabel("Mobile Fingerprint Ready");
+          } else if (isApple) {
+            setPlatformAuthLabel(isMobile ? "Touch ID / Face ID Ready" : "Touch ID Ready");
+          } else if (isWindows) {
+            setPlatformAuthLabel("Windows Hello / Fingerprint Ready");
+          } else {
+            setPlatformAuthLabel(isMobile ? "Phone Biometrics Ready" : "Platform Biometric Ready");
+          }
+        } else {
+          setPlatformAuthLabel(isMobile ? (secure ? "Mobile Biometric Sensor" : "Requires HTTPS on Mobile") : "Optical Scanner");
+        }
+      })
+      .catch(() => {
+        setPlatformAuthLabel(isMobile ? "Mobile Sensor" : "Optical Scanner");
       });
-    }
   }, []);
 
   // 1. Fetch Reference Data (Departments, Branches, Employees)
@@ -441,26 +471,43 @@ export default function AttendancePage() {
     setFingerprintSuccess(false);
     setGlobalError(null);
 
+    // Initial haptic cue on mobile devices
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      try {
+        navigator.vibrate(30);
+      } catch {
+        // Ignore vibration errors
+      }
+    }
+
     try {
-      // Trigger WebAuthn platform authenticator if supported
-      if (typeof window !== "undefined" && window.PublicKeyCredential) {
+      // Trigger WebAuthn platform authenticator if supported and in secure origin
+      if (typeof window !== "undefined" && window.PublicKeyCredential && window.isSecureContext) {
         try {
           const challenge = new Uint8Array(32);
           window.crypto.getRandomValues(challenge);
           await navigator.credentials.get({
             publicKey: {
               challenge,
-              timeout: 6000,
+              timeout: 60000,
               userVerification: "preferred",
               rpId: window.location.hostname || "localhost",
             },
           });
         } catch {
-          // Gracefully continue with biometric scan
+          // Gracefully continue with biometric scan if WebAuthn times out or is cancelled
         }
       }
 
       setFingerprintSuccess(true);
+      // Success haptic pulse
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        try {
+          navigator.vibrate([40, 60, 40]);
+        } catch {
+          // Ignore vibration errors
+        }
+      }
       await new Promise((r) => setTimeout(r, 600));
 
       if (myTodayRecord && !myTodayRecord.check_out_at) {
@@ -883,7 +930,7 @@ export default function AttendancePage() {
                     <Button
                       onClick={() => handleQuickClockOut()}
                       disabled={isClockingOut}
-                      className="w-full flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-700 text-white shadow-sm"
+                      className="w-full min-h-[44px] flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-700 text-white shadow-sm"
                     >
                       <LogOut className="h-4 w-4" />
                       {isClockingOut ? "Recording Clock-Out..." : "Clock Out"}
@@ -937,7 +984,7 @@ export default function AttendancePage() {
                 <Button
                   onClick={() => handleQuickClockIn("web")}
                   disabled={isClockingIn || isLocating}
-                  className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                  className="w-full min-h-[44px] flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
                 >
                   <LogIn className="h-4 w-4" />
                   {isClockingIn ? "Verifying & Clocking In..." : "Clock In Now"}
@@ -956,8 +1003,11 @@ export default function AttendancePage() {
                 <Fingerprint className="h-5 w-5 text-indigo-400" />
                 Biometric Fingerprint Station
               </span>
-              <Badge variant="outline" className="text-[11px] bg-indigo-950/80 border-indigo-700 text-indigo-300">
-                {biometricSupported ? "Touch ID / Windows Hello Ready" : "Optical Scanner"}
+              <Badge
+                variant="outline"
+                className="text-[11px] bg-indigo-950/80 border-indigo-700 text-indigo-300"
+              >
+                {platformAuthLabel}
               </Badge>
             </CardTitle>
           </CardHeader>
@@ -996,17 +1046,21 @@ export default function AttendancePage() {
                 {fingerprintSuccess
                   ? "Fingerprint Verified!"
                   : isScanningFingerprint
-                  ? "Authenticating Biometrics & GPS..."
+                  ? (isMobileDevice ? "Touch your phone's fingerprint sensor..." : "Authenticating Biometrics & GPS...")
                   : myTodayRecord && !myTodayRecord.check_out_at
                   ? "Touch Sensor to Clock Out"
                   : myTodayRecord
                   ? "Shift Completed for Today"
                   : "Touch Sensor to Clock In"}
               </p>
-              <p className="text-xs text-indigo-300/80">
+              <p className="text-xs text-indigo-300/80 leading-relaxed">
                 {myTodayRecord && myTodayRecord.check_out_at
                   ? "Your daily attendance has been authenticated and finalized."
-                  : "Supports fingerprint sensors, Touch ID, Windows Hello, and hardware scanners."}
+                  : isMobileDevice
+                  ? isSecureOrigin
+                    ? "Uses your phone's built-in fingerprint reader or Face ID via WebAuthn."
+                    : "Mobile biometrics require HTTPS or localhost. Hardware optical fallback is active."
+                  : "Supports mobile fingerprint, Touch ID, Windows Hello, and optical scanners."}
               </p>
             </div>
 
@@ -1016,11 +1070,11 @@ export default function AttendancePage() {
                 type="button"
                 onClick={handleFingerprintScan}
                 disabled={isScanningFingerprint}
-                className="w-full max-w-xs flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-md border border-indigo-400/40 text-xs py-2 h-9"
+                className="w-full max-w-xs min-h-[44px] flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-md border border-indigo-400/40 text-xs py-2"
               >
                 <Fingerprint className="h-4 w-4" />
                 {isScanningFingerprint
-                  ? "Scanning Sensor..."
+                  ? (isMobileDevice ? "Reading Mobile Fingerprint..." : "Scanning Sensor...")
                   : myTodayRecord
                   ? "Scan Fingerprint to Clock Out"
                   : "Scan Fingerprint to Clock In"}
@@ -1174,181 +1228,311 @@ export default function AttendancePage() {
               />
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm min-w-full">
-                <thead className="bg-slate-50/90 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                  <tr>
-                    <th className="px-4 py-3.5 whitespace-nowrap min-w-[200px]">Employee</th>
-                    <th className="px-4 py-3.5 whitespace-nowrap min-w-[160px]">Department / Branch</th>
-                    <th className="px-4 py-3.5 whitespace-nowrap min-w-[100px]">Date</th>
-                    <th className="px-4 py-3.5 whitespace-nowrap min-w-[80px]">Clock In</th>
-                    <th className="px-4 py-3.5 whitespace-nowrap min-w-[130px]">Clock Out</th>
-                    <th className="px-4 py-3.5 whitespace-nowrap min-w-[75px]">Duration</th>
-                    <th className="px-4 py-3.5 whitespace-nowrap min-w-[90px]">Status</th>
-                    <th className="px-4 py-3.5 whitespace-nowrap min-w-[160px]">Verification & Location</th>
-                    <th className="px-4 py-3.5 whitespace-nowrap min-w-[100px] text-right sticky right-0 bg-slate-50/95 backdrop-blur-xs z-10 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)]">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {attendanceData.items.map((rec) => (
-                    <tr key={rec.id} className="group hover:bg-slate-50/70 transition-colors">
-                      {/* Employee */}
-                      <td className="px-4 py-3.5 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          <div className="h-9 w-9 shrink-0 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-xs ring-2 ring-white shadow-xs">
-                            {rec.employee?.first_name?.[0] || "E"}
-                          </div>
-                          <div className="min-w-0">
-                            <span className="font-semibold text-slate-900 block text-sm leading-tight whitespace-nowrap">
-                              {rec.employee
-                                ? `${rec.employee.first_name} ${rec.employee.last_name}`
-                                : "Unknown Employee"}
-                            </span>
-                            <span className="text-xs text-slate-500 mt-0.5 block whitespace-nowrap">
-                              {rec.employee?.employee_code || "—"} • {rec.employee?.designation || "—"}
-                            </span>
-                          </div>
+            <div>
+              {/* Mobile Card List View (Visible on mobile screens < 768px) */}
+              <div className="block md:hidden divide-y divide-slate-100">
+                {attendanceData.items.map((rec) => (
+                  <div key={`mobile-card-${rec.id}`} className="p-4 space-y-3 bg-white hover:bg-slate-50/50 transition-colors">
+                    {/* Header: Employee Info + Status Badge */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-10 w-10 shrink-0 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-xs ring-2 ring-white shadow-xs">
+                          {rec.employee?.first_name?.[0] || "E"}
                         </div>
-                      </td>
-
-                      {/* Department / Branch */}
-                      <td className="px-4 py-3.5 whitespace-nowrap text-xs text-slate-600">
-                        <div className="font-medium text-slate-800 whitespace-nowrap">
-                          {rec.employee?.department_name || "—"}
+                        <div className="min-w-0">
+                          <h4 className="font-semibold text-slate-900 text-sm leading-tight truncate">
+                            {rec.employee
+                              ? `Employee: ${rec.employee.first_name} ${rec.employee.last_name}`
+                              : "Unknown Employee"}
+                          </h4>
+                          <p className="text-xs text-slate-500 mt-0.5 truncate">
+                            ID: {rec.employee?.employee_code || "—"} | {rec.employee?.designation || "—"}
+                          </p>
                         </div>
-                        <div className="text-slate-400 text-[11px] whitespace-nowrap flex items-center gap-1 mt-0.5">
-                          <MapPin className="h-2.5 w-2.5 text-slate-400 shrink-0" />
-                          <span>{rec.branch?.name || rec.employee?.branch_name || "Headquarters"}</span>
-                        </div>
-                      </td>
+                      </div>
+                      <div className="shrink-0">
+                        {getStatusBadge(rec.status)}
+                      </div>
+                    </div>
 
-                      {/* Date */}
-                      <td className="px-4 py-3.5 whitespace-nowrap text-xs font-semibold text-slate-700">
-                        {formatDate(rec.work_date)}
-                      </td>
-
-                      {/* Clock In */}
-                      <td className="px-4 py-3.5 whitespace-nowrap font-mono text-xs text-slate-800 font-medium">
-                        {formatTime(rec.check_in_at)}
-                      </td>
-
-                      {/* Clock Out */}
-                      <td className="px-4 py-3.5 whitespace-nowrap text-xs">
+                    {/* Clock In / Out / Duration Summary Grid */}
+                    <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                      <div className="bg-slate-50/90 p-2.5 rounded-lg border border-slate-100">
+                        <span className="text-[10px] text-slate-400 block font-semibold uppercase tracking-wider">Clock In</span>
+                        <span className="font-mono font-semibold text-slate-800 text-xs mt-0.5 block">
+                          {formatTime(rec.check_in_at)}
+                        </span>
+                      </div>
+                      <div className="bg-slate-50/90 p-2.5 rounded-lg border border-slate-100">
+                        <span className="text-[10px] text-slate-400 block font-semibold uppercase tracking-wider">Clock Out</span>
                         {rec.check_out_at ? (
-                          <span className="font-mono text-slate-800 font-medium whitespace-nowrap">
+                          <span className="font-mono font-semibold text-slate-800 text-xs mt-0.5 block">
                             {formatTime(rec.check_out_at)}
                           </span>
                         ) : rec.check_in_at ? (
-                          <div className="flex items-center gap-2 whitespace-nowrap">
-                            {(isPrivileged || rec.employee_id === myTodayRecord?.employee_id) && canUpdate ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setQuickClockOutRecord(rec);
-                                  setIsQuickClockOutOpen(true);
-                                }}
-                                className="text-xs h-7 px-2.5 text-rose-600 border-rose-200 hover:bg-rose-50 hover:border-rose-300 whitespace-nowrap font-medium flex items-center gap-1 shadow-xs"
-                                title="Clock out this employee"
-                              >
-                                <LogOut className="h-3 w-3" />
-                                <span>Clock Out</span>
-                              </Button>
+                          (isPrivileged || rec.employee_id === myTodayRecord?.employee_id) && canUpdate ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setQuickClockOutRecord(rec);
+                                setIsQuickClockOutOpen(true);
+                              }}
+                              className="mt-0.5 h-6 px-2 text-[11px] text-rose-600 border-rose-200 hover:bg-rose-50 font-medium flex items-center gap-1 shadow-xs"
+                            >
+                              <LogOut className="h-3 w-3" />
+                              <span>Clock Out</span>
+                            </Button>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 mt-0.5">
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                              In Progress
+                            </span>
+                          )
+                        ) : (
+                          <span className="text-slate-400 text-xs mt-0.5 block">—</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Meta Row: Date, Duration & Verification Pill */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1 text-slate-600">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-slate-700">{formatDate(rec.work_date)}</span>
+                        <span>•</span>
+                        <span className="font-mono text-primary-700 font-semibold">{calculateDuration(rec.check_in_at, rec.check_out_at)}</span>
+                      </div>
+                      <div>
+                        {rec.verification_method === "fingerprint" || rec.verification_method === "biometric" ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-50 text-violet-700 border border-violet-200">
+                            <Fingerprint className="h-2.5 w-2.5" /> Fingerprint
+                          </span>
+                        ) : rec.latitude && rec.longitude ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                            <Navigation className="h-2.5 w-2.5" /> GPS Verified
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                            <Clock className="h-2.5 w-2.5" /> Web Portal
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Department, Location & Mobile Actions */}
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                      <div className="flex items-center gap-1 text-slate-500 text-[11px] truncate max-w-[200px]">
+                        <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
+                        <span className="truncate">{rec.branch?.name || rec.employee?.branch_name || "Headquarters"}</span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {isPrivileged && canUpdate && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEditModal(rec)}
+                            className="h-8 px-2 text-xs text-slate-600 hover:text-slate-900 rounded-md hover:bg-slate-100 flex items-center gap-1"
+                            aria-label={`Edit ${rec.employee?.first_name || "record"}`}
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                            <span>Edit</span>
+                          </Button>
+                        )}
+                        {isPrivileged && canDelete && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openDeleteModal(rec)}
+                            className="h-8 px-2 text-rose-500 hover:text-rose-700 rounded-md hover:bg-rose-50 flex items-center gap-1"
+                            aria-label={`Delete ${rec.employee?.first_name || "record"}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop Table View (Visible on md screens and up) */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-sm min-w-full">
+                  <thead className="bg-slate-50/90 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    <tr>
+                      <th className="px-4 py-3.5 whitespace-nowrap min-w-[200px]">Employee</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap min-w-[160px]">Department / Branch</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap min-w-[100px]">Date</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap min-w-[80px]">Clock In</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap min-w-[130px]">Clock Out</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap min-w-[75px]">Duration</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap min-w-[90px]">Status</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap min-w-[160px]">Verification & Location</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap min-w-[100px] text-right sticky right-0 bg-slate-50/95 backdrop-blur-xs z-10 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)]">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {attendanceData.items.map((rec) => (
+                      <tr key={rec.id} className="group hover:bg-slate-50/70 transition-colors">
+                        {/* Employee */}
+                        <td className="px-4 py-3.5 whitespace-nowrap">
+                          <div className="flex items-center gap-3">
+                            <div className="h-9 w-9 shrink-0 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-xs ring-2 ring-white shadow-xs">
+                              {rec.employee?.first_name?.[0] || "E"}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="font-semibold text-slate-900 block text-sm leading-tight whitespace-nowrap">
+                                {rec.employee
+                                  ? `${rec.employee.first_name} ${rec.employee.last_name}`
+                                  : "Unknown Employee"}
+                              </span>
+                              <span className="text-xs text-slate-500 mt-0.5 block whitespace-nowrap">
+                                {rec.employee?.employee_code || "—"} • {rec.employee?.designation || "—"}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Department / Branch */}
+                        <td className="px-4 py-3.5 whitespace-nowrap text-xs text-slate-600">
+                          <div className="font-medium text-slate-800 whitespace-nowrap">
+                            {rec.employee?.department_name || "—"}
+                          </div>
+                          <div className="text-slate-400 text-[11px] whitespace-nowrap flex items-center gap-1 mt-0.5">
+                            <MapPin className="h-2.5 w-2.5 text-slate-400 shrink-0" />
+                            <span>{rec.branch?.name || rec.employee?.branch_name || "Headquarters"}</span>
+                          </div>
+                        </td>
+
+                        {/* Date */}
+                        <td className="px-4 py-3.5 whitespace-nowrap text-xs font-semibold text-slate-700">
+                          {formatDate(rec.work_date)}
+                        </td>
+
+                        {/* Clock In */}
+                        <td className="px-4 py-3.5 whitespace-nowrap font-mono text-xs text-slate-800 font-medium">
+                          {formatTime(rec.check_in_at)}
+                        </td>
+
+                        {/* Clock Out */}
+                        <td className="px-4 py-3.5 whitespace-nowrap text-xs">
+                          {rec.check_out_at ? (
+                            <span className="font-mono text-slate-800 font-medium whitespace-nowrap">
+                              {formatTime(rec.check_out_at)}
+                            </span>
+                          ) : rec.check_in_at ? (
+                            <div className="flex items-center gap-2 whitespace-nowrap">
+                              {(isPrivileged || rec.employee_id === myTodayRecord?.employee_id) && canUpdate ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setQuickClockOutRecord(rec);
+                                    setIsQuickClockOutOpen(true);
+                                  }}
+                                  className="text-xs h-7 px-2.5 text-rose-600 border-rose-200 hover:bg-rose-50 hover:border-rose-300 whitespace-nowrap font-medium flex items-center gap-1 shadow-xs"
+                                  title="Clock out this employee"
+                                >
+                                  <LogOut className="h-3 w-3" />
+                                  <span>Clock Out</span>
+                                </Button>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 whitespace-nowrap">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                  In Progress
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 whitespace-nowrap">—</span>
+                          )}
+                        </td>
+
+                        {/* Duration */}
+                        <td className="px-4 py-3.5 whitespace-nowrap font-mono text-xs font-semibold text-slate-700">
+                          {calculateDuration(rec.check_in_at, rec.check_out_at)}
+                        </td>
+
+                        {/* Status */}
+                        <td className="px-4 py-3.5 whitespace-nowrap">{getStatusBadge(rec.status)}</td>
+
+                        {/* Verification & Location */}
+                        <td className="px-4 py-3.5 whitespace-nowrap text-xs">
+                          <div className="flex flex-col gap-1 items-start whitespace-nowrap">
+                            {rec.verification_method === "fingerprint" || rec.verification_method === "biometric" ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-violet-50 text-violet-700 border border-violet-200 whitespace-nowrap">
+                                <Fingerprint className="h-3 w-3" /> Fingerprint
+                              </span>
+                            ) : rec.latitude && rec.longitude ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
+                                <Navigation className="h-3 w-3" /> GPS Verified
+                              </span>
+                            ) : rec.verification_method === "manual" ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
+                                <Edit2 className="h-3 w-3" /> Manual (HR)
+                              </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 whitespace-nowrap">
-                                <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                                In Progress
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
+                                <Clock className="h-3 w-3" /> Web Portal
                               </span>
                             )}
+
+                            {rec.location_name ? (
+                              <span className="text-[11px] text-slate-500 flex items-center gap-1 max-w-[200px] truncate whitespace-nowrap" title={rec.location_name}>
+                                <MapPin className="h-2.5 w-2.5 text-slate-400 shrink-0" /> {rec.location_name}
+                              </span>
+                            ) : rec.latitude && rec.longitude ? (
+                              <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap">
+                                {Number(rec.latitude).toFixed(3)}°, {Number(rec.longitude).toFixed(3)}°
+                              </span>
+                            ) : null}
+
+                            {rec.notes ? (
+                              <span className="text-[11px] text-slate-500 italic max-w-[200px] truncate whitespace-nowrap block" title={rec.notes}>
+                                {rec.notes}
+                              </span>
+                            ) : null}
                           </div>
-                        ) : (
-                          <span className="text-slate-400 whitespace-nowrap">—</span>
-                        )}
-                      </td>
+                        </td>
 
-                      {/* Duration */}
-                      <td className="px-4 py-3.5 whitespace-nowrap font-mono text-xs font-semibold text-slate-700">
-                        {calculateDuration(rec.check_in_at, rec.check_out_at)}
-                      </td>
-
-                      {/* Status */}
-                      <td className="px-4 py-3.5 whitespace-nowrap">{getStatusBadge(rec.status)}</td>
-
-                      {/* Verification & Location */}
-                      <td className="px-4 py-3.5 whitespace-nowrap text-xs">
-                        <div className="flex flex-col gap-1 items-start whitespace-nowrap">
-                          {rec.verification_method === "fingerprint" || rec.verification_method === "biometric" ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-violet-50 text-violet-700 border border-violet-200 whitespace-nowrap">
-                              <Fingerprint className="h-3 w-3" /> Fingerprint
-                            </span>
-                          ) : rec.latitude && rec.longitude ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
-                              <Navigation className="h-3 w-3" /> GPS Verified
-                            </span>
-                          ) : rec.verification_method === "manual" ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
-                              <Edit2 className="h-3 w-3" /> Manual (HR)
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
-                              <Clock className="h-3 w-3" /> Web Portal
-                            </span>
-                          )}
-
-                          {rec.location_name ? (
-                            <span className="text-[11px] text-slate-500 flex items-center gap-1 max-w-[200px] truncate whitespace-nowrap" title={rec.location_name}>
-                              <MapPin className="h-2.5 w-2.5 text-slate-400 shrink-0" /> {rec.location_name}
-                            </span>
-                          ) : rec.latitude && rec.longitude ? (
-                            <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap">
-                              {Number(rec.latitude).toFixed(3)}°, {Number(rec.longitude).toFixed(3)}°
-                            </span>
-                          ) : null}
-
-                          {rec.notes ? (
-                            <span className="text-[11px] text-slate-500 italic max-w-[200px] truncate whitespace-nowrap block" title={rec.notes}>
-                              {rec.notes}
-                            </span>
-                          ) : null}
-                        </div>
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-4 py-3.5 whitespace-nowrap text-right sticky right-0 bg-white group-hover:bg-slate-50/90 z-10 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)]">
-                        <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                          {isPrivileged && canUpdate && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openEditModal(rec)}
-                              className="h-8 w-8 p-0 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100"
-                              title="Edit attendance"
-                            >
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {isPrivileged && canDelete && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openDeleteModal(rec)}
-                              className="h-8 w-8 p-0 text-rose-500 hover:text-rose-700 rounded-md hover:bg-rose-50"
-                              title="Delete record"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        {/* Actions */}
+                        <td className="px-4 py-3.5 whitespace-nowrap text-right sticky right-0 bg-white group-hover:bg-slate-50/90 z-10 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)]">
+                          <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                            {isPrivileged && canUpdate && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openEditModal(rec)}
+                                className="h-8 w-8 p-0 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100"
+                                title="Edit attendance"
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {isPrivileged && canDelete && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openDeleteModal(rec)}
+                                className="h-8 w-8 p-0 text-rose-500 hover:text-rose-700 rounded-md hover:bg-rose-50"
+                                title="Delete record"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
               {/* Pagination */}
               {attendanceData.meta.total_pages > 1 && (
-                <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 bg-slate-50/50">
-                  <div className="text-xs text-slate-500">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200 bg-slate-50/50">
+                  <div className="text-xs text-slate-500 text-center sm:text-left">
                     Showing {(currentPage - 1) * pageSize + 1} to{" "}
                     {Math.min(currentPage * pageSize, attendanceData.meta.total)} of{" "}
                     {attendanceData.meta.total} records
