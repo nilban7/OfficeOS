@@ -66,14 +66,18 @@ export class ApiClient {
       window.location.hostname !== "localhost" &&
       window.location.hostname !== "127.0.0.1"
     ) {
-      try {
-        const parsed = new URL(this.baseUrl);
-        if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") {
-          parsed.hostname = window.location.hostname;
-          return parsed.toString().replace(/\/+$/, "");
+      // Only swap localhost with client hostname if accessing via a private LAN IP
+      const isLanIp = /^(?:192\.168\.|10\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(window.location.hostname);
+      if (isLanIp) {
+        try {
+          const parsed = new URL(this.baseUrl);
+          if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") {
+            parsed.hostname = window.location.hostname;
+            return parsed.toString().replace(/\/+$/, "");
+          }
+        } catch {
+          // Fallback to configured baseUrl
         }
-      } catch {
-        // Fallback to configured baseUrl
       }
     }
     return this.baseUrl;
