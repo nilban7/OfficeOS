@@ -52,12 +52,12 @@ function ProtectedLayoutContent({ children }: { children: React.ReactNode }) {
       {/* Main Content Area */}
       <div
         className={cn(
-          "flex flex-col min-h-screen transition-[padding] duration-200 ease-out",
+          "flex flex-col min-h-screen min-w-0 overflow-x-hidden transition-[padding] duration-200 ease-out",
           isCollapsed ? "md:pl-16" : "md:pl-64"
         )}
       >
         <AppHeader />
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-3.5 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto min-w-0">
           <PlatformAnnouncementBanner />
           {children}
         </main>

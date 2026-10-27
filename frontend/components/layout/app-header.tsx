@@ -14,6 +14,9 @@ import { MobileNav } from "./mobile-nav";
 
 export function AppHeader() {
   const [isMobileOpen, setIsMobileOpen] = React.useState(false);
+  const handleOpenMobile = React.useCallback(() => setIsMobileOpen(true), []);
+  const handleCloseMobile = React.useCallback(() => setIsMobileOpen(false), []);
+
   const { currentOrganization, permissions } = useOrganization();
   const [unreadCount, setUnreadCount] = React.useState<number>(0);
 
@@ -48,11 +51,11 @@ export function AppHeader() {
     <>
       <header className="sticky top-0 z-20 flex h-16 w-full items-center justify-between border-b border-slate-200/70 bg-white/90 px-4 sm:px-6 backdrop-blur-md shadow-subtle transition-all duration-200">
         {/* Left Section: Mobile Menu Trigger + Org Switcher */}
-        <div className="flex items-center space-x-2.5 sm:space-x-3.5">
+        <div className="flex items-center space-x-2 sm:space-x-3.5">
           <button
             type="button"
-            onClick={() => setIsMobileOpen(true)}
-            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 md:hidden transition-colors"
+            onClick={handleOpenMobile}
+            className="rounded-lg h-10 w-10 flex items-center justify-center text-slate-600 hover:bg-slate-100 hover:text-slate-900 md:hidden transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
             aria-label="Open mobile navigation"
           >
             <Menu className="h-5 w-5" />
@@ -96,7 +99,7 @@ export function AppHeader() {
       </header>
 
       {/* Mobile Drawer */}
-      <MobileNav isOpen={isMobileOpen} onClose={() => setIsMobileOpen(false)} />
+      <MobileNav isOpen={isMobileOpen} onClose={handleCloseMobile} />
     </>
   );
 }
