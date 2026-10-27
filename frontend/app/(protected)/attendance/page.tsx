@@ -1175,25 +1175,25 @@ export default function AttendancePage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm min-w-[1050px]">
+              <table className="w-full text-left text-sm min-w-full">
                 <thead className="bg-slate-50/90 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
                   <tr>
-                    <th className="px-6 py-3.5 whitespace-nowrap min-w-[240px]">Employee</th>
-                    <th className="px-6 py-3.5 whitespace-nowrap min-w-[180px]">Department / Branch</th>
-                    <th className="px-6 py-3.5 whitespace-nowrap min-w-[120px]">Date</th>
-                    <th className="px-6 py-3.5 whitespace-nowrap min-w-[95px]">Clock In</th>
-                    <th className="px-6 py-3.5 whitespace-nowrap min-w-[110px]">Clock Out</th>
-                    <th className="px-6 py-3.5 whitespace-nowrap min-w-[85px]">Duration</th>
-                    <th className="px-6 py-3.5 whitespace-nowrap min-w-[105px]">Status</th>
-                    <th className="px-6 py-3.5 whitespace-nowrap min-w-[180px]">Verification & Location</th>
-                    <th className="px-6 py-3.5 whitespace-nowrap min-w-[130px] text-right">Actions</th>
+                    <th className="px-4 py-3.5 whitespace-nowrap min-w-[200px]">Employee</th>
+                    <th className="px-4 py-3.5 whitespace-nowrap min-w-[160px]">Department / Branch</th>
+                    <th className="px-4 py-3.5 whitespace-nowrap min-w-[100px]">Date</th>
+                    <th className="px-4 py-3.5 whitespace-nowrap min-w-[80px]">Clock In</th>
+                    <th className="px-4 py-3.5 whitespace-nowrap min-w-[130px]">Clock Out</th>
+                    <th className="px-4 py-3.5 whitespace-nowrap min-w-[75px]">Duration</th>
+                    <th className="px-4 py-3.5 whitespace-nowrap min-w-[90px]">Status</th>
+                    <th className="px-4 py-3.5 whitespace-nowrap min-w-[160px]">Verification & Location</th>
+                    <th className="px-4 py-3.5 whitespace-nowrap min-w-[100px] text-right sticky right-0 bg-slate-50/95 backdrop-blur-xs z-10 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)]">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {attendanceData.items.map((rec) => (
-                    <tr key={rec.id} className="hover:bg-slate-50/70 transition-colors">
+                    <tr key={rec.id} className="group hover:bg-slate-50/70 transition-colors">
                       {/* Employee */}
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 py-3.5 whitespace-nowrap">
                         <div className="flex items-center gap-3">
                           <div className="h-9 w-9 shrink-0 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-xs ring-2 ring-white shadow-xs">
                             {rec.employee?.first_name?.[0] || "E"}
@@ -1212,7 +1212,7 @@ export default function AttendancePage() {
                       </td>
 
                       {/* Department / Branch */}
-                      <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-600">
+                      <td className="px-4 py-3.5 whitespace-nowrap text-xs text-slate-600">
                         <div className="font-medium text-slate-800 whitespace-nowrap">
                           {rec.employee?.department_name || "—"}
                         </div>
@@ -1223,41 +1223,59 @@ export default function AttendancePage() {
                       </td>
 
                       {/* Date */}
-                      <td className="px-6 py-4 whitespace-nowrap text-xs font-semibold text-slate-700">
+                      <td className="px-4 py-3.5 whitespace-nowrap text-xs font-semibold text-slate-700">
                         {formatDate(rec.work_date)}
                       </td>
 
                       {/* Clock In */}
-                      <td className="px-6 py-4 whitespace-nowrap font-mono text-xs text-slate-800 font-medium">
+                      <td className="px-4 py-3.5 whitespace-nowrap font-mono text-xs text-slate-800 font-medium">
                         {formatTime(rec.check_in_at)}
                       </td>
 
                       {/* Clock Out */}
-                      <td className="px-6 py-4 whitespace-nowrap text-xs">
+                      <td className="px-4 py-3.5 whitespace-nowrap text-xs">
                         {rec.check_out_at ? (
                           <span className="font-mono text-slate-800 font-medium whitespace-nowrap">
                             {formatTime(rec.check_out_at)}
                           </span>
                         ) : rec.check_in_at ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 whitespace-nowrap">
-                            <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                            In Progress
-                          </span>
+                          <div className="flex items-center gap-2 whitespace-nowrap">
+                            {(isPrivileged || rec.employee_id === myTodayRecord?.employee_id) && canUpdate ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setQuickClockOutRecord(rec);
+                                  setIsQuickClockOutOpen(true);
+                                }}
+                                className="text-xs h-7 px-2.5 text-rose-600 border-rose-200 hover:bg-rose-50 hover:border-rose-300 whitespace-nowrap font-medium flex items-center gap-1 shadow-xs"
+                                title="Clock out this employee"
+                              >
+                                <LogOut className="h-3 w-3" />
+                                <span>Clock Out</span>
+                              </Button>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 whitespace-nowrap">
+                                <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                In Progress
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-slate-400 whitespace-nowrap">—</span>
                         )}
                       </td>
 
                       {/* Duration */}
-                      <td className="px-6 py-4 whitespace-nowrap font-mono text-xs font-semibold text-slate-700">
+                      <td className="px-4 py-3.5 whitespace-nowrap font-mono text-xs font-semibold text-slate-700">
                         {calculateDuration(rec.check_in_at, rec.check_out_at)}
                       </td>
 
                       {/* Status */}
-                      <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(rec.status)}</td>
+                      <td className="px-4 py-3.5 whitespace-nowrap">{getStatusBadge(rec.status)}</td>
 
                       {/* Verification & Location */}
-                      <td className="px-6 py-4 whitespace-nowrap text-xs">
+                      <td className="px-4 py-3.5 whitespace-nowrap text-xs">
                         <div className="flex flex-col gap-1 items-start whitespace-nowrap">
                           {rec.verification_method === "fingerprint" || rec.verification_method === "biometric" ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-violet-50 text-violet-700 border border-violet-200 whitespace-nowrap">
@@ -1296,23 +1314,8 @@ export default function AttendancePage() {
                       </td>
 
                       {/* Actions */}
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <td className="px-4 py-3.5 whitespace-nowrap text-right sticky right-0 bg-white group-hover:bg-slate-50/90 z-10 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)]">
                         <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                          {!rec.check_out_at && rec.check_in_at && (isPrivileged || rec.employee_id === myTodayRecord?.employee_id) && canUpdate && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setQuickClockOutRecord(rec);
-                                setIsQuickClockOutOpen(true);
-                              }}
-                              className="text-xs h-7 px-2.5 text-rose-600 border-rose-200 hover:bg-rose-50 whitespace-nowrap font-medium flex items-center gap-1"
-                              title="Clock out"
-                            >
-                              <LogOut className="h-3.5 w-3.5" />
-                              <span>Clock Out</span>
-                            </Button>
-                          )}
                           {isPrivileged && canUpdate && (
                             <Button
                               variant="ghost"
