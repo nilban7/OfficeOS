@@ -30,6 +30,7 @@ export const ROUTES = {
   PAYROLL_RUNS: "/payroll/runs",
   PAYROLL_SLIPS: "/payroll/slips",
   REIMBURSEMENTS: "/reimbursements",
+  TRAVEL: "/travel",
   DOCUMENTS: "/documents",
   NOTIFICATIONS: "/notifications",
   AUDIT_LOGS: "/audit-logs",

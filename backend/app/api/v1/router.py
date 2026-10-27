@@ -33,6 +33,7 @@ from app.api.v1.simulations import router as simulations_router
 from app.api.v1.training_enrollments import router as training_enrollments_router
 from app.api.v1.training_programs import router as training_programs_router
 from app.api.v1.training_sessions import router as training_sessions_router
+from app.api.v1.travel import router as travel_router
 from app.api.v1.vendors import router as vendors_router
 
 router = APIRouter(prefix="/api/v1")
@@ -59,6 +60,7 @@ router.include_router(operations_router)
 router.include_router(finance_router)
 router.include_router(payroll_router)
 router.include_router(reimbursements_router)
+router.include_router(travel_router)
 router.include_router(documents_router)
 router.include_router(notifications_router)
 router.include_router(preferences_router)
