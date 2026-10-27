@@ -18,19 +18,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
+from app.core.database import session_factory
 from app.models.ai import AIConfiguration, AIConversation, AIMessage
 from app.models.asset import Asset
 from app.models.attendance import AttendanceRecord
 from app.models.audit import AuditLog
+from app.models.client import Client
 from app.models.employee import Department, Employee
+from app.models.engagement import ClientEngagement
 from app.models.finance import Expense, FinancialTransaction
-from app.models.identity import Profile
+from app.models.identity import Branch, Profile
 from app.models.internship import Internship
 from app.models.leave import LeaveRequest, LeaveType
 from app.models.maintenance import MaintenanceRecord, MaintenanceRequest
 from app.models.operation import OperationTask
+from app.models.payroll import Bonus, Payroll, Payslip
 from app.models.procurement import PurchaseOrder, PurchaseRequest
 from app.models.project import Project
+from app.models.reimbursement import ReimbursementClaim
 from app.models.training import TrainingProgram
 from app.schemas.ai import (
     AIConfigurationResponse,
@@ -106,9 +111,12 @@ class AIService:
                 max_tokens_per_response=1024,
                 allowed_capabilities=[
                     "workforce",
+                    "branches",
                     "attendance",
                     "leave",
                     "projects",
+                    "clients",
+                    "engagements",
                     "procurement",
                     "assets",
                     "maintenance",
@@ -116,6 +124,9 @@ class AIService:
                     "internships",
                     "operations",
                     "documents",
+                    "finance",
+                    "payroll",
+                    "reimbursements",
                 ],
                 daily_request_limit=1000,
             )
@@ -131,21 +142,37 @@ class AIService:
     @staticmethod
     def build_system_instruction(organization_id: UUID) -> str:
         return f"""You are the OfficeOS AI Assistant for organization '{organization_id}'.
-Use the `query_database` tool for specific live records (SELECT with WHERE organization_id = '{organization_id}').
+You have access to live database queries via the `query_database` tool.
+Always use `query_database` whenever the user asks for specific records, counts, salaries, payroll, clients, branches, projects, or attendance.
+Every SELECT query MUST include WHERE organization_id = '{organization_id}'.
 
-Key tables:
-- employees (id, employee_code, first_name, last_name, designation, department_id, status)
-- departments (id, name, code)
-- projects (id, name, status, budget)
+Key Database Tables & Schemas:
+- employees (id, employee_code, first_name, last_name, designation, department_id, status, employment_type, date_of_joining)
+- departments (id, name, code, is_active)
+- branches (id, name, code, address, is_active)
+- clients (id, name, client_code, status, client_type, email, phone, city, country)
+- client_engagements (id, client_id, project_id, title, engagement_code, current_stage, delivery_health, progress_percentage, contract_value, currency)
+- projects (id, name, project_code, status, budget, start_date, end_date)
 - operation_tasks (id, title, priority, status, due_date)
-- attendance_records (id, employee_id, date, status, work_hours)
-- leave_requests (id, employee_id, leave_type_id, start_date, end_date, status)
+- attendance_records (id, employee_id, date, status, check_in_time, check_out_time, work_hours)
+- leave_requests (id, employee_id, leave_type_id, start_date, end_date, total_days, status)
 - leave_types (id, name)
-- expenses (id, category, amount, status)
+- salary_structures (id, employee_id, base_salary, hra, payment_frequency, is_active)
+- payrolls (id, title, period_month, period_year, status, total_gross_pay, total_net_pay, employee_count)
+- payslips (id, payroll_id, employee_id, payslip_number, base_salary, gross_pay, net_pay, status)
+- bonuses (id, name, bonus_type, calculation_type, rate_or_amount, total_amount, employee_count, status)
+- reimbursement_claims (id, employee_id, claim_number, title, category, amount, currency, status)
+- expenses (id, category, amount, status, date)
 - procurement_requests (id, request_number, total_estimated_cost, status)
+- assets (id, name, asset_code, category, status, serial_number)
+- maintenance_requests (id, asset_id, issue_description, priority, status)
+- training_programs (id, title, status)
+- internships (id, intern_name, mentor_id, status, stipend)
 
-Return date for leave: `end_date + INTERVAL '1 day'`.
-Format responses in clean, structured markdown tables and bullet points. Do not mention model names."""
+Important Rules:
+- Return date for leave: `end_date + INTERVAL '1 day'`.
+- Format responses in clean, structured markdown tables, key-value summaries, and bullet points.
+- Never expose or mention raw model names, passwords, or hashes."""
 
     @staticmethod
     async def execute_safe_tenant_sql(
@@ -442,12 +469,13 @@ Format responses in clean, structured markdown tables and bullet points. Do not 
 
             async def tool_executor(fn_name: str, args: dict[str, Any]) -> Any:
                 if fn_name == "query_database":
-                    return await AIService.execute_safe_tenant_sql(
-                        session=session,
-                        organization_id=organization_id,
-                        user_permissions=user_permissions,
-                        query_str=args.get("query", ""),
-                    )
+                    async with session_factory() as tool_session:
+                        return await AIService.execute_safe_tenant_sql(
+                            session=tool_session,
+                            organization_id=organization_id,
+                            user_permissions=user_permissions,
+                            query_str=args.get("query", ""),
+                        )
                 return {"error": f"Unknown tool: {fn_name}"}
 
             effective_key = config_resp.api_key or get_settings().groq_api_key or os.getenv("GROQ_API_KEY")
@@ -640,12 +668,13 @@ Format responses in clean, structured markdown tables and bullet points. Do not 
 
         async def tool_executor(fn_name: str, args: dict[str, Any]) -> Any:
             if fn_name == "query_database":
-                return await AIService.execute_safe_tenant_sql(
-                    session=session,
-                    organization_id=organization_id,
-                    user_permissions=user_permissions,
-                    query_str=args.get("query", ""),
-                )
+                async with session_factory() as tool_session:
+                    return await AIService.execute_safe_tenant_sql(
+                        session=tool_session,
+                        organization_id=organization_id,
+                        user_permissions=user_permissions,
+                        query_str=args.get("query", ""),
+                    )
             return {"error": f"Unknown tool: {fn_name}"}
 
         effective_key = config_resp.api_key or get_settings().groq_api_key or os.getenv("GROQ_API_KEY")
@@ -721,12 +750,13 @@ Format responses in clean, structured markdown tables and bullet points. Do not 
 
         async def tool_executor(fn_name: str, args: dict[str, Any]) -> Any:
             if fn_name == "query_database":
-                return await AIService.execute_safe_tenant_sql(
-                    session=session,
-                    organization_id=organization_id,
-                    user_permissions=user_permissions,
-                    query_str=args.get("query", ""),
-                )
+                async with session_factory() as tool_session:
+                    return await AIService.execute_safe_tenant_sql(
+                        session=tool_session,
+                        organization_id=organization_id,
+                        user_permissions=user_permissions,
+                        query_str=args.get("query", ""),
+                    )
             return {"error": f"Unknown tool: {fn_name}"}
 
         effective_key = config_resp.api_key or get_settings().groq_api_key or os.getenv("GROQ_API_KEY")
@@ -813,6 +843,30 @@ Format responses in clean, structured markdown tables and bullet points. Do not 
                 "notice_employees": wf_res.notice or 0,
                 "department_count": dept_count,
                 "employees_sample": employees_sample,
+            }
+
+        # 1.1 Branches
+        if (
+            explicit_capability in ("workforce", "branches")
+            or any(c in allowed_capabilities for c in ("workforce", "branches"))
+            and any(w in lower_q for w in ["branch", "branches", "office", "headquarter", "location", "site", "address", "hq", "where", "city", "state"])
+        ):
+            b_stmt = select(Branch.name, Branch.code, Branch.address, Branch.is_active).where(
+                Branch.organization_id == organization_id
+            )
+            b_res = (await session.execute(b_stmt)).all()
+            context["branches"] = {
+                "total_branches": len(b_res),
+                "active_branches": sum(1 for b in b_res if b.is_active),
+                "branches_list": [
+                    {
+                        "name": b.name,
+                        "code": b.code,
+                        "address": b.address or "Main Campus",
+                        "is_active": b.is_active,
+                    }
+                    for b in b_res
+                ],
             }
 
         # 2. Attendance
@@ -929,6 +983,75 @@ Format responses in clean, structured markdown tables and bullet points. Do not 
                 "completed_projects": p_res.completed or 0,
                 "total_budget": f"{Decimal(str(p_res.budget)):.2f}",
                 "projects_sample": projects_sample,
+            }
+
+        # 4.1 Clients & Engagements
+        if (
+            explicit_capability in ("projects", "clients", "engagements")
+            or any(c in allowed_capabilities for c in ("projects", "clients", "engagements"))
+            and any(w in lower_q for w in ["client", "engagement", "customer", "contract", "deal", "pipeline", "proposal"])
+        ):
+            c_stmt = select(
+                func.count(Client.id).label("total"),
+                func.count(case((Client.status == "active", Client.id))).label("active"),
+            ).where(Client.organization_id == organization_id)
+            c_res = (await session.execute(c_stmt)).one()
+
+            clients_sample_stmt = (
+                select(Client.name, Client.client_code, Client.status, Client.city, Client.country)
+                .where(Client.organization_id == organization_id)
+                .order_by(Client.created_at.desc())
+                .limit(6)
+            )
+            clients_sample = [
+                {
+                    "name": r.name,
+                    "code": r.client_code,
+                    "status": r.status,
+                    "location": f"{r.city or ''}, {r.country or ''}".strip(", "),
+                }
+                for r in (await session.execute(clients_sample_stmt)).all()
+            ]
+
+            eng_stmt = select(
+                func.count(ClientEngagement.id).label("total"),
+                func.coalesce(func.sum(ClientEngagement.contract_value), 0).label("total_value"),
+            ).where(ClientEngagement.organization_id == organization_id)
+            eng_res = (await session.execute(eng_stmt)).one()
+
+            eng_sample_stmt = (
+                select(
+                    ClientEngagement.title,
+                    ClientEngagement.engagement_code,
+                    ClientEngagement.current_stage,
+                    ClientEngagement.delivery_health,
+                    ClientEngagement.contract_value,
+                    ClientEngagement.currency,
+                )
+                .where(ClientEngagement.organization_id == organization_id)
+                .order_by(ClientEngagement.created_at.desc())
+                .limit(6)
+            )
+            eng_sample = [
+                {
+                    "title": r.title,
+                    "code": r.engagement_code,
+                    "stage": r.current_stage,
+                    "health": r.delivery_health,
+                    "value": f"{r.currency} {Decimal(str(r.contract_value or 0)):.2f}",
+                }
+                for r in (await session.execute(eng_sample_stmt)).all()
+            ]
+
+            context["clients"] = {
+                "total_clients": c_res.total or 0,
+                "active_clients": c_res.active or 0,
+                "clients_sample": clients_sample,
+            }
+            context["client_engagements"] = {
+                "total_engagements": eng_res.total or 0,
+                "total_contract_value": f"{Decimal(str(eng_res.total_value)):.2f}",
+                "engagements_sample": eng_sample,
             }
 
         # 5. Operations
@@ -1109,5 +1232,91 @@ Format responses in clean, structured markdown tables and bullet points. Do not 
                 }
             else:
                 context["audit_permission_denied"] = True
+
+        # 11. Payroll & Compensation (STRICT PERMISSION GATING)
+        wants_payroll = (
+            explicit_capability == "payroll"
+            or any(w in lower_q for w in ["payroll", "salary", "salaried", "payslip", "bonus", "compensation", "earn", "net pay", "gross pay", "paid"])
+        )
+        if wants_payroll:
+            has_payroll_perm = any(
+                p in user_permissions for p in ("payroll:read", "payroll.view", "payroll.manage", "reports.payroll")
+            )
+            if has_payroll_perm:
+                pay_stmt = select(
+                    func.count(Payroll.id).label("total_runs"),
+                    func.coalesce(func.sum(Payroll.total_net_pay), 0).label("disbursed_net"),
+                    func.coalesce(func.sum(Payroll.total_gross_pay), 0).label("disbursed_gross"),
+                ).where(Payroll.organization_id == organization_id)
+                pay_res = (await session.execute(pay_stmt)).one()
+
+                bonus_stmt = select(
+                    func.count(Bonus.id).label("total_bonuses"),
+                    func.coalesce(func.sum(Bonus.total_amount), 0).label("bonus_total"),
+                ).where(Bonus.organization_id == organization_id)
+                b_res = (await session.execute(bonus_stmt)).one()
+
+                # Sample latest payslips
+                sl_stmt = (
+                    select(
+                        Employee.first_name,
+                        Employee.last_name,
+                        Payslip.payslip_number,
+                        Payslip.net_pay,
+                        Payslip.status,
+                    )
+                    .join(Employee, Payslip.employee_id == Employee.id)
+                    .where(Payslip.organization_id == organization_id)
+                    .order_by(Payslip.created_at.desc())
+                    .limit(6)
+                )
+                sl_res = (await session.execute(sl_stmt)).all()
+                payslips_sample = [
+                    {
+                        "employee": f"{r.first_name} {r.last_name}",
+                        "number": r.payslip_number,
+                        "net_pay": f"{Decimal(str(r.net_pay)):.2f}",
+                        "status": r.status,
+                    }
+                    for r in sl_res
+                ]
+
+                context["payroll"] = {
+                    "total_runs": pay_res.total_runs or 0,
+                    "disbursed_net": f"{Decimal(str(pay_res.disbursed_net)):.2f}",
+                    "disbursed_gross": f"{Decimal(str(pay_res.disbursed_gross)):.2f}",
+                    "total_bonuses": b_res.total_bonuses or 0,
+                    "bonus_total": f"{Decimal(str(b_res.bonus_total)):.2f}",
+                    "recent_payslips": payslips_sample,
+                }
+            else:
+                context["payroll_permission_denied"] = True
+
+        # 12. Reimbursements (STRICT PERMISSION GATING)
+        wants_reimburse = (
+            explicit_capability == "reimbursements"
+            or any(w in lower_q for w in ["reimbursement", "claim", "reimburse", "per diem"])
+        )
+        if wants_reimburse:
+            has_reimburse_perm = any(
+                p in user_permissions for p in ("reimbursements:read", "reimbursements.view", "reimbursements.manage")
+            )
+            if has_reimburse_perm:
+                rc_stmt = select(
+                    func.count(ReimbursementClaim.id).label("total_claims"),
+                    func.count(case((ReimbursementClaim.status == "pending", ReimbursementClaim.id))).label("pending_claims"),
+                    func.count(case((ReimbursementClaim.status == "approved", ReimbursementClaim.id))).label("approved_claims"),
+                    func.coalesce(func.sum(ReimbursementClaim.amount), 0).label("total_amount"),
+                ).where(ReimbursementClaim.organization_id == organization_id)
+                rc_res = (await session.execute(rc_stmt)).one()
+
+                context["reimbursements"] = {
+                    "total_claims": rc_res.total_claims or 0,
+                    "pending_claims": rc_res.pending_claims or 0,
+                    "approved_claims": rc_res.approved_claims or 0,
+                    "total_amount": f"{Decimal(str(rc_res.total_amount)):.2f}",
+                }
+            else:
+                context["reimbursements_permission_denied"] = True
 
         return context

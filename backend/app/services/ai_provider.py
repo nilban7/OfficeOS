@@ -81,6 +81,20 @@ def synthesize_context_response(
             )
             sections.insert(0, hiring_analysis)
 
+    # Branches context
+    if "branches" in context_data:
+        br = context_data["branches"]
+        br_list = br.get("branches_list", [])
+        br_detail = ""
+        if br_list:
+            b_lines = [f"  • **{b.get('name', 'Branch')}** (`{b.get('code', 'N/A')}`): {b.get('address', 'Main Campus')}" for b in br_list]
+            br_detail = "\n" + "\n".join(b_lines)
+        sections.append(
+            f"🏢 **Organizational Branches & Locations**:\n"
+            f"- Total Branches: {br.get('total_branches', 0)} ({br.get('active_branches', 0)} operational)."
+            f"{br_detail}"
+        )
+
     # Attendance context
     if "attendance" in context_data:
         att = context_data["attendance"]
@@ -154,6 +168,24 @@ def synthesize_context_response(
             f"{proj_detail}"
         )
 
+    # Clients & Engagements context
+    if "clients" in context_data or "client_engagements" in context_data:
+        cl = context_data.get("clients", {})
+        ce = context_data.get("client_engagements", {})
+        cl_lines = [f"  • {c.get('name', 'Client')} ({c.get('code', 'N/A')}) — Status: {c.get('status', 'active')}" for c in cl.get("clients_sample", [])]
+        ce_lines = [f"  • {e.get('title', 'Engagement')} ({e.get('code', 'N/A')}) — Stage: {e.get('stage', 'proposal')} [{e.get('health', 'on_track')}] — Value: {e.get('value', '0')}" for e in ce.get("engagements_sample", [])]
+        detail_txt = ""
+        if cl_lines:
+            detail_txt += "\n  Clients:\n" + "\n".join(cl_lines)
+        if ce_lines:
+            detail_txt += "\n  Key Engagements:\n" + "\n".join(ce_lines)
+        sections.append(
+            f"🤝 **Clients & Engagements**:\n"
+            f"- Active Clients: {cl.get('active_clients', 0)} / {cl.get('total_clients', 0)}.\n"
+            f"- Active Engagements: {ce.get('total_engagements', 0)} (Total Contract Value: {ce.get('total_contract_value', '0.00')})."
+            f"{detail_txt}"
+        )
+
     # Operations / Tasks context
     if "operations" in context_data:
         ops = context_data["operations"]
@@ -195,6 +227,24 @@ def synthesize_context_response(
             f"🎓 **Talent & Training Programs**:\n"
             f"- Training Programs: {tr.get('total_programs', 0)} ({tr.get('completion_rate', '0.0')}% completion rate).\n"
             f"- Active Internships: {intern.get('active_internships', 0)} ({intern.get('completed_internships', 0)} completed)."
+        )
+
+    # Payroll context (only populated when authorized)
+    if "payroll" in context_data:
+        py = context_data["payroll"]
+        sections.append(
+            f"💳 **Payroll & Compensation (Authorized)**:\n"
+            f"- Total Processed Runs: {py.get('total_runs', 0)} (Total Disbursed Net: ${py.get('disbursed_net', '0.00')}).\n"
+            f"- Active Bonuses: {py.get('total_bonuses', 0)} (Disbursed Total: ${py.get('bonus_total', '0.00')})."
+        )
+
+    # Reimbursements context (only populated when authorized)
+    if "reimbursements" in context_data:
+        rc = context_data["reimbursements"]
+        sections.append(
+            f"🧾 **Reimbursements & Claims (Authorized)**:\n"
+            f"- Total Claims: {rc.get('total_claims', 0)} (Pending: {rc.get('pending_claims', 0)}, Approved: {rc.get('approved_claims', 0)}).\n"
+            f"- Total Claimed Amount: ${rc.get('total_amount', '0.00')}."
         )
 
     # Finance context (only populated when authorized)
