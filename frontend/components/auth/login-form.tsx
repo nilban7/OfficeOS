@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { ROUTES } from "@/constants/routes";
-import { Mail, Lock, AlertCircle } from "lucide-react";
+import { Mail, Lock, AlertCircle, Shield } from "lucide-react";
 
 export function LoginForm() {
   const router = useRouter();
@@ -44,18 +44,40 @@ export function LoginForm() {
     }
   };
 
+  const handleQuickSignIn = async () => {
+    setEmail("officeos@gmail.com");
+    setPassword("password123");
+    setIsLoading(true);
+    setError(null);
+    try {
+      const { error: signInError } = await signInWithPassword({
+        email: "officeos@gmail.com",
+        password: "password123",
+      });
+      if (signInError) {
+        setError(signInError.message || "Failed to sign in.");
+        return;
+      }
+      router.push(ROUTES.DASHBOARD);
+    } catch {
+      setError("An unexpected error occurred during sign in.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
-    <Card className="w-full max-w-md shadow-lg border-slate-200">
-      <CardHeader className="space-y-2 text-center pb-6">
-        <CardTitle className="text-2xl font-bold tracking-tight text-slate-900">
+    <Card className="w-full max-w-md shadow-lg border-slate-200/80 rounded-2xl">
+      <CardHeader className="space-y-2 text-center pb-5 pt-6 px-6">
+        <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
           Sign In to OfficeOS
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-xs sm:text-sm">
           Enter your organization email and password to access your workspace.
         </CardDescription>
       </CardHeader>
 
-      <CardContent>
+      <CardContent className="px-6">
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
             <div
@@ -68,7 +90,7 @@ export function LoginForm() {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="email" required>
+            <Label htmlFor="email" required className="text-xs font-semibold text-slate-700">
               Email Address
             </Label>
             <Input
@@ -80,12 +102,13 @@ export function LoginForm() {
               leftIcon={<Mail className="h-4 w-4" />}
               required
               autoComplete="email"
+              className="h-10 text-sm"
             />
           </div>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label htmlFor="password" required>
+              <Label htmlFor="password" required className="text-xs font-semibold text-slate-700">
                 Password
               </Label>
               <Link
@@ -104,11 +127,32 @@ export function LoginForm() {
               leftIcon={<Lock className="h-4 w-4" />}
               required
               autoComplete="current-password"
+              className="h-10 text-sm"
             />
           </div>
 
-          <Button type="submit" className="w-full mt-2" isLoading={isLoading}>
+          <Button type="submit" className="w-full mt-2 min-h-[44px] text-sm font-semibold shadow-sm" isLoading={isLoading}>
             Sign In
+          </Button>
+
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-slate-200" />
+            </div>
+            <div className="relative flex justify-center text-[11px] uppercase tracking-wider">
+              <span className="bg-white px-2.5 text-slate-400 font-semibold">Or Quick Demo</span>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleQuickSignIn}
+            disabled={isLoading}
+            className="w-full min-h-[44px] flex items-center justify-center gap-2 bg-primary-50 text-primary-700 hover:bg-primary-100 hover:text-primary-800 border-primary-200 text-xs font-semibold shadow-xs"
+          >
+            <Shield className="h-4 w-4" />
+            <span>One-Click Sign In (Admin)</span>
           </Button>
         </form>
       </CardContent>
