@@ -486,14 +486,47 @@ export default function AttendancePage() {
         try {
           const challenge = new Uint8Array(32);
           window.crypto.getRandomValues(challenge);
-          await navigator.credentials.get({
-            publicKey: {
-              challenge,
-              timeout: 60000,
-              userVerification: "preferred",
-              rpId: window.location.hostname || "localhost",
-            },
-          });
+          const userId = new Uint8Array(16);
+          window.crypto.getRandomValues(userId);
+
+          // Attempt WebAuthn platform biometric prompt
+          // Calling navigator.credentials.create with authenticatorAttachment: "platform"
+          // triggers the native Android Fingerprint / Apple Touch ID / Face ID bottom-sheet dialog!
+          try {
+            await navigator.credentials.create({
+              publicKey: {
+                challenge,
+                rp: {
+                  name: "OfficeOS Biometrics",
+                  id: window.location.hostname || "localhost",
+                },
+                user: {
+                  id: userId,
+                  name: currentOrganization.name || "Employee",
+                  displayName: "OfficeOS Attendance",
+                },
+                pubKeyCredParams: [
+                  { alg: -7, type: "public-key" }, // ES256
+                  { alg: -257, type: "public-key" }, // RS256
+                ],
+                authenticatorSelection: {
+                  authenticatorAttachment: "platform",
+                  userVerification: "required",
+                },
+                timeout: 60000,
+              },
+            });
+          } catch {
+            // Fallback to credentials.get if a passkey/credential already exists
+            await navigator.credentials.get({
+              publicKey: {
+                challenge,
+                timeout: 60000,
+                userVerification: "preferred",
+                rpId: window.location.hostname || "localhost",
+              },
+            });
+          }
         } catch {
           // Gracefully continue with biometric scan if WebAuthn times out or is cancelled
         }
