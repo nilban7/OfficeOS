@@ -56,11 +56,36 @@ export class ApiClient {
   }
 
   /**
+   * Resolves the effective base URL. When accessed from a mobile browser on a LAN IP
+   * (e.g. 192.168.x.x), dynamically replaces localhost with the host IP.
+   */
+  private getEffectiveBaseUrl(): string {
+    if (
+      typeof window !== "undefined" &&
+      window.location.hostname &&
+      window.location.hostname !== "localhost" &&
+      window.location.hostname !== "127.0.0.1"
+    ) {
+      try {
+        const parsed = new URL(this.baseUrl);
+        if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") {
+          parsed.hostname = window.location.hostname;
+          return parsed.toString().replace(/\/+$/, "");
+        }
+      } catch {
+        // Fallback to configured baseUrl
+      }
+    }
+    return this.baseUrl;
+  }
+
+  /**
    * Builds the complete URL with search query parameters.
    */
   private buildUrl(path: string, params?: RequestOptions["params"]): string {
     const cleanPath = path.startsWith("/") ? path : `/${path}`;
-    const url = new URL(`${this.baseUrl}${cleanPath}`);
+    const effectiveBase = this.getEffectiveBaseUrl();
+    const url = new URL(`${effectiveBase}${cleanPath}`);
 
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
