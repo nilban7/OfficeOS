@@ -13,7 +13,9 @@ from app.schemas.attendance import (
     AttendanceCheckOutRequest,
     AttendanceCreate,
     AttendanceDetailResponse,
+    AttendanceHRReviewAction,
     AttendanceListItemResponse,
+    AttendanceOrgHeadReviewAction,
     AttendanceSummaryResponse,
     AttendanceUpdate,
 )
@@ -26,11 +28,13 @@ from app.services.attendance import (
     get_attendance,
     get_today_summary,
     get_user_today_attendance,
+    hr_review_attendance,
     list_attendance,
+    org_head_review_attendance,
     resolve_employee_for_user,
     update_attendance,
 )
-from app.services.identity import get_profile, get_user_permissions
+from app.services.identity import get_profile, get_user_permissions, get_user_roles
 
 router = APIRouter(prefix="/attendance", tags=["attendance"])
 
@@ -70,6 +74,8 @@ async def list_org_attendance(
     branch_id: Annotated[UUID | None, Query(description="Filter by branch ID")] = None,
     status_filter: Annotated[str | None, Query(alias="status", description="Filter by attendance status")] = None,
     verification_method: Annotated[str | None, Query(description="Filter by verification method")] = None,
+    is_offsite: Annotated[bool | None, Query(description="Filter offsite attendance records")] = None,
+    approval_status: Annotated[str | None, Query(description="Filter by approval status")] = None,
     start_date: Annotated[date | None, Query(description="Filter start date")] = None,
     end_date: Annotated[date | None, Query(description="Filter end date")] = None,
     search: Annotated[str | None, Query(description="Search by employee name or code")] = None,
@@ -111,6 +117,8 @@ async def list_org_attendance(
         branch_id=branch_id,
         status_filter=status_filter,
         verification_method=verification_method,
+        is_offsite=is_offsite,
+        approval_status=approval_status,
         start_date=start_date,
         end_date=end_date,
         search=search,
@@ -120,6 +128,7 @@ async def list_org_attendance(
         sort_order=sort_order,
     )
     return ApiSuccess(data=data)
+
 
 
 @router.get(
@@ -403,3 +412,80 @@ async def delete_org_attendance(
         data={"id": str(attendance_id)},
         message="Attendance record deleted successfully",
     )
+
+
+@router.post(
+    "/{attendance_id}/hr-review",
+    response_model=ApiSuccess[AttendanceDetailResponse],
+    summary="HR Review for offsite attendance (Approve or Reject)",
+)
+async def review_offsite_attendance_by_hr(
+    attendance_id: UUID,
+    action_data: AttendanceHRReviewAction,
+    request: Request,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(require_permission("attendance.approve"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
+) -> ApiSuccess[AttendanceDetailResponse]:
+    org_id = UUID(organization_header)
+    actor_id = await get_actor_profile_id(session, current_user)
+    ip = get_ip_address(request)
+
+    record = await hr_review_attendance(
+        session=session,
+        organization_id=org_id,
+        attendance_id=attendance_id,
+        action=action_data.action,
+        rejection_reason=action_data.rejection_reason,
+        actor_profile_id=actor_id,
+        ip_address=ip,
+    )
+    msg = (
+        "Offsite attendance approved successfully by HR"
+        if action_data.action == "approve"
+        else "Offsite attendance rejected by HR and escalated to Organization Head for review"
+    )
+    return ApiSuccess(data=record, message=msg)
+
+
+@router.post(
+    "/{attendance_id}/org-head-review",
+    response_model=ApiSuccess[AttendanceDetailResponse],
+    summary="Organization Head Review for escalated offsite attendance",
+)
+async def review_offsite_attendance_by_org_head(
+    attendance_id: UUID,
+    action_data: AttendanceOrgHeadReviewAction,
+    request: Request,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(require_permission("attendance.view"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
+) -> ApiSuccess[AttendanceDetailResponse]:
+    org_id = UUID(organization_header)
+    user_roles = await get_user_roles(session, current_user, org_id)
+    allowed_roles = {"organization_owner", "organization_admin", "system_admin"}
+    if not allowed_roles.intersection(user_roles):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only Organization Head or Admin can perform this final review",
+        )
+
+    actor_id = await get_actor_profile_id(session, current_user)
+    ip = get_ip_address(request)
+
+    record = await org_head_review_attendance(
+        session=session,
+        organization_id=org_id,
+        attendance_id=attendance_id,
+        action=action_data.action,
+        reason=action_data.reason,
+        actor_profile_id=actor_id,
+        ip_address=ip,
+    )
+    msg = (
+        "Rejection confirmed by Organization Head"
+        if action_data.action == "confirm_reject"
+        else "Offsite attendance approved by Organization Head (overriding HR rejection)"
+    )
+    return ApiSuccess(data=record, message=msg)
+

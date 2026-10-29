@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import UTC, date, datetime
 from typing import Any
@@ -10,7 +11,8 @@ from sqlalchemy.orm import selectinload
 
 from app.models.attendance import AttendanceRecord
 from app.models.employee import Employee
-from app.models.identity import Branch, OrganizationMembership, Profile
+from app.models.identity import Branch, MembershipRole, OrganizationMembership, Profile, Role
+from app.models.notification import Notification
 from app.schemas.attendance import (
     AttendanceCheckInRequest,
     AttendanceCheckOutRequest,
@@ -25,6 +27,39 @@ from app.schemas.attendance import (
 from app.schemas.common import PaginatedData, PaginationMeta
 from app.services.organization import record_audit_log
 
+logger = logging.getLogger(__name__)
+
+
+async def _notify_profiles(
+    session: AsyncSession,
+    organization_id: UUID,
+    recipient_profile_ids: list[UUID],
+    title: str,
+    message: str,
+    action_url: str = "/attendance",
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    now = datetime.now(UTC)
+    for profile_id in set(recipient_profile_ids):
+        try:
+            notif = Notification(
+                id=uuid.uuid4(),
+                organization_id=organization_id,
+                recipient_id=profile_id,
+                notification_type="attendance",
+                title=title,
+                message=message,
+                action_url=action_url,
+                metadata_json=metadata or {},
+                created_at=now,
+                updated_at=now,
+            )
+            session.add(notif)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Failed to dispatch attendance notification to %s: %s", profile_id, e)
+
+
+
 
 def _to_list(result: Any) -> list[Any]:
     if result is None:
@@ -34,6 +69,27 @@ def _to_list(result: Any) -> list[Any]:
     if hasattr(result, "all"):
         return list(result.all())
     return list(result)
+
+
+async def _get_profile_ids_by_roles(
+    session: AsyncSession,
+    organization_id: UUID,
+    role_names: list[str],
+) -> list[UUID]:
+    query = (
+        select(OrganizationMembership.profile_id)
+        .join(MembershipRole, MembershipRole.membership_id == OrganizationMembership.id)
+        .join(Role, Role.id == MembershipRole.role_id)
+        .where(
+            OrganizationMembership.organization_id == organization_id,
+            OrganizationMembership.status == "active",
+            Role.name.in_(role_names),
+        )
+        .distinct()
+    )
+    res = await session.scalars(query)
+    return _to_list(res)
+
 
 
 async def resolve_employee_for_user(
@@ -135,9 +191,21 @@ def _to_detail_response(rec: AttendanceRecord) -> AttendanceDetailResponse:
         check_out_longitude=rec.check_out_longitude,
         check_out_location_name=rec.check_out_location_name,
         device_info=rec.device_info,
-        created_at=rec.created_at,
-        updated_at=rec.updated_at,
+        is_offsite=rec.is_offsite if rec.is_offsite is not None else False,
+        offsite_reason=rec.offsite_reason,
+        offsite_location=rec.offsite_location,
+        client_name=rec.client_name,
+        approval_status=rec.approval_status or "not_required",
+        hr_approved_at=rec.hr_approved_at,
+        hr_approved_by_id=rec.hr_approved_by_id,
+        hr_rejection_reason=rec.hr_rejection_reason,
+        org_head_approved_at=rec.org_head_approved_at,
+        org_head_approved_by_id=rec.org_head_approved_by_id,
+        org_head_rejection_reason=rec.org_head_rejection_reason,
+        created_at=rec.created_at or datetime.now(UTC),
+        updated_at=rec.updated_at or datetime.now(UTC),
     )
+
 
 
 async def list_attendance(
@@ -148,6 +216,8 @@ async def list_attendance(
     branch_id: UUID | None = None,
     status_filter: str | None = None,
     verification_method: str | None = None,
+    is_offsite: bool | None = None,
+    approval_status: str | None = None,
     start_date: date | None = None,
     end_date: date | None = None,
     search: str | None = None,
@@ -173,6 +243,13 @@ async def list_attendance(
 
     if verification_method:
         base_filter.append(AttendanceRecord.verification_method == verification_method)
+
+    if is_offsite is not None:
+        base_filter.append(AttendanceRecord.is_offsite == is_offsite)
+
+    if approval_status is not None:
+        base_filter.append(AttendanceRecord.approval_status == approval_status)
+
 
     if start_date is not None:
         base_filter.append(AttendanceRecord.work_date >= start_date)
@@ -461,6 +538,9 @@ async def check_in_employee(
     check_in_time = data.check_in_at or datetime.now(UTC)
     now = datetime.now(UTC)
 
+    is_offsite = bool(data.is_offsite)
+    approval_status = "pending_hr" if is_offsite else "not_required"
+
     rec = AttendanceRecord(
         id=uuid.uuid4(),
         organization_id=organization_id,
@@ -477,11 +557,36 @@ async def check_in_employee(
         location_accuracy=data.location_accuracy,
         verification_method=data.verification_method or "web",
         device_info=data.device_info.strip() if data.device_info else None,
+        is_offsite=is_offsite,
+        offsite_reason=data.offsite_reason.strip() if data.offsite_reason else None,
+        offsite_location=data.offsite_location.strip() if data.offsite_location else None,
+        client_name=data.client_name.strip() if data.client_name else None,
+        approval_status=approval_status,
         created_at=now,
         updated_at=now,
     )
     session.add(rec)
     await session.flush()
+
+    if is_offsite:
+        hr_recipients = await _get_profile_ids_by_roles(session, organization_id, ["hr_manager"])
+        if not hr_recipients:
+            hr_recipients = await _get_profile_ids_by_roles(
+                session, organization_id, ["organization_owner", "organization_admin"]
+            )
+        if hr_recipients:
+            emp_name = f"{target_emp.first_name} {target_emp.last_name}".strip()
+            loc_label = data.offsite_location or data.location_name or "External Location"
+            purpose_label = data.offsite_reason or (f"Meeting with {data.client_name}" if data.client_name else "Client Visit / Field Work")
+            await _notify_profiles(
+                session=session,
+                organization_id=organization_id,
+                recipient_profile_ids=hr_recipients,
+                title=f"Offsite Attendance: {emp_name}",
+                message=f"{emp_name} checked in offsite at {loc_label} for {purpose_label}. HR approval required.",
+                action_url="/attendance",
+                metadata={"attendance_id": str(rec.id), "employee_id": str(target_emp.id)},
+            )
 
     await record_audit_log(
         session=session,
@@ -498,11 +603,17 @@ async def check_in_employee(
             "status": rec.status,
             "verification_method": rec.verification_method,
             "location_name": rec.location_name,
+            "is_offsite": rec.is_offsite,
+            "offsite_reason": rec.offsite_reason,
+            "offsite_location": rec.offsite_location,
+            "client_name": rec.client_name,
+            "approval_status": rec.approval_status,
         },
         ip_address=ip_address,
     )
 
     return await get_attendance(session, organization_id, rec.id)
+
 
 
 async def check_out_employee(
@@ -627,6 +738,9 @@ async def create_attendance(
             )
 
     now = datetime.now(UTC)
+    is_offsite = bool(data.is_offsite)
+    approval_status = data.approval_status if data.approval_status != "not_required" else ("pending_hr" if is_offsite else "not_required")
+
     rec = AttendanceRecord(
         id=uuid.uuid4(),
         organization_id=organization_id,
@@ -646,11 +760,17 @@ async def create_attendance(
         check_out_longitude=data.check_out_longitude,
         check_out_location_name=data.check_out_location_name.strip() if data.check_out_location_name else None,
         device_info=data.device_info.strip() if data.device_info else None,
+        is_offsite=is_offsite,
+        offsite_reason=data.offsite_reason.strip() if data.offsite_reason else None,
+        offsite_location=data.offsite_location.strip() if data.offsite_location else None,
+        client_name=data.client_name.strip() if data.client_name else None,
+        approval_status=approval_status,
         created_at=now,
         updated_at=now,
     )
     session.add(rec)
     await session.flush()
+
 
     await record_audit_log(
         session=session,
@@ -774,6 +894,16 @@ async def update_attendance(
         rec.check_out_location_name = data.check_out_location_name
     if "device_info" in data.model_fields_set and data.device_info != rec.device_info:
         rec.device_info = data.device_info
+    if "is_offsite" in data.model_fields_set and data.is_offsite is not None:
+        rec.is_offsite = data.is_offsite
+    if "offsite_reason" in data.model_fields_set:
+        rec.offsite_reason = data.offsite_reason
+    if "offsite_location" in data.model_fields_set:
+        rec.offsite_location = data.offsite_location
+    if "client_name" in data.model_fields_set:
+        rec.client_name = data.client_name
+    if "approval_status" in data.model_fields_set and data.approval_status is not None:
+        rec.approval_status = data.approval_status
 
     rec.updated_at = datetime.now(UTC)
 
@@ -827,3 +957,240 @@ async def delete_attendance(
     )
 
     await session.delete(rec)
+
+
+async def hr_review_attendance(
+    session: AsyncSession,
+    organization_id: UUID,
+    attendance_id: UUID,
+    action: str,  # "approve" | "reject"
+    rejection_reason: str | None,
+    actor_profile_id: UUID | None,
+    ip_address: str | None = None,
+) -> AttendanceDetailResponse:
+    rec = await session.scalar(
+        select(AttendanceRecord)
+        .options(
+            selectinload(AttendanceRecord.employee).selectinload(Employee.department),
+            selectinload(AttendanceRecord.employee).selectinload(Employee.branch),
+            selectinload(AttendanceRecord.branch),
+        )
+        .where(
+            AttendanceRecord.id == attendance_id,
+            AttendanceRecord.organization_id == organization_id,
+        )
+    )
+    if rec is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Attendance record '{attendance_id}' not found in this organization",
+        )
+
+    if not rec.is_offsite:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only offsite attendance records require approval review",
+        )
+
+    if rec.approval_status != "pending_hr":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Attendance record cannot be reviewed by HR because its status is '{rec.approval_status}'",
+        )
+
+    now = datetime.now(UTC)
+    emp_name = f"{rec.employee.first_name} {rec.employee.last_name}".strip() if rec.employee else "Employee"
+    emp_profile_id = rec.employee.profile_id if rec.employee else None
+
+    if action == "approve":
+        rec.approval_status = "approved"
+        rec.hr_approved_at = now
+        rec.hr_approved_by_id = actor_profile_id
+        rec.updated_at = now
+        await session.flush()
+
+        if emp_profile_id:
+            await _notify_profiles(
+                session=session,
+                organization_id=organization_id,
+                recipient_profile_ids=[emp_profile_id],
+                title="Offsite Attendance Approved",
+                message=f"Your offsite attendance check-in for {rec.work_date} has been approved by HR.",
+                action_url="/attendance",
+                metadata={"attendance_id": str(rec.id), "status": "approved"},
+            )
+
+        await record_audit_log(
+            session=session,
+            organization_id=organization_id,
+            actor_id=actor_profile_id,
+            action="attendance.hr_approved",
+            entity_type="attendance",
+            entity_id=rec.id,
+            details={"action": "approve", "work_date": str(rec.work_date)},
+            ip_address=ip_address,
+        )
+
+    elif action == "reject":
+        reason_text = (rejection_reason or "").strip() or "Rejected by HR, pending Organization Head review"
+        rec.approval_status = "pending_org_head"
+        rec.hr_rejection_reason = reason_text
+        rec.hr_approved_at = now
+        rec.hr_approved_by_id = actor_profile_id
+        rec.updated_at = now
+        await session.flush()
+
+        # Notify Org Head / Owner / Admin
+        org_heads = await _get_profile_ids_by_roles(
+            session, organization_id, ["organization_owner", "organization_admin", "system_admin"]
+        )
+        if org_heads:
+            await _notify_profiles(
+                session=session,
+                organization_id=organization_id,
+                recipient_profile_ids=org_heads,
+                title=f"Review Required: HR Rejected Offsite Attendance ({emp_name})",
+                message=f"HR rejected offsite attendance for {emp_name} on {rec.work_date}. Reason: {reason_text}. Organization Head final review required.",
+                action_url="/attendance",
+                metadata={"attendance_id": str(rec.id), "status": "pending_org_head", "reason": reason_text},
+            )
+
+        if emp_profile_id:
+            await _notify_profiles(
+                session=session,
+                organization_id=organization_id,
+                recipient_profile_ids=[emp_profile_id],
+                title="Offsite Attendance Escalated to Org Head",
+                message=f"Your offsite attendance check-in for {rec.work_date} was rejected by HR and escalated to Organization Head for review.",
+                action_url="/attendance",
+                metadata={"attendance_id": str(rec.id), "status": "pending_org_head"},
+            )
+
+        await record_audit_log(
+            session=session,
+            organization_id=organization_id,
+            actor_id=actor_profile_id,
+            action="attendance.hr_rejected_escalated",
+            entity_type="attendance",
+            entity_id=rec.id,
+            details={"action": "reject", "rejection_reason": reason_text, "work_date": str(rec.work_date)},
+            ip_address=ip_address,
+        )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid action. Must be 'approve' or 'reject'.",
+        )
+
+    return await get_attendance(session, organization_id, rec.id)
+
+
+async def org_head_review_attendance(
+    session: AsyncSession,
+    organization_id: UUID,
+    attendance_id: UUID,
+    action: str,  # "confirm_reject" | "override_approve"
+    reason: str | None,
+    actor_profile_id: UUID | None,
+    ip_address: str | None = None,
+) -> AttendanceDetailResponse:
+    rec = await session.scalar(
+        select(AttendanceRecord)
+        .options(
+            selectinload(AttendanceRecord.employee).selectinload(Employee.department),
+            selectinload(AttendanceRecord.employee).selectinload(Employee.branch),
+            selectinload(AttendanceRecord.branch),
+        )
+        .where(
+            AttendanceRecord.id == attendance_id,
+            AttendanceRecord.organization_id == organization_id,
+        )
+    )
+    if rec is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Attendance record '{attendance_id}' not found in this organization",
+        )
+
+    if not rec.is_offsite:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only offsite attendance records require approval review",
+        )
+
+    if rec.approval_status != "pending_org_head":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Attendance record is not awaiting Organization Head review (current status: '{rec.approval_status}')",
+        )
+
+    now = datetime.now(UTC)
+    emp_profile_id = rec.employee.profile_id if rec.employee else None
+    reason_text = (reason or "").strip() or None
+
+    if action == "confirm_reject":
+        rec.approval_status = "rejected"
+        rec.org_head_rejection_reason = reason_text or "Confirmed by Organization Head"
+        rec.org_head_approved_at = now
+        rec.org_head_approved_by_id = actor_profile_id
+        rec.updated_at = now
+        await session.flush()
+
+        if emp_profile_id:
+            await _notify_profiles(
+                session=session,
+                organization_id=organization_id,
+                recipient_profile_ids=[emp_profile_id],
+                title="Offsite Attendance Rejected",
+                message=f"Your offsite attendance check-in for {rec.work_date} was rejected following Organization Head review.",
+                action_url="/attendance",
+                metadata={"attendance_id": str(rec.id), "status": "rejected"},
+            )
+
+        await record_audit_log(
+            session=session,
+            organization_id=organization_id,
+            actor_id=actor_profile_id,
+            action="attendance.org_head_rejected",
+            entity_type="attendance",
+            entity_id=rec.id,
+            details={"action": "confirm_reject", "reason": reason_text, "work_date": str(rec.work_date)},
+            ip_address=ip_address,
+        )
+
+    elif action == "override_approve":
+        rec.approval_status = "approved"
+        rec.org_head_approved_at = now
+        rec.org_head_approved_by_id = actor_profile_id
+        rec.updated_at = now
+        await session.flush()
+
+        if emp_profile_id:
+            await _notify_profiles(
+                session=session,
+                organization_id=organization_id,
+                recipient_profile_ids=[emp_profile_id],
+                title="Offsite Attendance Approved (Org Head Override)",
+                message=f"Your offsite attendance check-in for {rec.work_date} was approved by Organization Head.",
+                action_url="/attendance",
+                metadata={"attendance_id": str(rec.id), "status": "approved"},
+            )
+
+        await record_audit_log(
+            session=session,
+            organization_id=organization_id,
+            actor_id=actor_profile_id,
+            action="attendance.org_head_override_approved",
+            entity_type="attendance",
+            entity_id=rec.id,
+            details={"action": "override_approve", "reason": reason_text, "work_date": str(rec.work_date)},
+            ip_address=ip_address,
+        )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid action. Must be 'confirm_reject' or 'override_approve'.",
+        )
+
+    return await get_attendance(session, organization_id, rec.id)
+

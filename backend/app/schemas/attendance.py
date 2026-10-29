@@ -48,6 +48,17 @@ class AttendanceListItemResponse(BaseModel):
     check_out_longitude: Decimal | None = None
     check_out_location_name: str | None = None
     device_info: str | None = None
+    is_offsite: bool = False
+    offsite_reason: str | None = None
+    offsite_location: str | None = None
+    client_name: str | None = None
+    approval_status: str = "not_required"
+    hr_approved_at: datetime | None = None
+    hr_approved_by_id: UUID | None = None
+    hr_rejection_reason: str | None = None
+    org_head_approved_at: datetime | None = None
+    org_head_approved_by_id: UUID | None = None
+    org_head_rejection_reason: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -68,6 +79,11 @@ class AttendanceCheckInRequest(BaseModel):
     location_accuracy: Decimal | None = None
     verification_method: str = Field("web", max_length=32)
     device_info: str | None = Field(None, max_length=255)
+    is_offsite: bool = False
+    offsite_reason: str | None = Field(None, max_length=100)
+    offsite_location: str | None = Field(None, max_length=255)
+    client_name: str | None = Field(None, max_length=160)
+
 
 
 class AttendanceCheckOutRequest(BaseModel):
@@ -96,6 +112,11 @@ class AttendanceCreate(BaseModel):
     check_out_longitude: Decimal | None = None
     check_out_location_name: str | None = Field(None, max_length=255)
     device_info: str | None = Field(None, max_length=255)
+    is_offsite: bool = False
+    offsite_reason: str | None = Field(None, max_length=100)
+    offsite_location: str | None = Field(None, max_length=255)
+    client_name: str | None = Field(None, max_length=160)
+    approval_status: str = Field("not_required", pattern=r"^(not_required|pending_hr|pending_org_head|approved|rejected)$")
 
     @model_validator(mode="after")
     def validate_times(self) -> "AttendanceCreate":
@@ -120,6 +141,11 @@ class AttendanceUpdate(BaseModel):
     check_out_longitude: Decimal | None = None
     check_out_location_name: str | None = Field(None, max_length=255)
     device_info: str | None = Field(None, max_length=255)
+    is_offsite: bool | None = None
+    offsite_reason: str | None = Field(None, max_length=100)
+    offsite_location: str | None = Field(None, max_length=255)
+    client_name: str | None = Field(None, max_length=160)
+    approval_status: str | None = Field(None, pattern=r"^(not_required|pending_hr|pending_org_head|approved|rejected)$")
 
     @model_validator(mode="after")
     def validate_times(self) -> "AttendanceUpdate":
@@ -137,3 +163,14 @@ class AttendanceSummaryResponse(BaseModel):
     absent_count: int
     on_leave_count: int
     marked_count: int
+
+
+class AttendanceHRReviewAction(BaseModel):
+    action: str = Field(..., pattern=r"^(approve|reject)$")
+    rejection_reason: str | None = Field(None, max_length=1000)
+
+
+class AttendanceOrgHeadReviewAction(BaseModel):
+    action: str = Field(..., pattern=r"^(confirm_reject|override_approve)$")
+    reason: str | None = Field(None, max_length=1000)
+

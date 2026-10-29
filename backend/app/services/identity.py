@@ -100,4 +100,44 @@ async def get_user_permissions(
     if organization_id is not None:
         stmt = stmt.where(OrganizationMembership.organization_id == UUID(str(organization_id)))
     result = await session.scalars(stmt.distinct().order_by(Permission.code))
-    return list(result)
+    return list(result)
+
+
+async def get_user_roles(
+    session: AsyncSession,
+    user: AuthenticatedUser | UUID | str,
+    organization_id: UUID | str | None = None,
+) -> list[str]:
+    conditions = []
+    user_id_str = str(user.id if hasattr(user, "id") else user)
+    try:
+        auth_id = UUID(user_id_str)
+        conditions.append(Profile.auth_user_id == auth_id)
+    except (ValueError, TypeError):
+        pass
+
+    if hasattr(user, "email") and getattr(user, "email", None):
+        user_email = str(user.email).strip().lower()
+        conditions.append(func.lower(Profile.email) == user_email)
+
+    if not conditions:
+        return []
+
+    stmt = (
+        select(Role.name)
+        .join(MembershipRole, MembershipRole.role_id == Role.id)
+        .join(OrganizationMembership, OrganizationMembership.id == MembershipRole.membership_id)
+        .join(Profile, Profile.id == OrganizationMembership.profile_id)
+        .where(
+            or_(*conditions),
+            OrganizationMembership.status == "active",
+        )
+    )
+    if organization_id is not None:
+        stmt = stmt.where(OrganizationMembership.organization_id == UUID(str(organization_id)))
+    result = await session.scalars(stmt.distinct().order_by(Role.name))
+    if hasattr(result, "all"):
+        return list(result.all())
+    return list(result)
+
+

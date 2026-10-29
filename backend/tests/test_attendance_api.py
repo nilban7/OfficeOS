@@ -746,3 +746,262 @@ async def test_privileged_hr_admin_can_delete_attendance(auth_context) -> None:
         assert body["data"]["id"] == str(att_id)
     finally:
         app.dependency_overrides.pop(get_tenant_session, None)
+
+
+@pytest.mark.asyncio
+async def test_clock_in_offsite_meeting_sets_pending_hr(auth_context) -> None:
+    """Checking in offsite creates attendance record with approval_status='pending_hr'."""
+    org_id = uuid.UUID(auth_context["org_id"])
+    mock_session = AsyncMock()
+
+    emp = _create_mock_employee(org_id)
+    emp.profile_id = uuid.uuid4()
+    mock_session.scalars.side_effect = [
+        ["attendance.create"],  # require_permission
+        ["attendance.create"],  # check_is_admin_or_manager
+        [],  # _get_profile_ids_by_roles (hr_manager)
+        [],  # _get_profile_ids_by_roles (fallback org admins)
+    ]
+
+    mock_session.scalar.side_effect = [
+        auth_context["profile"],  # get_actor_profile_id
+        emp,  # resolve_employee_for_user
+        None,  # check duplicate
+        # get_attendance in check_in_employee
+        AttendanceRecord(
+            id=uuid.uuid4(),
+            organization_id=org_id,
+            employee_id=emp.id,
+            employee=emp,
+            work_date=date(2026, 10, 29),
+            status="present",
+            is_offsite=True,
+            offsite_reason="Client Pitch Meeting",
+            offsite_location="Acme Corp HQ, Sector 5",
+            client_name="Acme Corporation",
+            approval_status="pending_hr",
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        ),
+    ]
+
+
+    app.dependency_overrides[get_tenant_session] = lambda: mock_session
+    try:
+        payload = {
+            "is_offsite": True,
+            "offsite_reason": "Client Pitch Meeting",
+            "offsite_location": "Acme Corp HQ, Sector 5",
+            "client_name": "Acme Corporation",
+            "latitude": 22.5726,
+            "longitude": 88.3639,
+            "location_name": "Acme Corp HQ, Sector 5",
+            "verification_method": "geolocation",
+        }
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.post(
+                "/api/v1/attendance/check-in",
+                headers=auth_context["headers"],
+                json=payload,
+            )
+        assert res.status_code == 201
+        data = res.json()["data"]
+        assert data["is_offsite"] is True
+        assert data["offsite_reason"] == "Client Pitch Meeting"
+        assert data["approval_status"] == "pending_hr"
+        assert data["client_name"] == "Acme Corporation"
+    finally:
+        app.dependency_overrides.pop(get_tenant_session, None)
+
+
+@pytest.mark.asyncio
+async def test_hr_approve_offsite_attendance(auth_context) -> None:
+    """HR approving offsite attendance directly sets approval_status to 'approved'."""
+    org_id = uuid.UUID(auth_context["org_id"])
+    mock_session = AsyncMock()
+
+    emp = _create_mock_employee(org_id)
+    att_id = uuid.uuid4()
+    rec = AttendanceRecord(
+        id=att_id,
+        organization_id=org_id,
+        employee_id=emp.id,
+        employee=emp,
+        work_date=date(2026, 10, 29),
+        status="present",
+        is_offsite=True,
+        offsite_reason="Client Meeting",
+        approval_status="pending_hr",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    mock_session.scalars.side_effect = [
+        ["attendance.approve"],  # require_permission
+    ]
+    mock_session.scalar.side_effect = [
+        auth_context["profile"],  # get_actor_profile_id
+        rec,  # hr_review_attendance initial fetch
+        rec,  # get_attendance after approval
+    ]
+
+    app.dependency_overrides[get_tenant_session] = lambda: mock_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.post(
+                f"/api/v1/attendance/{att_id}/hr-review",
+                headers=auth_context["headers"],
+                json={"action": "approve"},
+            )
+        assert res.status_code == 200
+        data = res.json()["data"]
+        assert data["approval_status"] == "approved"
+    finally:
+        app.dependency_overrides.pop(get_tenant_session, None)
+
+
+@pytest.mark.asyncio
+async def test_hr_reject_escalates_to_org_head(auth_context) -> None:
+    """HR rejecting offsite attendance does NOT reject directly, but sets status to 'pending_org_head'."""
+    org_id = uuid.UUID(auth_context["org_id"])
+    mock_session = AsyncMock()
+
+    emp = _create_mock_employee(org_id)
+    att_id = uuid.uuid4()
+    rec = AttendanceRecord(
+        id=att_id,
+        organization_id=org_id,
+        employee_id=emp.id,
+        employee=emp,
+        work_date=date(2026, 10, 29),
+        status="present",
+        is_offsite=True,
+        offsite_reason="Client Meeting",
+        approval_status="pending_hr",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    mock_session.scalars.side_effect = [
+        ["attendance.approve"],  # require_permission
+        [uuid.uuid4()],  # _get_profile_ids_by_roles for org_head
+    ]
+    mock_session.scalar.side_effect = [
+        auth_context["profile"],  # get_actor_profile_id
+        rec,  # hr_review_attendance initial fetch
+        rec,  # get_attendance after escalation
+    ]
+
+    app.dependency_overrides[get_tenant_session] = lambda: mock_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.post(
+                f"/api/v1/attendance/{att_id}/hr-review",
+                headers=auth_context["headers"],
+                json={"action": "reject", "rejection_reason": "No client invitation attached"},
+            )
+        assert res.status_code == 200
+        data = res.json()["data"]
+        assert data["approval_status"] == "pending_org_head"
+        assert data["hr_rejection_reason"] == "No client invitation attached"
+    finally:
+        app.dependency_overrides.pop(get_tenant_session, None)
+
+
+@pytest.mark.asyncio
+async def test_org_head_confirm_reject(auth_context) -> None:
+    """Org Head confirms rejection of an attendance record escalated from HR."""
+    org_id = uuid.UUID(auth_context["org_id"])
+    mock_session = AsyncMock()
+
+    emp = _create_mock_employee(org_id)
+    att_id = uuid.uuid4()
+    rec = AttendanceRecord(
+        id=att_id,
+        organization_id=org_id,
+        employee_id=emp.id,
+        employee=emp,
+        work_date=date(2026, 10, 29),
+        status="present",
+        is_offsite=True,
+        offsite_reason="Client Meeting",
+        approval_status="pending_org_head",
+        hr_rejection_reason="No invitation",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    mock_session.scalars.side_effect = [
+        ["attendance.view"],  # require_permission
+        ["organization_owner"],  # get_user_roles
+    ]
+    mock_session.scalar.side_effect = [
+        auth_context["profile"],  # get_actor_profile_id
+        rec,  # org_head_review_attendance initial fetch
+        rec,  # get_attendance after final rejection
+    ]
+
+    app.dependency_overrides[get_tenant_session] = lambda: mock_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.post(
+                f"/api/v1/attendance/{att_id}/org-head-review",
+                headers=auth_context["headers"],
+                json={"action": "confirm_reject", "reason": "Confirmed lack of travel authorization"},
+            )
+        assert res.status_code == 200
+        data = res.json()["data"]
+        assert data["approval_status"] == "rejected"
+        assert data["org_head_rejection_reason"] == "Confirmed lack of travel authorization"
+    finally:
+        app.dependency_overrides.pop(get_tenant_session, None)
+
+
+@pytest.mark.asyncio
+async def test_org_head_override_approve(auth_context) -> None:
+    """Org Head overrides HR rejection and approves attendance record."""
+    org_id = uuid.UUID(auth_context["org_id"])
+    mock_session = AsyncMock()
+
+    emp = _create_mock_employee(org_id)
+    att_id = uuid.uuid4()
+    rec = AttendanceRecord(
+        id=att_id,
+        organization_id=org_id,
+        employee_id=emp.id,
+        employee=emp,
+        work_date=date(2026, 10, 29),
+        status="present",
+        is_offsite=True,
+        offsite_reason="Client Meeting",
+        approval_status="pending_org_head",
+        hr_rejection_reason="No invitation",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    mock_session.scalars.side_effect = [
+        ["attendance.view"],  # require_permission
+        ["organization_admin"],  # get_user_roles
+    ]
+    mock_session.scalar.side_effect = [
+        auth_context["profile"],  # get_actor_profile_id
+        rec,  # org_head_review_attendance initial fetch
+        rec,  # get_attendance after override approve
+    ]
+
+    app.dependency_overrides[get_tenant_session] = lambda: mock_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.post(
+                f"/api/v1/attendance/{att_id}/org-head-review",
+                headers=auth_context["headers"],
+                json={"action": "override_approve", "reason": "Authorized directly by CEO"},
+            )
+        assert res.status_code == 200
+        data = res.json()["data"]
+        assert data["approval_status"] == "approved"
+    finally:
+        app.dependency_overrides.pop(get_tenant_session, None)
+
+
