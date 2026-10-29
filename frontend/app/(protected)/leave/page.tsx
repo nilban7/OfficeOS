@@ -875,19 +875,38 @@ export default function LeavePage() {
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        {req.status === "pending" && canCancelLeave && (
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedRequest(req);
-                              setCancelReason("");
-                              setModalError(null);
-                              setIsCancelModalOpen(true);
-                            }}
-                          >
-                            Cancel
-                          </Button>
+                        {(req.status === "pending" || req.status === "approved") && canCancelLeave && (
+                          (() => {
+                            const isApproved = req.status === "approved";
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const endDate = new Date(req.end_date);
+                            const isConcluded = isApproved && endDate < today;
+
+                            if (isConcluded) {
+                              return <span className="text-xs text-slate-400">Completed</span>;
+                            }
+
+                            return (
+                              <Button
+                                variant={isApproved ? "outline" : "destructive"}
+                                size="sm"
+                                className={
+                                  isApproved
+                                    ? "text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
+                                    : ""
+                                }
+                                onClick={() => {
+                                  setSelectedRequest(req);
+                                  setCancelReason("");
+                                  setModalError(null);
+                                  setIsCancelModalOpen(true);
+                                }}
+                              >
+                                {isApproved ? "Cancel Leave" : "Cancel"}
+                              </Button>
+                            );
+                          })()
                         )}
                       </td>
                     </tr>
@@ -1379,8 +1398,12 @@ export default function LeavePage() {
       <Modal
         isOpen={isCancelModalOpen}
         onClose={() => setIsCancelModalOpen(false)}
-        title="Cancel Leave Request"
-        description="Are you sure you want to cancel this pending leave request?"
+        title={selectedRequest?.status === "approved" ? "Cancel Approved Leave" : "Cancel Leave Request"}
+        description={
+          selectedRequest?.status === "approved"
+            ? "Are you sure you want to cancel this approved leave? Days will be restored to your leave balance."
+            : "Are you sure you want to cancel this pending leave request?"
+        }
       >
         <div className="space-y-4">
           {modalError && (
@@ -1389,13 +1412,21 @@ export default function LeavePage() {
             </div>
           )}
           {selectedRequest && (
-            <div className="rounded-md bg-slate-50 p-3 text-xs text-slate-700 space-y-1 border border-slate-200">
+            <div className="rounded-md bg-slate-50 p-3 text-xs text-slate-700 space-y-1.5 border border-slate-200">
               <div>
                 <span className="font-semibold">Type:</span> {selectedRequest.leave_type?.name}
               </div>
               <div>
                 <span className="font-semibold">Dates:</span> {selectedRequest.start_date} to {selectedRequest.end_date} ({selectedRequest.total_days} days)
               </div>
+              {selectedRequest.status === "approved" && (
+                <div className="mt-2 pt-2 border-t border-slate-200 text-emerald-700 font-medium flex items-center gap-1.5">
+                  <span>✓</span>
+                  <span>
+                    Cancelling this leave will restore <span className="font-semibold">{selectedRequest.total_days} day(s)</span> back to your available balance.
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -1405,7 +1436,11 @@ export default function LeavePage() {
               id="cancel-reason"
               value={cancelReason}
               onChange={(e) => setCancelReason(e.target.value)}
-              placeholder="e.g. Plans changed"
+              placeholder={
+                selectedRequest?.status === "approved"
+                  ? "e.g. Plans changed / mood change / meeting rescheduled"
+                  : "e.g. Plans changed"
+              }
               className="mt-1"
             />
           </div>

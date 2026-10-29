@@ -964,10 +964,16 @@ async def cancel_leave_request(
     actor_auth_user_id: UUID,
     actor_profile_id: UUID | None,
     is_admin_or_manager: bool,
+    reason: str | None = None,
     ip_address: str | None = None,
 ) -> LeaveRequestResponse:
     rec = await session.scalar(
-        select(LeaveRequest).where(
+        select(LeaveRequest)
+        .options(
+            selectinload(LeaveRequest.employee),
+            selectinload(LeaveRequest.leave_type),
+        )
+        .where(
             LeaveRequest.id == request_id,
             LeaveRequest.organization_id == organization_id,
         )
@@ -978,10 +984,10 @@ async def cancel_leave_request(
             detail=f"Leave request '{request_id}' not found in this organization",
         )
 
-    if rec.status != "pending":
+    if rec.status not in ("pending", "approved"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot cancel a leave request with status '{rec.status}'. Only pending requests can be cancelled.",
+            detail=f"Cannot cancel a leave request with status '{rec.status}'. Only pending or approved requests can be cancelled.",
         )
 
     # Scoping check: if not admin/manager, must be owner
@@ -992,10 +998,25 @@ async def cancel_leave_request(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You are not authorized to cancel another employee's leave request",
             )
+        # Cannot cancel past leaves that have already concluded
+        if rec.status == "approved" and rec.end_date < datetime.now(UTC).date():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot cancel an approved leave that has already concluded",
+            )
 
     now = datetime.now(UTC)
+    previous_status = rec.status
     rec.status = "cancelled"
     rec.updated_at = now
+
+    audit_details: dict[str, Any] = {
+        "employee_id": str(rec.employee_id),
+        "previous_status": previous_status,
+        "status": "cancelled",
+    }
+    if reason:
+        audit_details["reason"] = reason
 
     await record_audit_log(
         session=session,
@@ -1004,9 +1025,51 @@ async def cancel_leave_request(
         action="leave_request.cancel",
         entity_type="leave_request",
         entity_id=rec.id,
-        details={"employee_id": str(rec.employee_id), "status": "cancelled"},
+        details=audit_details,
         ip_address=ip_address,
     )
+
+    # Resolve employee profile to notify requester / manager
+    emp = None
+    try:
+        emp = rec.employee
+    except Exception:  # noqa: BLE001
+        emp = None
+
+    if emp is None and hasattr(session, "scalar"):
+        try:
+            emp = await session.scalar(select(Employee).where(Employee.id == rec.employee_id))
+        except Exception:  # noqa: BLE001
+            emp = None
+
+    recipient_profile_id = getattr(emp, "profile_id", None) if emp else None
+    emp_name = f"{getattr(emp, 'first_name', '')} {getattr(emp, 'last_name', '')}".strip() if emp else "Employee"
+
+    try:
+        await AutomationService.dispatch_event(
+            session=session,
+            organization_id=organization_id,
+            event_name="leave.cancelled",
+            payload={
+                "event": "leave.cancelled",
+                "request_id": str(rec.id),
+                "employee_id": str(rec.employee_id),
+                "employee_name": emp_name,
+                "recipient_id": str(recipient_profile_id) if recipient_profile_id else None,
+                "previous_status": previous_status,
+                "start_date": str(rec.start_date),
+                "end_date": str(rec.end_date),
+                "total_days": str(rec.total_days),
+                "cancellation_reason": reason,
+                "route": "/leave",
+                "action_url": "/leave",
+                "notification_type": "leave",
+            },
+            actor_profile_id=actor_profile_id,
+            ip_address=ip_address,
+        )
+    except Exception:  # noqa: BLE001, S110
+        pass
 
     return await get_leave_request(session, organization_id, rec.id)
 

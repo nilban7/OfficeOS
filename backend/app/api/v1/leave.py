@@ -15,6 +15,7 @@ from app.schemas.leave import (
     HolidayResponse,
     HolidayUpdate,
     LeaveRequestApprovalAction,
+    LeaveRequestCancelAction,
     LeaveRequestCreate,
     LeaveRequestRejectAction,
     LeaveRequestResponse,
@@ -408,7 +409,7 @@ async def reject_org_leave_request(
 @router.post(
     "/leave-requests/{request_id}/cancel",
     response_model=ApiSuccess[LeaveRequestResponse],
-    summary="Cancel own pending leave request",
+    summary="Cancel own pending or approved leave request",
 )
 async def cancel_org_leave_request(
     request_id: UUID,
@@ -416,11 +417,13 @@ async def cancel_org_leave_request(
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(require_permission("leave.cancel"))],
     organization_header: Annotated[str, Header(alias="X-Organization-Id")],
+    data: LeaveRequestCancelAction | None = None,
 ) -> ApiSuccess[LeaveRequestResponse]:
     org_id = UUID(organization_header)
     actor_id = await get_actor_profile_id(session, current_user)
     is_admin_or_mgr = await check_is_admin_or_manager(session, current_user)
     ip = get_ip_address(request)
+    reason = data.reason if data else None
 
     rec = await cancel_leave_request(
         session=session,
@@ -429,6 +432,7 @@ async def cancel_org_leave_request(
         actor_auth_user_id=UUID(current_user.id),
         actor_profile_id=actor_id,
         is_admin_or_manager=is_admin_or_mgr,
+        reason=reason,
         ip_address=ip,
     )
     return ApiSuccess(data=rec, message="Leave request cancelled successfully")
