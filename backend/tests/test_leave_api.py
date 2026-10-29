@@ -600,3 +600,232 @@ async def test_list_and_create_holidays_success(auth_context) -> None:
             assert res_create.json()["data"]["name"] == "New Year's Day"
     finally:
         app.dependency_overrides.pop(get_tenant_session, None)
+
+
+# ==========================================
+# Leave Cancellation Request & Approval Tests
+# ==========================================
+@pytest.mark.asyncio
+async def test_employee_request_cancellation_approved_leave_success(auth_context) -> None:
+    org_id = uuid.UUID(auth_context["org_id"])
+    mock_session = AsyncMock()
+
+    emp = _create_mock_employee(org_id)
+    lt = _create_mock_leave_type(org_id)
+    req_id = uuid.uuid4()
+    rec = LeaveRequest(
+        id=req_id,
+        organization_id=org_id,
+        employee_id=emp.id,
+        employee=emp,
+        leave_type_id=lt.id,
+        leave_type=lt,
+        start_date=date(2026, 11, 10),
+        end_date=date(2026, 11, 12),
+        total_days=Decimal("3.00"),
+        status="approved",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    mock_session.scalars.side_effect = [
+        ["leave.cancel"],  # require_permission
+        ["leave.cancel"],  # check_is_admin_or_manager -> False
+    ]
+    mock_session.scalar.side_effect = [
+        auth_context["profile"],  # get_actor_profile_id
+        rec,  # load record
+        emp,  # resolve_employee_for_user -> matches rec.employee_id
+        rec,  # get_leave_request
+    ]
+
+    app.dependency_overrides[get_tenant_session] = lambda: mock_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.post(
+                f"/api/v1/leave-requests/{req_id}/request-cancellation",
+                headers=auth_context["headers"],
+                json={"reason": "Trip cancelled due to weather"},
+            )
+        assert res.status_code == 200
+        body = res.json()
+        assert body["success"] is True
+        assert rec.status == "cancellation_requested"
+        assert rec.cancellation_reason == "Trip cancelled due to weather"
+    finally:
+        app.dependency_overrides.pop(get_tenant_session, None)
+
+
+@pytest.mark.asyncio
+async def test_manager_approve_leave_cancellation_success(auth_context) -> None:
+    org_id = uuid.UUID(auth_context["org_id"])
+    mock_session = AsyncMock()
+
+    emp = _create_mock_employee(org_id)
+    lt = _create_mock_leave_type(org_id)
+    req_id = uuid.uuid4()
+    rec = LeaveRequest(
+        id=req_id,
+        organization_id=org_id,
+        employee_id=emp.id,
+        employee=emp,
+        leave_type_id=lt.id,
+        leave_type=lt,
+        start_date=date(2026, 11, 10),
+        end_date=date(2026, 11, 12),
+        total_days=Decimal("3.00"),
+        status="cancellation_requested",
+        cancellation_reason="Trip cancelled",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    mock_session.scalars.side_effect = [
+        ["leave.approve"],  # require_permission
+    ]
+    mock_session.scalar.side_effect = [
+        auth_context["profile"],  # get_actor_profile_id
+        rec,  # load record
+        rec,  # get_leave_request
+    ]
+
+    app.dependency_overrides[get_tenant_session] = lambda: mock_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.post(
+                f"/api/v1/leave-requests/{req_id}/approve-cancellation",
+                headers=auth_context["headers"],
+                json={"reviewer_comment": "Cancellation approved, leave credited back"},
+            )
+        assert res.status_code == 200
+        body = res.json()
+        assert body["success"] is True
+        assert rec.status == "cancelled"
+        assert rec.cancellation_reviewer_comment == "Cancellation approved, leave credited back"
+    finally:
+        app.dependency_overrides.pop(get_tenant_session, None)
+
+
+@pytest.mark.asyncio
+async def test_manager_reject_leave_cancellation_success(auth_context) -> None:
+    org_id = uuid.UUID(auth_context["org_id"])
+    mock_session = AsyncMock()
+
+    emp = _create_mock_employee(org_id)
+    lt = _create_mock_leave_type(org_id)
+    req_id = uuid.uuid4()
+    rec = LeaveRequest(
+        id=req_id,
+        organization_id=org_id,
+        employee_id=emp.id,
+        employee=emp,
+        leave_type_id=lt.id,
+        leave_type=lt,
+        start_date=date(2026, 11, 10),
+        end_date=date(2026, 11, 12),
+        total_days=Decimal("3.00"),
+        status="cancellation_requested",
+        cancellation_reason="Trip cancelled",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    mock_session.scalars.side_effect = [
+        ["leave.approve"],  # require_permission
+    ]
+    mock_session.scalar.side_effect = [
+        auth_context["profile"],  # get_actor_profile_id
+        rec,  # load record
+        rec,  # get_leave_request
+    ]
+
+    app.dependency_overrides[get_tenant_session] = lambda: mock_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.post(
+                f"/api/v1/leave-requests/{req_id}/reject-cancellation",
+                headers=auth_context["headers"],
+                json={"reviewer_comment": "Cannot cancel on short notice"},
+            )
+        assert res.status_code == 200
+        body = res.json()
+        assert body["success"] is True
+        assert rec.status == "approved"
+        assert rec.cancellation_reviewer_comment == "Cannot cancel on short notice"
+    finally:
+        app.dependency_overrides.pop(get_tenant_session, None)
+
+
+@pytest.mark.asyncio
+async def test_leave_summary_increases_available_days_after_cancellation(auth_context) -> None:
+    from app.services.leave import get_leave_summary
+
+    org_id = uuid.UUID(auth_context["org_id"])
+    emp = _create_mock_employee(org_id)
+    lt = _create_mock_leave_type(org_id)  # 20 days annual allocation
+
+    # Case 1: leave is approved -> used_days = 3, available = 17
+    mock_session_approved = AsyncMock()
+    req_approved = LeaveRequest(
+        id=uuid.uuid4(),
+        organization_id=org_id,
+        employee_id=emp.id,
+        leave_type_id=lt.id,
+        start_date=date(datetime.now(UTC).year, 6, 1),
+        end_date=date(datetime.now(UTC).year, 6, 3),
+        total_days=Decimal("3.00"),
+        status="approved",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    mock_session_approved.scalars.side_effect = [
+        [lt],  # active leave types
+        [req_approved],  # requests
+    ]
+    summary_before = await get_leave_summary(mock_session_approved, org_id, emp.id)
+    assert summary_before.total_used_days == Decimal("3.00")
+    assert summary_before.total_available_days == Decimal("17.00")
+
+    # Case 2: leave is cancelled -> used_days = 0, available = 20 (automatically restored)
+    mock_session_cancelled = AsyncMock()
+    mock_session_cancelled.scalars.side_effect = [
+        [lt],  # active leave types
+        [],  # no active approved/pending requests
+    ]
+    summary_after = await get_leave_summary(mock_session_cancelled, org_id, emp.id)
+    assert summary_after.total_used_days == Decimal("0.00")
+    assert summary_after.total_available_days == Decimal("20.00")
+
+
+@pytest.mark.asyncio
+async def test_leave_summary_does_not_decrease_available_days_when_pending(auth_context) -> None:
+    from app.services.leave import get_leave_summary
+
+    org_id = uuid.UUID(auth_context["org_id"])
+    emp = _create_mock_employee(org_id)
+    lt = _create_mock_leave_type(org_id)  # 20 days annual allocation
+
+    mock_session = AsyncMock()
+    req_pending = LeaveRequest(
+        id=uuid.uuid4(),
+        organization_id=org_id,
+        employee_id=emp.id,
+        leave_type_id=lt.id,
+        start_date=date(datetime.now(UTC).year, 10, 30),
+        end_date=date(datetime.now(UTC).year, 10, 30),
+        total_days=Decimal("1.00"),
+        status="pending",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    mock_session.scalars.side_effect = [
+        [lt],  # active leave types
+        [req_pending],  # pending requests
+    ]
+    summary = await get_leave_summary(mock_session, org_id, emp.id)
+    assert summary.total_pending_days == Decimal("1.00")
+    assert summary.total_used_days == Decimal("0.00")
+    assert summary.total_available_days == Decimal("20.00")
+    assert summary.balances_by_type[0].available_days == Decimal("20.00")
+
+

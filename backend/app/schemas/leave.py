@@ -121,6 +121,12 @@ class LeaveRequestResponse(BaseModel):
     reviewer: ReviewerBrief | None = None
     reviewed_at: datetime | None
     reviewer_comment: str | None
+    cancellation_reason: str | None = None
+    cancellation_requested_at: datetime | None = None
+    cancellation_reviewed_by: UUID | None = None
+    cancellation_reviewer: ReviewerBrief | None = None
+    cancellation_reviewed_at: datetime | None = None
+    cancellation_reviewer_comment: str | None = None
     created_at: datetime
     updated_at: datetime
 

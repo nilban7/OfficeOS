@@ -396,14 +396,18 @@ describe("LeavePage Component", () => {
 
     await user.click(screen.getByRole("button", { name: "Holidays" }));
 
+    // Switch to January to view New Year's Day on the interactive calendar
+    await user.click(screen.getByRole("button", { name: "Jan" }));
+
     await waitFor(() => {
       expect(screen.getByText("New Year's Day")).toBeInTheDocument();
     });
 
-    const addHolidayBtns = screen.getAllByRole("button", { name: /add holiday/i });
-    await user.click(addHolidayBtns[0]!);
+    // In the interactive calendar, clicking a date cell (e.g. 4) opens the Declare Holiday popup
+    const day4 = screen.getByText("4");
+    await user.click(day4);
 
-    expect(screen.getByRole("heading", { name: "Add Holiday" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Declare Holiday" })).toBeInTheDocument();
 
     const nameInput = screen.getByLabelText(/holiday name \*/i);
     await user.type(nameInput, "Independence Day");
@@ -411,7 +415,7 @@ describe("LeavePage Component", () => {
     const dateInput = screen.getByLabelText(/date \*/i);
     fireEvent.change(dateInput, { target: { value: "2026-07-04" } });
 
-    const submitBtn = screen.getByRole("button", { name: "Create Holiday" });
+    const submitBtn = screen.getByRole("button", { name: "Declare Holiday" });
     await user.click(submitBtn);
 
     await waitFor(() => {
@@ -421,6 +425,153 @@ describe("LeavePage Component", () => {
           name: "Independence Day",
           holiday_date: "2026-07-04",
         }),
+        expect.anything()
+      );
+    });
+  });
+
+  it("allows employee to request cancellation of an approved leave request", async () => {
+    const user = userEvent.setup();
+    const approvedRequests: LeaveRequest[] = [
+      {
+        id: "req-appr-1",
+        organization_id: "org-1111",
+        employee_id: "emp-1",
+        leave_type_id: "type-vacation",
+        leave_type: {
+          id: "type-vacation",
+          name: "Annual Vacation",
+          code: "VAC",
+          is_paid: true,
+        },
+        start_date: "2026-11-10",
+        end_date: "2026-11-12",
+        total_days: 3,
+        reason: "Holiday trip",
+        status: "approved",
+        created_at: "2026-10-01T00:00:00Z",
+        updated_at: "2026-10-02T00:00:00Z",
+      },
+    ];
+
+    (apiClient.get as unknown as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.includes("/leave-requests/summary")) return Promise.resolve(mockSummary);
+      if (url.includes("/leave-types")) return Promise.resolve(mockLeaveTypes);
+      if (url.includes("/holidays")) return Promise.resolve(mockHolidays);
+      if (url.includes("/leave-requests")) return Promise.resolve(approvedRequests);
+      if (url.includes("/branches")) return Promise.resolve(mockBranches);
+      if (url.includes("/employees")) return Promise.resolve({ items: [], meta: { total: 0, page: 1, page_size: 100, total_pages: 1 } });
+      return Promise.resolve([]);
+    });
+
+    (apiClient.post as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: "req-appr-1",
+      status: "cancellation_requested",
+    });
+
+    render(<LeavePage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Request Cancellation" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Request Cancellation" }));
+
+    expect(screen.getByRole("heading", { name: "Request Leave Cancellation" })).toBeInTheDocument();
+
+    const reasonInput = screen.getByLabelText(/reason for cancellation \*/i);
+    await user.type(reasonInput, "Plans postponed");
+
+    const submitBtn = screen.getByRole("button", { name: "Submit Cancellation Request" });
+    await user.click(submitBtn);
+
+    await waitFor(() => {
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/leave-requests/req-appr-1/request-cancellation",
+        { reason: "Plans postponed" },
+        expect.anything()
+      );
+    });
+  });
+
+  it("allows manager to approve a cancellation request in Approval Queue", async () => {
+    const user = userEvent.setup();
+    const cancRequestedRequests: LeaveRequest[] = [
+      {
+        id: "req-canc-1",
+        organization_id: "org-1111",
+        employee_id: "emp-1",
+        employee: {
+          id: "emp-1",
+          employee_code: "EMP-001",
+          first_name: "Alice",
+          last_name: "Smith",
+          designation: "Software Engineer",
+        },
+        leave_type_id: "type-vacation",
+        leave_type: {
+          id: "type-vacation",
+          name: "Annual Vacation",
+          code: "VAC",
+          is_paid: true,
+        },
+        start_date: "2026-11-10",
+        end_date: "2026-11-12",
+        total_days: 3,
+        reason: "Holiday trip",
+        cancellation_reason: "Family emergency resolved",
+        status: "cancellation_requested",
+        created_at: "2026-10-01T00:00:00Z",
+        updated_at: "2026-10-02T00:00:00Z",
+      },
+    ];
+
+    (apiClient.get as unknown as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.includes("/leave-requests/summary")) return Promise.resolve(mockSummary);
+      if (url.includes("/leave-types")) return Promise.resolve(mockLeaveTypes);
+      if (url.includes("/holidays")) return Promise.resolve(mockHolidays);
+      if (url.includes("/leave-requests")) return Promise.resolve(cancRequestedRequests);
+      if (url.includes("/branches")) return Promise.resolve(mockBranches);
+      if (url.includes("/employees")) return Promise.resolve({ items: [], meta: { total: 0, page: 1, page_size: 100, total_pages: 1 } });
+      return Promise.resolve([]);
+    });
+
+    (apiClient.post as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: "req-canc-1",
+      status: "cancelled",
+    });
+
+    render(<LeavePage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Approval Queue" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Approval Queue" }));
+
+    // Change status filter to Cancellation Requests or All Requests to see it
+    await waitFor(() => {
+      expect(screen.getByRole("combobox")).toBeInTheDocument();
+    });
+
+    const statusFilter = screen.getByRole("combobox");
+    fireEvent.change(statusFilter, { target: { value: "cancellation_requested" } });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Approve Cancel" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Approve Cancel" }));
+
+    expect(screen.getByRole("heading", { name: "Approve Leave Cancellation" })).toBeInTheDocument();
+
+    const confirmBtn = screen.getByRole("button", { name: "Confirm Cancellation & Restore Leave" });
+    await user.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/leave-requests/req-canc-1/approve-cancellation",
+        expect.anything(),
         expect.anything()
       );
     });

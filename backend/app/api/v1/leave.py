@@ -28,6 +28,7 @@ from app.schemas.leave import (
 from app.services.attendance import resolve_employee_for_user
 from app.services.identity import get_profile, get_user_permissions
 from app.services.leave import (
+    approve_leave_cancellation,
     approve_leave_request,
     cancel_leave_request,
     create_holiday,
@@ -42,7 +43,9 @@ from app.services.leave import (
     list_holidays,
     list_leave_requests,
     list_leave_types,
+    reject_leave_cancellation,
     reject_leave_request,
+    request_leave_cancellation,
     update_holiday,
     update_leave_request,
     update_leave_type,
@@ -179,6 +182,7 @@ async def list_org_leave_requests(
     session: Annotated[AsyncSession, Depends(require_permission("leave.view"))],
     organization_header: Annotated[str, Header(alias="X-Organization-Id")],
     employee_id: Annotated[UUID | None, Query(description="Filter by employee ID")] = None,
+    scope: Annotated[str | None, Query(description="Filter scope: 'me' for self")] = None,
     leave_type_id: Annotated[UUID | None, Query(description="Filter by leave type ID")] = None,
     status_filter: Annotated[str | None, Query(alias="status", description="Filter by request status")] = None,
     start_date: Annotated[date | None, Query(description="Filter start date")] = None,
@@ -190,7 +194,7 @@ async def list_org_leave_requests(
     is_admin_or_mgr = await check_is_admin_or_manager(session, current_user)
 
     target_employee_id = employee_id
-    if not is_admin_or_mgr:
+    if scope == "me" or not is_admin_or_mgr:
         user_emp = await resolve_employee_for_user(session, org_id, UUID(current_user.id))
         if user_emp is None:
             return ApiSuccess(
@@ -436,6 +440,93 @@ async def cancel_org_leave_request(
         ip_address=ip,
     )
     return ApiSuccess(data=rec, message="Leave request cancelled successfully")
+
+
+@router.post(
+    "/leave-requests/{request_id}/request-cancellation",
+    response_model=ApiSuccess[LeaveRequestResponse],
+    summary="Request cancellation of an approved leave request",
+)
+async def request_org_leave_cancellation(
+    request_id: UUID,
+    data: LeaveRequestCancelAction,
+    request: Request,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(require_permission("leave.cancel"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
+) -> ApiSuccess[LeaveRequestResponse]:
+    org_id = UUID(organization_header)
+    actor_id = await get_actor_profile_id(session, current_user)
+    is_admin_or_mgr = await check_is_admin_or_manager(session, current_user)
+    ip = get_ip_address(request)
+
+    rec = await request_leave_cancellation(
+        session=session,
+        organization_id=org_id,
+        request_id=request_id,
+        data=data,
+        actor_auth_user_id=UUID(current_user.id),
+        actor_profile_id=actor_id,
+        is_admin_or_manager=is_admin_or_mgr,
+        ip_address=ip,
+    )
+    return ApiSuccess(data=rec, message="Cancellation request submitted successfully")
+
+
+@router.post(
+    "/leave-requests/{request_id}/approve-cancellation",
+    response_model=ApiSuccess[LeaveRequestResponse],
+    summary="Approve cancellation of leave request (Manager/Admin)",
+)
+async def approve_org_leave_cancellation(
+    request_id: UUID,
+    data: LeaveRequestApprovalAction,
+    request: Request,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(require_permission("leave.approve"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
+) -> ApiSuccess[LeaveRequestResponse]:
+    org_id = UUID(organization_header)
+    actor_id = await get_actor_profile_id(session, current_user)
+    ip = get_ip_address(request)
+
+    rec = await approve_leave_cancellation(
+        session=session,
+        organization_id=org_id,
+        request_id=request_id,
+        data=data,
+        actor_profile_id=actor_id,
+        ip_address=ip,
+    )
+    return ApiSuccess(data=rec, message="Leave cancellation approved successfully")
+
+
+@router.post(
+    "/leave-requests/{request_id}/reject-cancellation",
+    response_model=ApiSuccess[LeaveRequestResponse],
+    summary="Reject cancellation of leave request (Manager/Admin)",
+)
+async def reject_org_leave_cancellation(
+    request_id: UUID,
+    data: LeaveRequestRejectAction,
+    request: Request,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(require_permission("leave.approve"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
+) -> ApiSuccess[LeaveRequestResponse]:
+    org_id = UUID(organization_header)
+    actor_id = await get_actor_profile_id(session, current_user)
+    ip = get_ip_address(request)
+
+    rec = await reject_leave_cancellation(
+        session=session,
+        organization_id=org_id,
+        request_id=request_id,
+        data=data,
+        actor_profile_id=actor_id,
+        ip_address=ip,
+    )
+    return ApiSuccess(data=rec, message="Leave cancellation rejected successfully")
 
 
 # ==========================================

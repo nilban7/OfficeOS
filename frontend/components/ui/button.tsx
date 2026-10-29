@@ -29,14 +29,14 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       primary:
         "bg-primary-600 text-white shadow-subtle hover:bg-primary-700 hover:shadow-card active:bg-primary-800",
       secondary:
-        "bg-slate-100/90 text-slate-800 hover:bg-slate-200/70 active:bg-slate-200",
+        "bg-slate-100/90 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-700 active:bg-slate-200 dark:active:bg-slate-600",
       outline:
-        "border border-slate-200/90 bg-white text-slate-700 shadow-subtle hover:bg-slate-50 hover:border-slate-300 active:bg-slate-100/80",
+        "border border-slate-200/90 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 shadow-subtle hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 active:bg-slate-100/80 dark:active:bg-slate-700",
       ghost:
-        "bg-transparent text-slate-700 hover:bg-slate-100/70 active:bg-slate-200/70",
+        "bg-transparent text-slate-700 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800 active:bg-slate-200/70 dark:active:bg-slate-700",
       destructive:
         "bg-red-600 text-white shadow-subtle hover:bg-red-700 hover:shadow-card active:bg-red-800",
-      link: "text-primary-600 underline-offset-4 hover:underline p-0 h-auto active:scale-100",
+      link: "text-primary-600 dark:text-primary-400 underline-offset-4 hover:underline p-0 h-auto active:scale-100",
     };
 
     const sizes: Record<string, string> = {

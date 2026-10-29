@@ -43,17 +43,17 @@ export function UserNav() {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center space-x-3 rounded-lg p-1.5 hover:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+        className="flex items-center space-x-3 rounded-lg p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
         aria-expanded={isOpen}
       >
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-600 font-semibold text-white text-xs shadow-sm">
           {userInitial}
         </div>
         <div className="hidden text-left sm:block">
-          <div className="text-sm font-medium text-slate-800 leading-tight truncate max-w-[120px]">
+          <div className="text-sm font-medium text-slate-800 dark:text-slate-200 leading-tight truncate max-w-[120px]">
             {displayName}
           </div>
-          <div className="text-xs text-slate-500 truncate max-w-[120px]">
+          <div className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[120px]">
             {user?.email || "Signed in"}
           </div>
         </div>
@@ -61,13 +61,13 @@ export function UserNav() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 z-50 w-64 rounded-xl border border-slate-200 bg-white p-2 shadow-lg animate-in fade-in-0 zoom-in-95">
-          <div className="border-b border-slate-100 px-3 py-2">
-            <p className="text-sm font-semibold text-slate-900 truncate">{displayName}</p>
-            <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+        <div className="absolute right-0 mt-2 z-50 w-64 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2 shadow-lg animate-in fade-in-0 zoom-in-95">
+          <div className="border-b border-slate-100 dark:border-slate-800 px-3 py-2">
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{displayName}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user?.email}</p>
             {membership?.role && (
               <div className="mt-2 flex items-center space-x-1.5">
-                <Shield className="h-3.5 w-3.5 text-primary-600" />
+                <Shield className="h-3.5 w-3.5 text-primary-600 dark:text-primary-400" />
                 <Badge variant="default" className="capitalize text-[10px] py-0 px-1.5">
                   {membership.role.replace("_", " ")}
                 </Badge>
@@ -82,7 +82,7 @@ export function UserNav() {
                 setIsOpen(false);
                 router.push(ROUTES.SETTINGS);
               }}
-              className="flex w-full items-center rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+              className="flex w-full items-center rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             >
               <UserIcon className="mr-2.5 h-4 w-4 text-slate-400" />
               Account Settings
@@ -90,7 +90,7 @@ export function UserNav() {
             <button
               type="button"
               onClick={handleSignOut}
-              className="flex w-full items-center rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+              className="flex w-full items-center rounded-lg px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
             >
               <LogOut className="mr-2.5 h-4 w-4 text-red-500" />
               Sign Out

@@ -144,12 +144,12 @@ export function SimpleDonutChart({
         {(centerLabel || centerValue !== undefined) && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-2">
             {centerValue !== undefined && (
-              <span className="text-base font-bold text-slate-900 tracking-tight leading-none">
+              <span className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-none">
                 {centerValue}
               </span>
             )}
             {centerLabel && (
-              <span className="text-[10px] text-slate-500 font-medium uppercase mt-0.5">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium uppercase mt-0.5">
                 {centerLabel}
               </span>
             )}
@@ -168,9 +168,9 @@ export function SimpleDonutChart({
                   className="h-2.5 w-2.5 rounded-full shrink-0"
                   style={{ backgroundColor: item.color }}
                 />
-                <span className="text-slate-700 font-medium truncate">{item.label}</span>
+                <span className="text-slate-700 dark:text-slate-300 font-medium truncate">{item.label}</span>
               </div>
-              <div className="flex items-center gap-2 text-slate-500 font-semibold shrink-0">
+              <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-semibold shrink-0">
                 <span>{item.value}</span>
                 <span className="text-[10px] text-slate-400">({pct}%)</span>
               </div>
@@ -202,12 +202,12 @@ export function SimpleProgressBar({
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-xs">
-        <span className="font-medium text-slate-700">{label}</span>
-        <span className="font-semibold text-slate-900">
+        <span className="font-medium text-slate-700 dark:text-slate-300">{label}</span>
+        <span className="font-semibold text-slate-900 dark:text-slate-100">
           {value} / {total} {hint && <span className="font-normal text-slate-400 text-[10px]">({hint})</span>}
         </span>
       </div>
-      <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+      <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
         <div
           className={cn("h-full transition-all duration-300 rounded-full", colorClass)}
           style={{ width: `${pct}%` }}
