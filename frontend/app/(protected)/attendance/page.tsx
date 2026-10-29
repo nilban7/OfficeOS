@@ -1073,8 +1073,8 @@ export default function AttendancePage() {
       {/* Attendance Stations: Personal GPS Clock & Biometric Fingerprint Terminal */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Station 1: Personal GPS Clock-In Card */}
-        <Card className="border-primary-200 bg-gradient-to-br from-primary-50/40 via-white to-white shadow-sm flex flex-col justify-between">
-          <CardHeader className="pb-3 border-b border-primary-100/60">
+        <Card className="border-primary-200 bg-gradient-to-br from-primary-50/40 via-white to-white shadow-sm flex flex-col">
+          <CardHeader className="pb-3 border-b border-primary-100/60 shrink-0">
             <CardTitle className="text-base font-semibold text-slate-800 flex items-center justify-between">
               <span className="flex items-center gap-2">
                 <Compass className="h-5 w-5 text-primary-600" />
@@ -1090,7 +1090,7 @@ export default function AttendancePage() {
               </div>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4 pt-4">
+          <CardContent className="space-y-4 pt-4 flex-1 flex flex-col justify-between">
             {isLoadingMyToday ? (
               <div className="py-8 flex justify-center">
                 <LoadingState message="Loading your attendance status..." />
@@ -1341,9 +1341,10 @@ export default function AttendancePage() {
         </Card>
 
         {/* Station 2: Dedicated Biometric Fingerprint Terminal */}
-        <Card className="border-indigo-200 bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 text-white shadow-md relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute top-0 right-0 -mt-8 -mr-8 w-40 h-40 bg-indigo-500/20 rounded-full blur-2xl pointer-events-none" />
-          <CardHeader className="pb-2 border-b border-indigo-800/60 z-10">
+        <Card className="border-indigo-200/50 bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 text-white shadow-md relative overflow-hidden flex flex-col">
+          <div className="absolute top-0 right-0 -mt-8 -mr-8 w-44 h-44 bg-indigo-500/20 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 -mb-8 -ml-8 w-44 h-44 bg-violet-500/15 rounded-full blur-2xl pointer-events-none" />
+          <CardHeader className="pb-3 border-b border-indigo-800/60 z-10 shrink-0">
             <CardTitle className="text-base font-semibold text-white flex items-center justify-between">
               <span className="flex items-center gap-2 text-indigo-200">
                 <Fingerprint className="h-5 w-5 text-indigo-400" />
@@ -1357,26 +1358,26 @@ export default function AttendancePage() {
               </Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-4 pb-6 space-y-4 z-10 text-center flex flex-col items-center justify-center">
+          <CardContent className="flex-1 flex flex-col items-center justify-center py-6 px-6 z-10 text-center space-y-4">
             {/* Visual Fingerprint Scanner Target */}
-            <div className="relative my-2">
+            <div className="relative my-1">
               <button
                 type="button"
                 onClick={handleFingerprintScan}
                 disabled={isScanningFingerprint || (myTodayRecord !== null && Boolean(myTodayRecord.check_out_at))}
                 className={`relative group h-24 w-24 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none ${
                   fingerprintSuccess
-                    ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/50 scale-105"
+                    ? "bg-emerald-500 text-white shadow-xl shadow-emerald-500/50 scale-105"
                     : isScanningFingerprint
-                    ? "bg-indigo-600 text-indigo-100 animate-pulse shadow-lg shadow-indigo-500/50 scale-105"
-                    : "bg-indigo-950/80 hover:bg-indigo-800 text-indigo-300 hover:text-white border-2 border-indigo-600/80 hover:border-indigo-400 shadow-md hover:scale-105 cursor-pointer"
+                    ? "bg-indigo-600 text-indigo-100 animate-pulse shadow-xl shadow-indigo-500/50 scale-105"
+                    : "bg-indigo-950/90 hover:bg-indigo-800 text-indigo-300 hover:text-white border-2 border-indigo-500/70 hover:border-indigo-300 shadow-lg hover:scale-105 cursor-pointer"
                 }`}
                 title="Scan biometric fingerprint"
                 aria-label="Scan biometric fingerprint"
               >
                 {/* Sonar Pulse Rings when scanning or idle */}
                 {isScanningFingerprint && (
-                  <span className="absolute -inset-2 rounded-full border border-indigo-400 animate-ping opacity-75" />
+                  <span className="absolute -inset-3 rounded-full border-2 border-indigo-400 animate-ping opacity-75" />
                 )}
                 {fingerprintSuccess ? (
                   <CheckCircle2 className="h-12 w-12 text-white animate-in zoom-in" />
@@ -1387,7 +1388,7 @@ export default function AttendancePage() {
             </div>
 
             {/* Scanner Status Message */}
-            <div className="space-y-1 max-w-xs">
+            <div className="space-y-1.5 max-w-xs">
               <p className="text-sm font-semibold text-white">
                 {fingerprintSuccess
                   ? "Fingerprint Verified!"
@@ -1410,21 +1411,33 @@ export default function AttendancePage() {
               </p>
             </div>
 
+            {/* Biometric Feature Chips */}
+            <div className="flex flex-wrap items-center justify-center gap-1.5 pt-0.5">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-indigo-900/60 text-indigo-300 border border-indigo-700/60">
+                <Navigation className="h-2.5 w-2.5 text-indigo-400" /> GPS Tagged
+              </span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-indigo-900/60 text-indigo-300 border border-indigo-700/60">
+                <ShieldCheck className="h-2.5 w-2.5 text-indigo-400" /> FIDO2 / WebAuthn
+              </span>
+            </div>
+
             {/* Scan Action Button */}
             {(!myTodayRecord || !myTodayRecord.check_out_at) && (
-              <Button
-                type="button"
-                onClick={handleFingerprintScan}
-                disabled={isScanningFingerprint}
-                className="w-full max-w-xs min-h-[44px] flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-md border border-indigo-400/40 text-xs py-2"
-              >
-                <Fingerprint className="h-4 w-4" />
-                {isScanningFingerprint
-                  ? (isMobileDevice ? "Reading Mobile Fingerprint..." : "Scanning Sensor...")
-                  : myTodayRecord
-                  ? "Scan Fingerprint to Clock Out"
-                  : "Scan Fingerprint to Clock In"}
-              </Button>
+              <div className="w-full max-w-xs pt-1">
+                <Button
+                  type="button"
+                  onClick={handleFingerprintScan}
+                  disabled={isScanningFingerprint}
+                  className="w-full min-h-[44px] flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium shadow-md border border-indigo-400/40 text-xs py-2"
+                >
+                  <Fingerprint className="h-4 w-4" />
+                  {isScanningFingerprint
+                    ? (isMobileDevice ? "Reading Mobile Fingerprint..." : "Scanning Sensor...")
+                    : myTodayRecord
+                    ? "Scan Fingerprint to Clock Out"
+                    : "Scan Fingerprint to Clock In"}
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>
