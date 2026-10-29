@@ -290,6 +290,60 @@ describe("LeavePage Component", () => {
     });
   });
 
+  it("allows employee to cancel an already approved upcoming leave request", async () => {
+    const user = userEvent.setup();
+    const approvedRequests: LeaveRequest[] = [
+      {
+        ...mockLeaveRequests[0]!,
+        id: "req-approved-1",
+        status: "approved",
+        start_date: "2027-11-01",
+        end_date: "2027-11-05",
+        total_days: 5,
+      },
+    ];
+
+    (apiClient.get as unknown as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url === "/leave-requests") return Promise.resolve(approvedRequests);
+      if (url === "/leave-requests/summary") return Promise.resolve(mockSummary);
+      if (url === "/leave-types") return Promise.resolve(mockLeaveTypes);
+      if (url === "/holidays") return Promise.resolve(mockHolidays);
+      if (url === "/branches") return Promise.resolve(mockBranches);
+      if (url === "/employees") return Promise.resolve({ items: [] });
+      return Promise.resolve([]);
+    });
+
+    (apiClient.post as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: "req-approved-1",
+      status: "cancelled",
+    });
+
+    render(<LeavePage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Cancel Leave" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Cancel Leave" }));
+
+    expect(screen.getByRole("heading", { name: "Cancel Approved Leave" })).toBeInTheDocument();
+    expect(screen.getByText(/Cancelling this leave will restore/i)).toBeInTheDocument();
+
+    const input = screen.getByPlaceholderText(/mood change/i);
+    await user.type(input, "Plans changed, mood change");
+
+    const confirmBtn = screen.getByRole("button", { name: /confirm cancellation/i });
+    await user.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/leave-requests/req-approved-1/cancel",
+        { reason: "Plans changed, mood change" },
+        expect.anything()
+      );
+    });
+  });
+
   it("allows manager to approve a request in the approval queue", async () => {
     const user = userEvent.setup();
     (apiClient.post as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({

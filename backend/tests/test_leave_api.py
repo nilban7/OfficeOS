@@ -426,6 +426,106 @@ async def test_employee_cancel_own_leave_request_success(auth_context) -> None:
 
 
 @pytest.mark.asyncio
+async def test_employee_cancel_approved_leave_request_success(auth_context) -> None:
+    org_id = uuid.UUID(auth_context["org_id"])
+    mock_session = AsyncMock()
+
+    emp = _create_mock_employee(org_id)
+    lt = _create_mock_leave_type(org_id)
+    req_id = uuid.uuid4()
+    # Upcoming approved leave
+    rec = LeaveRequest(
+        id=req_id,
+        organization_id=org_id,
+        employee_id=emp.id,
+        employee=emp,
+        leave_type_id=lt.id,
+        leave_type=lt,
+        start_date=date(2027, 11, 1),
+        end_date=date(2027, 11, 5),
+        total_days=Decimal("5.00"),
+        status="approved",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    mock_session.scalars.side_effect = [
+        ["leave.cancel"],  # require_permission
+        ["leave.cancel"],  # check_is_admin_or_manager -> False
+    ]
+    mock_session.scalar.side_effect = [
+        auth_context["profile"],  # get_actor_profile_id
+        rec,  # load record
+        emp,  # resolve_employee_for_user -> matches rec.employee_id
+        rec,  # get_leave_request
+    ]
+
+    app.dependency_overrides[get_tenant_session] = lambda: mock_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.post(
+                f"/api/v1/leave-requests/{req_id}/cancel",
+                headers=auth_context["headers"],
+                json={"reason": "Plans changed, mood change, staying to complete sprint"},
+            )
+        assert res.status_code == 200
+        body = res.json()
+        assert body["success"] is True
+        assert rec.status == "cancelled"
+    finally:
+        app.dependency_overrides.pop(get_tenant_session, None)
+
+
+@pytest.mark.asyncio
+async def test_employee_cannot_cancel_past_approved_leave(auth_context) -> None:
+    org_id = uuid.UUID(auth_context["org_id"])
+    mock_session = AsyncMock()
+
+    emp = _create_mock_employee(org_id)
+    lt = _create_mock_leave_type(org_id)
+    req_id = uuid.uuid4()
+    # Past leave in 2020
+    rec = LeaveRequest(
+        id=req_id,
+        organization_id=org_id,
+        employee_id=emp.id,
+        employee=emp,
+        leave_type_id=lt.id,
+        leave_type=lt,
+        start_date=date(2020, 1, 1),
+        end_date=date(2020, 1, 3),
+        total_days=Decimal("3.00"),
+        status="approved",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    mock_session.scalars.side_effect = [
+        ["leave.cancel"],  # require_permission
+        ["leave.cancel"],  # check_is_admin_or_manager -> False
+    ]
+    mock_session.scalar.side_effect = [
+        auth_context["profile"],  # get_actor_profile_id
+        rec,  # load record
+        emp,  # resolve_employee_for_user -> matches rec.employee_id
+    ]
+
+    app.dependency_overrides[get_tenant_session] = lambda: mock_session
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.post(
+                f"/api/v1/leave-requests/{req_id}/cancel",
+                headers=auth_context["headers"],
+                json={"reason": "Trying to cancel past leave"},
+            )
+        assert res.status_code == 400
+        body = res.json()
+        assert "concluded" in body["error"]["message"].lower()
+    finally:
+        app.dependency_overrides.pop(get_tenant_session, None)
+
+
+@pytest.mark.asyncio
 async def test_employee_cannot_approve_leave_request(auth_context) -> None:
     mock_session = AsyncMock()
     req_id = uuid.uuid4()
