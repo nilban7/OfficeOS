@@ -68,17 +68,25 @@ class LeaveRequest(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     reviewed_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     reviewer_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    cancellation_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    cancellation_requested_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancellation_reviewed_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True
+    )
+    cancellation_reviewed_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancellation_reviewer_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     organization: Mapped["Organization"] = relationship("Organization")
     employee: Mapped["Employee"] = relationship("Employee")
     leave_type: Mapped["LeaveType"] = relationship("LeaveType", back_populates="leave_requests")
-    reviewer: Mapped["Profile | None"] = relationship("Profile")
+    reviewer: Mapped["Profile | None"] = relationship("Profile", foreign_keys=[reviewed_by])
+    cancellation_reviewer: Mapped["Profile | None"] = relationship("Profile", foreign_keys=[cancellation_reviewed_by])
 
     __table_args__ = (
         CheckConstraint("end_date >= start_date", name="ck_leave_requests_date_order"),
         CheckConstraint("total_days > 0", name="ck_leave_requests_total_days"),
         CheckConstraint(
-            "status IN ('pending', 'approved', 'rejected', 'cancelled')",
+            "status IN ('pending', 'approved', 'rejected', 'cancelled', 'cancellation_requested')",
             name="ck_leave_requests_status",
         ),
     )

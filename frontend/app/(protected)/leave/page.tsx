@@ -14,6 +14,8 @@ import {
   Layers,
   Edit2,
   Trash2,
+  PartyPopper,
+  Users,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +23,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
+import { HolidayCalendar } from "@/components/leave/holiday-calendar";
+import { LeaveDatePickerModal } from "@/components/leave/leave-date-picker-modal";
 import { LoadingState } from "@/components/feedback/loading-state";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { ErrorState } from "@/components/feedback/error-state";
@@ -74,13 +78,17 @@ export default function LeavePage() {
   const [globalError, setGlobalError] = React.useState<string | null>(null);
 
   // Filters
+  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = React.useState<string>("self");
   const [myStatusFilter, setMyStatusFilter] = React.useState<string>("all");
   const [approvalStatusFilter, setApprovalStatusFilter] = React.useState<string>("pending");
   const [holidayYearFilter, setHolidayYearFilter] = React.useState<string>(new Date().getFullYear().toString());
 
-  // Modals
   const [isRequestModalOpen, setIsRequestModalOpen] = React.useState(false);
+  const [isDatePickerModalOpen, setIsDatePickerModalOpen] = React.useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = React.useState(false);
+  const [isRequestCancellationModalOpen, setIsRequestCancellationModalOpen] = React.useState(false);
+  const [isApproveCancellationModalOpen, setIsApproveCancellationModalOpen] = React.useState(false);
+  const [isRejectCancellationModalOpen, setIsRejectCancellationModalOpen] = React.useState(false);
   const [isApproveModalOpen, setIsApproveModalOpen] = React.useState(false);
   const [isRejectModalOpen, setIsRejectModalOpen] = React.useState(false);
   const [isLeaveTypeModalOpen, setIsLeaveTypeModalOpen] = React.useState(false);
@@ -133,8 +141,21 @@ export default function LeavePage() {
     return Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
   }, [reqStartDate, reqEndDate]);
 
+  // Company holidays falling within the selected leave dates
+  const holidaysInSelectedLeave = React.useMemo(() => {
+    if (!reqStartDate || !reqEndDate) return [];
+    const start = new Date(reqStartDate);
+    const end = new Date(reqEndDate);
+    if (start > end) return [];
+    return holidays.filter((h) => {
+      if (!h.holiday_date) return false;
+      const hd = new Date((h.holiday_date.split("T")[0] || ""));
+      return hd >= start && hd <= end;
+    });
+  }, [holidays, reqStartDate, reqEndDate]);
+
   // Load all initial data
-  const fetchData = React.useCallback(async () => {
+  const fetchData = React.useCallback(async (targetEmpFilterOverride?: string) => {
     if (!currentOrganization) return;
     setIsLoading(true);
     setPageError(null);
@@ -142,24 +163,22 @@ export default function LeavePage() {
     try {
       const orgId = currentOrganization.id;
 
-      // 1. Fetch Summary, Leave Types, Holidays, Branches, and Employees
-      const [summaryRes, typesRes, holidaysRes, branchRes, empRes] = await Promise.allSettled([
-        apiClient.get<LeaveSummary>(API_ENDPOINTS.leave.summary, { organizationId: orgId }),
-        apiClient.get<LeaveType[]>(API_ENDPOINTS.leave.types, { organizationId: orgId }),
+      // 1. Fetch Leave Types, Holidays, Branches, and Employees
+      const [typesRes, holidaysRes, branchRes, empRes] = await Promise.allSettled([
+        apiClient.get<LeaveType[]>(API_ENDPOINTS.leave.types, { organizationId: orgId, skipCache: true }),
         apiClient.get<Holiday[]>(API_ENDPOINTS.leave.holidays, {
           organizationId: orgId,
           params: { year: parseInt(holidayYearFilter, 10) || new Date().getFullYear() },
+          skipCache: true,
         }),
-        apiClient.get<BranchResponse[]>(API_ENDPOINTS.organizations.currentBranches, { organizationId: orgId }),
+        apiClient.get<BranchResponse[]>(API_ENDPOINTS.organizations.currentBranches, { organizationId: orgId, skipCache: true }),
         apiClient.get<PaginatedEmployees>(API_ENDPOINTS.employees.list, {
           organizationId: orgId,
           params: { page_size: 100 },
+          skipCache: true,
         }),
       ]);
 
-      if (summaryRes.status === "fulfilled" && summaryRes.value) {
-        setSummary(summaryRes.value);
-      }
       if (typesRes.status === "fulfilled" && typesRes.value) {
         setLeaveTypes(typesRes.value);
       }
@@ -173,10 +192,32 @@ export default function LeavePage() {
         setEmployees(empRes.value.items || []);
       }
 
-      // 2. Fetch My Requests
+      const activeFilter = targetEmpFilterOverride !== undefined ? targetEmpFilterOverride : selectedEmployeeFilter;
+      const isViewingAll = activeFilter === "all";
+      const isViewingSpecific = activeFilter !== "all" && activeFilter !== "self";
+
+      // 2. Fetch Summary
       try {
+        const summaryParams = isViewingSpecific ? { employee_id: activeFilter } : undefined;
+        const summaryData = await apiClient.get<LeaveSummary>(API_ENDPOINTS.leave.summary, {
+          organizationId: orgId,
+          params: summaryParams,
+          skipCache: true,
+        });
+        setSummary(summaryData);
+      } catch {
+        setSummary(null);
+      }
+
+      // 3. Fetch My Requests (for targeted employee or self)
+      try {
+        const reqFilter = isViewingSpecific
+          ? { employee_id: activeFilter }
+          : (isViewingAll ? undefined : { scope: "me" });
         const myReqRes = await apiClient.get<PaginatedLeaveRequests | LeaveRequest[]>(API_ENDPOINTS.leave.requests, {
           organizationId: orgId,
+          params: reqFilter,
+          skipCache: true,
         });
         const items = Array.isArray(myReqRes) ? myReqRes : (myReqRes && "items" in myReqRes ? myReqRes.items : []);
         setMyRequests(items);
@@ -184,11 +225,12 @@ export default function LeavePage() {
         setMyRequests([]);
       }
 
-      // 3. If manager/admin, fetch Org Requests
+      // 4. If manager/admin, fetch Org Requests
       if (canApproveLeave || canManageLeaveTypes) {
         try {
           const orgReqRes = await apiClient.get<PaginatedLeaveRequests | LeaveRequest[]>(API_ENDPOINTS.leave.requests, {
             organizationId: orgId,
+            skipCache: true,
           });
           const items = Array.isArray(orgReqRes) ? orgReqRes : (orgReqRes && "items" in orgReqRes ? orgReqRes.items : []);
           setOrgRequests(items);
@@ -205,7 +247,7 @@ export default function LeavePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentOrganization, canApproveLeave, canManageLeaveTypes, holidayYearFilter]);
+  }, [currentOrganization, canApproveLeave, canManageLeaveTypes, holidayYearFilter, selectedEmployeeFilter]);
 
   React.useEffect(() => {
     fetchData();
@@ -243,6 +285,7 @@ export default function LeavePage() {
       setGlobalSuccess("Leave request submitted successfully.");
       setIsRequestModalOpen(false);
       resetRequestForm();
+      apiClient.clearCache();
       fetchData();
     } catch (err) {
       if (err instanceof ApiException) {
@@ -281,6 +324,7 @@ export default function LeavePage() {
       setIsCancelModalOpen(false);
       setSelectedRequest(null);
       setCancelReason("");
+      apiClient.clearCache();
       fetchData();
     } catch (err) {
       if (err instanceof ApiException) {
@@ -310,6 +354,7 @@ export default function LeavePage() {
       setIsApproveModalOpen(false);
       setSelectedRequest(null);
       setReviewerComment("");
+      apiClient.clearCache();
       fetchData();
     } catch (err) {
       if (err instanceof ApiException) {
@@ -343,12 +388,103 @@ export default function LeavePage() {
       setIsRejectModalOpen(false);
       setSelectedRequest(null);
       setReviewerComment("");
+      apiClient.clearCache();
       fetchData();
     } catch (err) {
       if (err instanceof ApiException) {
         setModalError(err.message);
       } else {
         setModalError("Failed to reject leave request.");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle Request Cancellation for Approved Leave (Employee)
+  const handleRequestCancellation = async () => {
+    if (!currentOrganization || !selectedRequest) return;
+    setIsSubmitting(true);
+    setModalError(null);
+
+    try {
+      await apiClient.post(
+        API_ENDPOINTS.leave.requestCancellation(selectedRequest.id),
+        { reason: cancelReason.trim() || undefined },
+        { organizationId: currentOrganization.id }
+      );
+
+      setGlobalSuccess("Leave cancellation request submitted for manager review.");
+      setIsRequestCancellationModalOpen(false);
+      setSelectedRequest(null);
+      setCancelReason("");
+      apiClient.clearCache();
+      fetchData();
+    } catch (err) {
+      if (err instanceof ApiException) {
+        setModalError(err.message);
+      } else {
+        setModalError("Failed to submit cancellation request.");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle Approve Cancellation (Manager)
+  const handleApproveCancellation = async () => {
+    if (!currentOrganization || !selectedRequest) return;
+    setIsSubmitting(true);
+    setModalError(null);
+
+    try {
+      await apiClient.post(
+        API_ENDPOINTS.leave.approveCancellation(selectedRequest.id),
+        { reviewer_comment: reviewerComment.trim() || undefined },
+        { organizationId: currentOrganization.id }
+      );
+
+      setGlobalSuccess(`Leave cancellation for ${selectedRequest.employee?.first_name || "employee"} approved. Leave balance restored.`);
+      setIsApproveCancellationModalOpen(false);
+      setSelectedRequest(null);
+      setReviewerComment("");
+      apiClient.clearCache();
+      fetchData();
+    } catch (err) {
+      if (err instanceof ApiException) {
+        setModalError(err.message);
+      } else {
+        setModalError("Failed to approve leave cancellation.");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle Reject Cancellation (Manager)
+  const handleRejectCancellation = async () => {
+    if (!currentOrganization || !selectedRequest) return;
+    setIsSubmitting(true);
+    setModalError(null);
+
+    try {
+      await apiClient.post(
+        API_ENDPOINTS.leave.rejectCancellation(selectedRequest.id),
+        { reviewer_comment: reviewerComment.trim() || undefined },
+        { organizationId: currentOrganization.id }
+      );
+
+      setGlobalSuccess(`Cancellation request for ${selectedRequest.employee?.first_name || "employee"} rejected. Leave remains approved.`);
+      setIsRejectCancellationModalOpen(false);
+      setSelectedRequest(null);
+      setReviewerComment("");
+      apiClient.clearCache();
+      fetchData();
+    } catch (err) {
+      if (err instanceof ApiException) {
+        setModalError(err.message);
+      } else {
+        setModalError("Failed to reject leave cancellation.");
       }
     } finally {
       setIsSubmitting(false);
@@ -504,14 +640,83 @@ export default function LeavePage() {
     }
   };
 
+  // Dynamically computed or fetched summary
+  const displayedSummary = React.useMemo(() => {
+    if (selectedEmployeeFilter === "all" && orgRequests.length > 0 && leaveTypes.length > 0) {
+      const currentYear = new Date().getFullYear();
+      const yearStart = new Date(currentYear, 0, 1);
+      const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59);
+
+      const usedByType: Record<string, number> = {};
+      const pendingByType: Record<string, number> = {};
+
+      for (const req of orgRequests) {
+        const start = new Date(req.start_date);
+        const end = new Date(req.end_date);
+        if (start <= yearEnd && end >= yearStart) {
+          const days = parseFloat(String(req.total_days)) || 0;
+          if (req.status === "approved" || req.status === "cancellation_requested") {
+            usedByType[req.leave_type_id] = (usedByType[req.leave_type_id] || 0) + days;
+          } else if (req.status === "pending") {
+            pendingByType[req.leave_type_id] = (pendingByType[req.leave_type_id] || 0) + days;
+          }
+        }
+      }
+
+      const activeEmpCount = Math.max(1, employees.filter((e) => e.status !== "terminated").length);
+      let totalAlloc = 0;
+      let totalUsed = 0;
+      let totalPending = 0;
+      let totalAvail = 0;
+
+      const balances = leaveTypes.map((lt) => {
+        const alloc = (parseFloat(String(lt.annual_allocation)) || 0) * activeEmpCount;
+        const used = usedByType[lt.id] || 0;
+        const pend = pendingByType[lt.id] || 0;
+        const avail = Math.max(0, alloc - used);
+
+        totalAlloc += alloc;
+        totalUsed += used;
+        totalPending += pend;
+        totalAvail += avail;
+
+        return {
+          leave_type_id: lt.id,
+          leave_type_name: lt.name,
+          leave_type_code: lt.code,
+          annual_allocation: alloc.toFixed(2),
+          used_days: used.toFixed(2),
+          pending_days: pend.toFixed(2),
+          available_days: avail.toFixed(2),
+        };
+      });
+
+      return {
+        total_allocated_days: totalAlloc.toFixed(2),
+        total_used_days: totalUsed.toFixed(2),
+        total_pending_days: totalPending.toFixed(2),
+        total_available_days: totalAvail.toFixed(2),
+        balances_by_type: balances,
+      };
+    }
+    return summary;
+  }, [selectedEmployeeFilter, summary, orgRequests, leaveTypes, employees]);
+
   // Filtered lists
   const filteredMyRequests = React.useMemo(() => {
-    if (myStatusFilter === "all") return myRequests;
-    return myRequests.filter((r) => r.status === myStatusFilter);
-  }, [myRequests, myStatusFilter]);
+    const list = selectedEmployeeFilter === "all" ? orgRequests : myRequests;
+    if (myStatusFilter === "all") return list;
+    return list.filter((r) => r.status === myStatusFilter);
+  }, [selectedEmployeeFilter, orgRequests, myRequests, myStatusFilter]);
 
   const filteredApprovalRequests = React.useMemo(() => {
     if (approvalStatusFilter === "all") return orgRequests;
+    if (approvalStatusFilter === "pending") {
+      return orgRequests.filter((r) => r.status === "pending" || r.status === "cancellation_requested");
+    }
+    if (approvalStatusFilter === "leave_pending") {
+      return orgRequests.filter((r) => r.status === "pending");
+    }
     return orgRequests.filter((r) => r.status === approvalStatusFilter);
   }, [orgRequests, approvalStatusFilter]);
 
@@ -520,6 +725,8 @@ export default function LeavePage() {
     switch (status) {
       case "approved":
         return <Badge variant="success" className="capitalize">Approved</Badge>;
+      case "cancellation_requested":
+        return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 font-medium">Cancellation Requested</Badge>;
       case "rejected":
         return <Badge variant="destructive" className="capitalize">Rejected</Badge>;
       case "cancelled":
@@ -594,7 +801,7 @@ export default function LeavePage() {
               Add Leave Type
             </Button>
           )}
-          {canManageHolidays && (
+          {canManageHolidays && activeTab !== "holidays" && (
             <Button
               variant="outline"
               onClick={() => {
@@ -664,7 +871,7 @@ export default function LeavePage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-slate-900">
-              {summary ? summary.total_available_days : "—"}
+              {displayedSummary ? displayedSummary.total_available_days : "—"}
             </div>
             <p className="text-xs text-slate-500 mt-1">Remaining annual leave allocation</p>
           </CardContent>
@@ -677,7 +884,7 @@ export default function LeavePage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-slate-900">
-              {summary ? summary.total_used_days : "—"}
+              {displayedSummary ? displayedSummary.total_used_days : "—"}
             </div>
             <p className="text-xs text-slate-500 mt-1">Approved taken leave this period</p>
           </CardContent>
@@ -690,7 +897,7 @@ export default function LeavePage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-slate-900">
-              {summary ? summary.total_pending_days : "—"}
+              {displayedSummary ? displayedSummary.total_pending_days : "—"}
             </div>
             <p className="text-xs text-slate-500 mt-1">Days awaiting manager review</p>
           </CardContent>
@@ -762,9 +969,9 @@ export default function LeavePage() {
       {/* TAB 1: MY LEAVE */}
       {activeTab === "my-leave" && (
         <div className="space-y-6">
-          {summary && summary.balances_by_type.length > 0 && (
+          {displayedSummary && displayedSummary.balances_by_type.length > 0 && (
             <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-              {summary.balances_by_type.map((b) => (
+              {displayedSummary.balances_by_type.map((b) => (
                 <div key={b.leave_type_id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-slate-800 text-sm">{b.leave_type_name}</span>
@@ -787,21 +994,48 @@ export default function LeavePage() {
           )}
 
           {/* Filter Bar */}
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-slate-400" />
-              <span className="text-xs font-medium text-slate-600">Status:</span>
-              <select
-                value={myStatusFilter}
-                onChange={(e) => setMyStatusFilter(e.target.value)}
-                className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none"
-              >
-                <option value="all">All Statuses</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-3">
+              {canApproveLeave && employees.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-slate-400" />
+                  <span className="text-xs font-medium text-slate-600">Employee:</span>
+                  <select
+                    value={selectedEmployeeFilter}
+                    onChange={(e) => {
+                      const newFilter = e.target.value;
+                      setSelectedEmployeeFilter(newFilter);
+                      fetchData(newFilter);
+                    }}
+                    className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="self">My Leaves (Self)</option>
+                    <option value="all">All Employees (Company Overview)</option>
+                    {employees.map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.first_name} {emp.last_name} ({emp.employee_code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-slate-400" />
+                <span className="text-xs font-medium text-slate-600">Status:</span>
+                <select
+                  value={myStatusFilter}
+                  onChange={(e) => setMyStatusFilter(e.target.value)}
+                  className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="cancellation_requested">Cancellation Requested</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
             </div>
             <div className="text-xs text-slate-500">
               Showing {filteredMyRequests.length} request(s)
@@ -832,6 +1066,7 @@ export default function LeavePage() {
               <table className="w-full text-left text-sm text-slate-600">
                 <thead className="border-b border-slate-100 bg-slate-50/75 text-xs font-semibold uppercase text-slate-500">
                   <tr>
+                    {selectedEmployeeFilter === "all" && <th className="px-6 py-3">Employee</th>}
                     <th className="px-6 py-3">Leave Type</th>
                     <th className="px-6 py-3">Dates</th>
                     <th className="px-6 py-3">Days</th>
@@ -844,6 +1079,16 @@ export default function LeavePage() {
                 <tbody className="divide-y divide-slate-100">
                   {filteredMyRequests.map((req) => (
                     <tr key={req.id} className="hover:bg-slate-50/50 transition-colors">
+                      {selectedEmployeeFilter === "all" && (
+                        <td className="px-6 py-4">
+                          <div className="font-medium text-slate-900">
+                            {req.employee ? `${req.employee.first_name} ${req.employee.last_name}` : "Unknown"}
+                          </div>
+                          <div className="text-xs text-slate-400">
+                            {req.employee?.employee_code}
+                          </div>
+                        </td>
+                      )}
                       <td className="px-6 py-4 font-medium text-slate-900">
                         {req.leave_type?.name || "Leave"}
                         <span className="ml-1.5 text-xs font-normal text-slate-400">
@@ -908,6 +1153,29 @@ export default function LeavePage() {
                             );
                           })()
                         )}
+                        {req.status === "approved" && canCancelLeave && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-amber-700 border-amber-300 hover:bg-amber-50"
+                            onClick={() => {
+                              setSelectedRequest(req);
+                              setCancelReason("");
+                              setModalError(null);
+                              setIsRequestCancellationModalOpen(true);
+                            }}
+                          >
+                            Request Cancellation
+                          </Button>
+                        )}
+                        {req.status === "cancellation_requested" && (
+                          <span className="inline-flex items-center text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-md">
+                            Cancellation Pending Review
+                          </span>
+                        )}
+                        {req.status !== "pending" && req.status !== "approved" && req.status !== "cancellation_requested" && (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -930,7 +1198,9 @@ export default function LeavePage() {
                 onChange={(e) => setApprovalStatusFilter(e.target.value)}
                 className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none"
               >
-                <option value="pending">Pending Review</option>
+                <option value="pending">Pending Review (All Pending & Cancellations)</option>
+                <option value="leave_pending">New Leave Requests Only</option>
+                <option value="cancellation_requested">Cancellation Requests Only</option>
                 <option value="approved">Approved</option>
                 <option value="rejected">Rejected</option>
                 <option value="cancelled">Cancelled</option>
@@ -984,8 +1254,13 @@ export default function LeavePage() {
                       </td>
                       <td className="px-6 py-4 font-semibold text-slate-900">{req.total_days}</td>
                       <td className="px-6 py-4">{getStatusBadge(req.status)}</td>
-                      <td className="px-6 py-4 max-w-xs truncate text-xs text-slate-500">
-                        {req.reason || "—"}
+                      <td className="px-6 py-4 max-w-xs text-xs text-slate-500">
+                        <div>{req.reason || "—"}</div>
+                        {req.status === "cancellation_requested" && req.cancellation_reason && (
+                          <div className="mt-1 text-xs text-amber-800 bg-amber-50 rounded p-1.5 border border-amber-200">
+                            <span className="font-semibold">Cancellation reason:</span> &ldquo;{req.cancellation_reason}&rdquo;
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-right">
                         {req.status === "pending" ? (
@@ -1019,6 +1294,37 @@ export default function LeavePage() {
                               Reject
                             </Button>
                           </div>
+                        ) : req.status === "cancellation_requested" ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-emerald-700 border-emerald-300 hover:bg-emerald-50 font-medium"
+                              onClick={() => {
+                                setSelectedRequest(req);
+                                setReviewerComment("");
+                                setModalError(null);
+                                setIsApproveCancellationModalOpen(true);
+                              }}
+                            >
+                              <Check className="h-4 w-4 mr-1" />
+                              Approve Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-slate-600 border-slate-300 hover:bg-slate-50"
+                              onClick={() => {
+                                setSelectedRequest(req);
+                                setReviewerComment("");
+                                setModalError(null);
+                                setIsRejectCancellationModalOpen(true);
+                              }}
+                            >
+                              <X className="h-4 w-4 mr-1" />
+                              Reject Cancel
+                            </Button>
+                          </div>
                         ) : (
                           <span className="text-xs text-slate-400">Completed</span>
                         )}
@@ -1032,148 +1338,41 @@ export default function LeavePage() {
         </div>
       )}
 
-      {/* TAB 3: HOLIDAYS */}
+      {/* TAB 3: HOLIDAYS (INTERACTIVE CALENDAR) */}
       {activeTab === "holidays" && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-slate-400" />
-              <span className="text-xs font-medium text-slate-600">Year:</span>
-              <select
-                value={holidayYearFilter}
-                onChange={(e) => setHolidayYearFilter(e.target.value)}
-                className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none"
-              >
-                <option value="2025">2025</option>
-                <option value="2026">2026</option>
-                <option value="2027">2027</option>
-              </select>
-            </div>
-            {canManageHolidays && (
-              <Button
-                size="sm"
-                onClick={() => {
-                  setSelectedHoliday(null);
-                  setHolName("");
-                  setHolDate(new Date().toISOString().split("T")[0] || "");
-                  setHolBranchId("");
-                  setHolDescription("");
-                  setHolIsOptional(false);
-                  setModalError(null);
-                  setIsHolidayModalOpen(true);
-                }}
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                Add Holiday
-              </Button>
-            )}
-          </div>
-
-          {holidays.length === 0 ? (
-            <EmptyState
-              title="No Holidays Listed"
-              description={`No organization holidays found for ${holidayYearFilter}.`}
-              actionLabel={canManageHolidays ? "Add Holiday" : undefined}
-              onAction={
-                canManageHolidays
-                  ? () => {
-                      setSelectedHoliday(null);
-                      setHolName("");
-                      setHolDate(new Date().toISOString().split("T")[0] || "");
-                      setHolBranchId("");
-                      setHolDescription("");
-                      setHolIsOptional(false);
-                      setModalError(null);
-                      setIsHolidayModalOpen(true);
-                    }
-                  : undefined
-              }
-            />
-          ) : (
-            <div className="rounded-lg border border-slate-200 bg-white overflow-hidden shadow-sm">
-              <table className="w-full text-left text-sm text-slate-600">
-                <thead className="border-b border-slate-100 bg-slate-50/75 text-xs font-semibold uppercase text-slate-500">
-                  <tr>
-                    <th className="px-6 py-3">Holiday Name</th>
-                    <th className="px-6 py-3">Date</th>
-                    <th className="px-6 py-3">Scope / Branch</th>
-                    <th className="px-6 py-3">Type</th>
-                    <th className="px-6 py-3">Description</th>
-                    {canManageHolidays && <th className="px-6 py-3 text-right">Actions</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {holidays.map((h) => (
-                    <tr key={h.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4 font-semibold text-slate-900">{h.name}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-700 font-medium">
-                        {h.holiday_date}
-                      </td>
-                      <td className="px-6 py-4 text-xs text-slate-600">
-                        {h.branch ? (
-                          <Badge variant="outline" className="text-xs font-normal">
-                            {h.branch.name}
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-xs font-normal">
-                            All Branches
-                          </Badge>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        {h.is_optional ? (
-                          <Badge variant="warning" className="text-xs font-normal">
-                            Optional / Restricted
-                          </Badge>
-                        ) : (
-                          <Badge variant="default" className="text-xs font-normal bg-purple-100 text-purple-800 border-purple-200">
-                            Public Holiday
-                          </Badge>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-xs text-slate-500 max-w-xs truncate">
-                        {h.description || "—"}
-                      </td>
-                      {canManageHolidays && (
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => {
-                                setSelectedHoliday(h);
-                                setHolName(h.name);
-                                setHolDate(h.holiday_date);
-                                setHolBranchId(h.branch_id || "");
-                                setHolDescription(h.description || "");
-                                setHolIsOptional(h.is_optional);
-                                setModalError(null);
-                                setIsHolidayModalOpen(true);
-                              }}
-                              className="text-slate-400 hover:text-blue-600 p-1 rounded"
-                              title="Edit Holiday"
-                            >
-                              <Edit2 className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                setSelectedHoliday(h);
-                                setModalError(null);
-                                setIsDeleteHolidayModalOpen(true);
-                              }}
-                              className="text-slate-400 hover:text-rose-600 p-1 rounded"
-                              title="Delete Holiday"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <HolidayCalendar
+          holidays={holidays}
+          branches={branches}
+          canManageHolidays={canManageHolidays}
+          selectedYear={holidayYearFilter}
+          onYearChange={(newYear) => setHolidayYearFilter(newYear)}
+          onSelectDate={(dateString) => {
+            setSelectedHoliday(null);
+            setHolName("");
+            setHolDate(dateString);
+            setHolBranchId("");
+            setHolDescription("");
+            setHolIsOptional(false);
+            setModalError(null);
+            setIsHolidayModalOpen(true);
+          }}
+          onSelectHoliday={(h) => {
+            setSelectedHoliday(h);
+            setHolName(h.name);
+            setHolDate(h.holiday_date);
+            setHolBranchId(h.branch_id || "");
+            setHolDescription(h.description || "");
+            setHolIsOptional(h.is_optional);
+            setModalError(null);
+            setIsHolidayModalOpen(true);
+          }}
+          onDeleteHoliday={(h) => {
+            setSelectedHoliday(h);
+            setModalError(null);
+            setIsDeleteHolidayModalOpen(true);
+          }}
+          isLoading={isLoading}
+        />
       )}
 
       {/* TAB 4: LEAVE TYPES */}
@@ -1334,37 +1533,122 @@ export default function LeavePage() {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="req-start">Start Date *</Label>
-              <Input
-                id="req-start"
-                type="date"
-                required
-                value={reqStartDate}
-                onChange={(e) => setReqStartDate(e.target.value)}
-                className="mt-1"
-              />
+          {/* Interactive Date Selection with Pop-up Calendar (Includes Company Holidays) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200">
+                <CalendarDays className="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                <span>Leave Dates * (Company Holiday Calendar)</span>
+              </Label>
+              <button
+                type="button"
+                onClick={() => setIsDatePickerModalOpen(true)}
+                className="text-xs font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 flex items-center gap-1 transition-colors"
+              >
+                <span>Pop-up Calendar</span>
+                <span aria-hidden="true">📅</span>
+              </button>
             </div>
-            <div>
-              <Label htmlFor="req-end">End Date *</Label>
-              <Input
-                id="req-end"
-                type="date"
-                required
-                value={reqEndDate}
-                onChange={(e) => setReqEndDate(e.target.value)}
-                className="mt-1"
-              />
+
+            {/* Clickable Card that opens the Pop-Up Calendar with Company Holidays */}
+            <div
+              onClick={() => setIsDatePickerModalOpen(true)}
+              className="cursor-pointer rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 shadow-xs hover:border-primary-500 dark:hover:border-primary-500 hover:shadow-subtle transition-all duration-150 group"
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setIsDatePickerModalOpen(true);
+                }
+              }}
+              title="Click to open pop-up calendar and select leave dates"
+            >
+              {reqStartDate && reqEndDate ? (
+                <div className="space-y-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                      <span className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-primary-50 dark:bg-primary-950/70 text-primary-600 dark:text-primary-400">
+                        <Calendar className="h-4 w-4" />
+                      </span>
+                      <span>{reqStartDate}</span>
+                      <span className="text-slate-400">→</span>
+                      <span>{reqEndDate}</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-primary-50 dark:bg-primary-950/80 px-2.5 py-0.5 text-xs font-bold text-primary-700 dark:text-primary-300 border border-primary-200/60 dark:border-primary-800">
+                        {calculatedDays} {calculatedDays === 1 ? "day" : "days"} (inclusive)
+                      </span>
+                      <span className="text-xs text-primary-600 dark:text-primary-400 group-hover:underline font-medium">
+                        Change
+                      </span>
+                    </div>
+                  </div>
+
+                  {holidaysInSelectedLeave.length > 0 && (
+                    <div className="rounded-lg bg-purple-50 dark:bg-purple-950/30 border border-purple-200/80 dark:border-purple-800/50 p-2 text-xs text-purple-800 dark:text-purple-300 flex items-center gap-1.5">
+                      <PartyPopper className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                      <span>
+                        Includes {holidaysInSelectedLeave.length} company holiday(s):{" "}
+                        <strong>{holidaysInSelectedLeave.map((h) => h.name).join(", ")}</strong>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center justify-between py-1">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50 dark:bg-primary-950/60 text-primary-600 dark:text-primary-400">
+                      <CalendarDays className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                        Click to select dates from Pop-up Calendar
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Company holidays are specially marked on the calendar
+                      </p>
+                    </div>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" className="gap-1.5 shrink-0">
+                    <Calendar className="h-3.5 w-3.5" />
+                    <span>Open Calendar</span>
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Direct date inputs for precise adjustment, accessibility, and form validation */}
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <div>
+                <Label htmlFor="req-start" className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Start Date *
+                </Label>
+                <Input
+                  id="req-start"
+                  type="date"
+                  required
+                  value={reqStartDate}
+                  onChange={(e) => setReqStartDate(e.target.value)}
+                  className="mt-0.5 h-8 text-xs"
+                />
+              </div>
+              <div>
+                <Label htmlFor="req-end" className="text-[11px] text-slate-500 dark:text-slate-400">
+                  End Date *
+                </Label>
+                <Input
+                  id="req-end"
+                  type="date"
+                  required
+                  value={reqEndDate}
+                  onChange={(e) => setReqEndDate(e.target.value)}
+                  className="mt-0.5 h-8 text-xs"
+                />
+              </div>
             </div>
           </div>
-
-          {calculatedDays > 0 && (
-            <div className="rounded-md bg-blue-50 p-3 text-xs text-blue-800 font-medium border border-blue-100 flex items-center justify-between">
-              <span>Calculated Duration:</span>
-              <span className="text-sm font-bold">{calculatedDays} day(s) (inclusive)</span>
-            </div>
-          )}
 
           <div>
             <Label htmlFor="req-reason">Reason (Optional)</Label>
@@ -1393,6 +1677,19 @@ export default function LeavePage() {
           </div>
         </form>
       </Modal>
+
+      {/* Pop-up Calendar with Company's Mentioned Holidays for Leave Date Selection */}
+      <LeaveDatePickerModal
+        isOpen={isDatePickerModalOpen}
+        onClose={() => setIsDatePickerModalOpen(false)}
+        startDate={reqStartDate}
+        endDate={reqEndDate}
+        onApplyDates={(start, end) => {
+          setReqStartDate(start);
+          setReqEndDate(end);
+        }}
+        holidays={holidays}
+      />
 
       {/* 2. Cancel Request Modal */}
       <Modal
@@ -1461,6 +1758,191 @@ export default function LeavePage() {
               disabled={isSubmitting}
             >
               {isSubmitting ? "Cancelling..." : "Confirm Cancellation"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 2b. Request Cancellation Modal (Employee for Approved Leave) */}
+      <Modal
+        isOpen={isRequestCancellationModalOpen}
+        onClose={() => setIsRequestCancellationModalOpen(false)}
+        title="Request Leave Cancellation"
+        description="Submit a request to cancel your approved leave. Your manager will review this request."
+      >
+        <div className="space-y-4">
+          {modalError && (
+            <div className="rounded-md bg-rose-50 p-3 text-xs text-rose-700 border border-rose-200">
+              {modalError}
+            </div>
+          )}
+          {selectedRequest && (
+            <div className="rounded-md bg-slate-50 p-3 text-xs text-slate-700 space-y-1 border border-slate-200">
+              <div>
+                <span className="font-semibold">Leave Type:</span> {selectedRequest.leave_type?.name} ({selectedRequest.leave_type?.code})
+              </div>
+              <div>
+                <span className="font-semibold">Duration:</span> {selectedRequest.start_date} to {selectedRequest.end_date} ({selectedRequest.total_days} days)
+              </div>
+              <div className="text-slate-500 pt-1">
+                Once approved by your manager, {selectedRequest.total_days} day(s) will automatically be credited back to your leave balance.
+              </div>
+            </div>
+          )}
+
+          <div>
+            <Label htmlFor="req-cancel-reason">Reason for Cancellation *</Label>
+            <Input
+              id="req-cancel-reason"
+              required
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="e.g. Plans changed, event rescheduled"
+              className="mt-1"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsRequestCancellationModalOpen(false)}
+              disabled={isSubmitting}
+            >
+              Back
+            </Button>
+            <Button
+              type="button"
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+              onClick={handleRequestCancellation}
+              disabled={isSubmitting || !cancelReason.trim()}
+            >
+              {isSubmitting ? "Submitting..." : "Submit Cancellation Request"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 2c. Approve Cancellation Modal (Manager) */}
+      <Modal
+        isOpen={isApproveCancellationModalOpen}
+        onClose={() => setIsApproveCancellationModalOpen(false)}
+        title="Approve Leave Cancellation"
+        description="Confirm cancellation of this approved leave. The employee's leave balance will be automatically restored."
+      >
+        <div className="space-y-4">
+          {modalError && (
+            <div className="rounded-md bg-rose-50 p-3 text-xs text-rose-700 border border-rose-200">
+              {modalError}
+            </div>
+          )}
+          {selectedRequest && (
+            <div className="rounded-md bg-emerald-50 p-3 text-xs text-emerald-800 space-y-1.5 border border-emerald-200">
+              <div>
+                <span className="font-semibold">Employee:</span> {selectedRequest.employee?.first_name} {selectedRequest.employee?.last_name} ({selectedRequest.employee?.employee_code})
+              </div>
+              <div>
+                <span className="font-semibold">Leave Type:</span> {selectedRequest.leave_type?.name}
+              </div>
+              <div>
+                <span className="font-semibold">Period:</span> {selectedRequest.start_date} to {selectedRequest.end_date} ({selectedRequest.total_days} days)
+              </div>
+              {selectedRequest.cancellation_reason && (
+                <div className="pt-1 border-t border-emerald-200/60 font-medium">
+                  <span className="font-semibold">Employee&apos;s Cancellation Reason:</span> &ldquo;{selectedRequest.cancellation_reason}&rdquo;
+                </div>
+              )}
+            </div>
+          )}
+
+          <div>
+            <Label htmlFor="appr-canc-comment">Manager Comment (Optional)</Label>
+            <Input
+              id="appr-canc-comment"
+              value={reviewerComment}
+              onChange={(e) => setReviewerComment(e.target.value)}
+              placeholder="e.g. Cancellation approved, leave balance credited back"
+              className="mt-1"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsApproveCancellationModalOpen(false)}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={handleApproveCancellation}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Approving..." : "Confirm Cancellation & Restore Leave"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 2d. Reject Cancellation Modal (Manager) */}
+      <Modal
+        isOpen={isRejectCancellationModalOpen}
+        onClose={() => setIsRejectCancellationModalOpen(false)}
+        title="Reject Leave Cancellation"
+        description="Reject the cancellation request. The leave will remain in approved status."
+      >
+        <div className="space-y-4">
+          {modalError && (
+            <div className="rounded-md bg-rose-50 p-3 text-xs text-rose-700 border border-rose-200">
+              {modalError}
+            </div>
+          )}
+          {selectedRequest && (
+            <div className="rounded-md bg-slate-50 p-3 text-xs text-slate-700 space-y-1.5 border border-slate-200">
+              <div>
+                <span className="font-semibold">Employee:</span> {selectedRequest.employee?.first_name} {selectedRequest.employee?.last_name}
+              </div>
+              <div>
+                <span className="font-semibold">Leave Type:</span> {selectedRequest.leave_type?.name} ({selectedRequest.total_days} days)
+              </div>
+              {selectedRequest.cancellation_reason && (
+                <div className="pt-1 border-t border-slate-200 font-medium">
+                  <span className="font-semibold">Requested Reason:</span> {selectedRequest.cancellation_reason}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div>
+            <Label htmlFor="rej-canc-comment">Rejection Reason / Note (Optional)</Label>
+            <Input
+              id="rej-canc-comment"
+              value={reviewerComment}
+              onChange={(e) => setReviewerComment(e.target.value)}
+              placeholder="e.g. Shift coverage already arranged, cannot cancel"
+              className="mt-1"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsRejectCancellationModalOpen(false)}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleRejectCancellation}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Rejecting..." : "Reject Cancellation (Keep Approved)"}
             </Button>
           </div>
         </div>
@@ -1698,8 +2180,14 @@ export default function LeavePage() {
       <Modal
         isOpen={isHolidayModalOpen}
         onClose={() => setIsHolidayModalOpen(false)}
-        title={selectedHoliday ? "Edit Holiday" : "Add Holiday"}
-        description="Schedule a company or branch holiday."
+        title={selectedHoliday ? `Edit Holiday: ${selectedHoliday.name}` : "Declare Holiday"}
+        description={
+          selectedHoliday
+            ? "Update holiday information or remove it from the schedule."
+            : holDate
+            ? `Declare a company holiday for ${holDate}.`
+            : "Schedule an organization or branch holiday."
+        }
       >
         <form onSubmit={handleSaveHoliday} className="space-y-4">
           {modalError && (
@@ -1713,9 +2201,10 @@ export default function LeavePage() {
             <Input
               id="hol-name"
               required
+              autoFocus
               value={holName}
               onChange={(e) => setHolName(e.target.value)}
-              placeholder="e.g. New Year's Day"
+              placeholder="e.g. 1st JAN, New Year's Day"
               className="mt-1"
             />
           </div>
@@ -1773,18 +2262,38 @@ export default function LeavePage() {
             </label>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsHolidayModalOpen(false)}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting || !holName || !holDate}>
-              {isSubmitting ? "Saving..." : selectedHoliday ? "Update Holiday" : "Create Holiday"}
-            </Button>
+          <div className="flex justify-between items-center pt-4 border-t border-slate-100">
+            {selectedHoliday ? (
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  setIsHolidayModalOpen(false);
+                  setIsDeleteHolidayModalOpen(true);
+                }}
+                disabled={isSubmitting}
+                className="flex items-center gap-1.5"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </Button>
+            ) : (
+              <div />
+            )}
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsHolidayModalOpen(false)}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting || !holName || !holDate}>
+                {isSubmitting ? "Saving..." : selectedHoliday ? "Update Holiday" : "Declare Holiday"}
+              </Button>
+            </div>
           </div>
         </form>
       </Modal>

@@ -254,14 +254,14 @@ export default function ReportsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50 text-primary-600">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50 dark:bg-primary-950/60 text-primary-600 dark:text-primary-400">
               <BarChart3 className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900">Reports & Analytics</h1>
-              <p className="text-xs text-slate-500">
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Reports & Analytics</h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Operational intelligence, cross-module analytics, and executive metrics for{" "}
-                <span className="font-semibold text-slate-700">{currentOrganization?.name}</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-200">{currentOrganization?.name}</span>
               </p>
             </div>
           </div>
@@ -269,11 +269,13 @@ export default function ReportsPage() {
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Preset Buttons */}
-          <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm text-xs">
+          <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-0.5 shadow-sm text-xs">
             <button
               onClick={() => setDatePreset("7d")}
               className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
-                datePreset === "7d" ? "bg-primary-50 text-primary-700 font-semibold" : "text-slate-600 hover:text-slate-900"
+                datePreset === "7d"
+                  ? "bg-primary-50 dark:bg-primary-950/80 text-primary-700 dark:text-primary-300 font-semibold"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
               }`}
             >
               7D
@@ -281,7 +283,9 @@ export default function ReportsPage() {
             <button
               onClick={() => setDatePreset("30d")}
               className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
-                datePreset === "30d" ? "bg-primary-50 text-primary-700 font-semibold" : "text-slate-600 hover:text-slate-900"
+                datePreset === "30d"
+                  ? "bg-primary-50 dark:bg-primary-950/80 text-primary-700 dark:text-primary-300 font-semibold"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
               }`}
             >
               30D
@@ -289,7 +293,9 @@ export default function ReportsPage() {
             <button
               onClick={() => setDatePreset("this_month")}
               className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
-                datePreset === "this_month" ? "bg-primary-50 text-primary-700 font-semibold" : "text-slate-600 hover:text-slate-900"
+                datePreset === "this_month"
+                  ? "bg-primary-50 dark:bg-primary-950/80 text-primary-700 dark:text-primary-300 font-semibold"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
               }`}
             >
               This Month
@@ -297,7 +303,9 @@ export default function ReportsPage() {
             <button
               onClick={() => setDatePreset("custom")}
               className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
-                datePreset === "custom" ? "bg-primary-50 text-primary-700 font-semibold" : "text-slate-600 hover:text-slate-900"
+                datePreset === "custom"
+                  ? "bg-primary-50 dark:bg-primary-950/80 text-primary-700 dark:text-primary-300 font-semibold"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
               }`}
             >
               Custom
@@ -339,14 +347,14 @@ export default function ReportsPage() {
       </div>
 
       {/* Tabs Navigation */}
-      <div className="border-b border-slate-200">
+      <div className="border-b border-slate-200 dark:border-slate-800">
         <nav className="flex space-x-6 overflow-x-auto text-sm font-medium">
           <button
             onClick={() => setActiveTab("overview")}
             className={`flex items-center gap-1.5 pb-3 border-b-2 transition-colors whitespace-nowrap ${
               activeTab === "overview"
-                ? "border-primary-600 text-primary-600 font-semibold"
-                : "border-transparent text-slate-500 hover:text-slate-700"
+                ? "border-primary-600 text-primary-600 dark:text-primary-400 font-semibold"
+                : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
             }`}
           >
             <BarChart3 className="h-4 w-4" />
@@ -358,8 +366,8 @@ export default function ReportsPage() {
               onClick={() => setActiveTab("workforce")}
               className={`flex items-center gap-1.5 pb-3 border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === "workforce"
-                  ? "border-primary-600 text-primary-600 font-semibold"
-                  : "border-transparent text-slate-500 hover:text-slate-700"
+                  ? "border-primary-600 text-primary-600 dark:text-primary-400 font-semibold"
+                  : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
               }`}
             >
               <Users className="h-4 w-4" />
@@ -372,8 +380,8 @@ export default function ReportsPage() {
               onClick={() => setActiveTab("attendance_leave")}
               className={`flex items-center gap-1.5 pb-3 border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === "attendance_leave"
-                  ? "border-primary-600 text-primary-600 font-semibold"
-                  : "border-transparent text-slate-500 hover:text-slate-700"
+                  ? "border-primary-600 text-primary-600 dark:text-primary-400 font-semibold"
+                  : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
               }`}
             >
               <Clock className="h-4 w-4" />
@@ -385,8 +393,8 @@ export default function ReportsPage() {
             onClick={() => setActiveTab("projects_ops")}
             className={`flex items-center gap-1.5 pb-3 border-b-2 transition-colors whitespace-nowrap ${
               activeTab === "projects_ops"
-                ? "border-primary-600 text-primary-600 font-semibold"
-                : "border-transparent text-slate-500 hover:text-slate-700"
+                ? "border-primary-600 text-primary-600 dark:text-primary-400 font-semibold"
+                : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
             }`}
           >
             <Layers className="h-4 w-4" />
@@ -397,8 +405,8 @@ export default function ReportsPage() {
             onClick={() => setActiveTab("procurement_assets")}
             className={`flex items-center gap-1.5 pb-3 border-b-2 transition-colors whitespace-nowrap ${
               activeTab === "procurement_assets"
-                ? "border-primary-600 text-primary-600 font-semibold"
-                : "border-transparent text-slate-500 hover:text-slate-700"
+                ? "border-primary-600 text-primary-600 dark:text-primary-400 font-semibold"
+                : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
             }`}
           >
             <ShoppingBag className="h-4 w-4" />
@@ -410,8 +418,8 @@ export default function ReportsPage() {
               onClick={() => setActiveTab("finance")}
               className={`flex items-center gap-1.5 pb-3 border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === "finance"
-                  ? "border-primary-600 text-primary-600 font-semibold"
-                  : "border-transparent text-slate-500 hover:text-slate-700"
+                  ? "border-primary-600 text-primary-600 dark:text-primary-400 font-semibold"
+                  : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
               }`}
             >
               <DollarSign className="h-4 w-4" />
@@ -424,8 +432,8 @@ export default function ReportsPage() {
               onClick={() => setActiveTab("audit")}
               className={`flex items-center gap-1.5 pb-3 border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === "audit"
-                  ? "border-primary-600 text-primary-600 font-semibold"
-                  : "border-transparent text-slate-500 hover:text-slate-700"
+                  ? "border-primary-600 text-primary-600 dark:text-primary-400 font-semibold"
+                  : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
               }`}
             >
               <ShieldCheck className="h-4 w-4" />
@@ -449,68 +457,68 @@ export default function ReportsPage() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <Card hover>
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       Active Workforce
                     </CardTitle>
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
                       <Users className="h-4 w-4" />
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-slate-900">{overview.active_employees_count}</div>
-                    <p className="mt-1 text-xs text-slate-500">Total active team members</p>
+                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{overview.active_employees_count}</div>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Total active team members</p>
                   </CardContent>
                 </Card>
 
                 <Card hover>
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       Attendance Today
                     </CardTitle>
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
                       <Clock className="h-4 w-4" />
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-slate-900">
+                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                       {overview.attendance_today_count}
-                      <span className="text-sm font-normal text-slate-500 ml-1.5">
+                      <span className="text-sm font-normal text-slate-500 dark:text-slate-400 ml-1.5">
                         ({overview.attendance_rate_today}%)
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-emerald-600 font-medium">Daily attendance rate</p>
+                    <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium">Daily attendance rate</p>
                   </CardContent>
                 </Card>
 
                 <Card hover>
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       Active Projects
                     </CardTitle>
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
                       <Layers className="h-4 w-4" />
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-slate-900">{overview.active_projects_count}</div>
-                    <p className="mt-1 text-xs text-slate-500">Across {overview.active_clients_count} active clients</p>
+                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{overview.active_projects_count}</div>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Across {overview.active_clients_count} active clients</p>
                   </CardContent>
                 </Card>
 
                 <Card hover>
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       Pending Approvals
                     </CardTitle>
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400">
                       <CalendarDays className="h-4 w-4" />
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-slate-900">
+                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                       {overview.pending_leaves_count + overview.pending_purchase_requests_count}
                     </div>
-                    <p className="mt-1 text-xs text-amber-600 font-medium">
+                    <p className="mt-1 text-xs text-amber-600 dark:text-amber-400 font-medium">
                       {overview.pending_leaves_count} leaves • {overview.pending_purchase_requests_count} purchases
                     </p>
                   </CardContent>
@@ -559,33 +567,33 @@ export default function ReportsPage() {
                     <CardDescription>Security context & sensitive totals</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div className="rounded-lg bg-slate-50 p-3 text-xs space-y-2 border border-slate-100">
+                    <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-3 text-xs space-y-2 border border-slate-100 dark:border-slate-800">
                       <div className="flex justify-between">
-                        <span className="text-slate-500">Stored Documents</span>
-                        <span className="font-semibold text-slate-800">{overview.documents_count}</span>
+                        <span className="text-slate-500 dark:text-slate-400">Stored Documents</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">{overview.documents_count}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-500">Unread User Alerts</span>
-                        <span className="font-semibold text-slate-800">{overview.unread_notifications_count}</span>
+                        <span className="text-slate-500 dark:text-slate-400">Unread User Alerts</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">{overview.unread_notifications_count}</span>
                       </div>
                     </div>
 
                     {overview.finance_metrics_included ? (
-                      <div className="rounded-lg bg-emerald-50/60 border border-emerald-200 p-3 space-y-1.5">
-                        <div className="flex items-center justify-between text-xs text-emerald-800 font-semibold">
+                      <div className="rounded-lg bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 p-3 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs text-emerald-800 dark:text-emerald-300 font-semibold">
                           <span>Expenses (MTD)</span>
                           <Badge variant="success" className="text-[10px] px-1.5 py-0">Authorized</Badge>
                         </div>
-                        <div className="text-xl font-bold text-emerald-900">
+                        <div className="text-xl font-bold text-emerald-900 dark:text-emerald-200">
                           {`$${overview.total_expenses_mtd ?? "0.00"}`}
                         </div>
-                        <p className="text-[11px] text-emerald-700">
+                        <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
                           {overview.pending_expenses_count ?? 0} expense claims awaiting approval
                         </p>
                       </div>
                     ) : (
-                      <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-center text-xs text-slate-500">
-                        <ShieldAlert className="h-4 w-4 mx-auto mb-1 text-slate-400" />
+                      <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 p-3 text-center text-xs text-slate-500 dark:text-slate-400">
+                        <ShieldAlert className="h-4 w-4 mx-auto mb-1 text-slate-400 dark:text-slate-500" />
                         Financial summary redacted (requires finance permissions)
                       </div>
                     )}

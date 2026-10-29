@@ -68,20 +68,20 @@ export function Modal({
       {/* Modal Dialog Content */}
       <div
         className={cn(
-          "relative z-50 w-full rounded-2xl bg-white p-5 sm:p-6 shadow-modal border border-slate-200/80 animate-in fade-in-0 zoom-in-95 duration-180 max-h-[calc(100vh-3rem)] flex flex-col",
+          "relative z-50 w-full rounded-2xl bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-modal border border-slate-200/80 dark:border-slate-800 text-slate-900 dark:text-slate-100 animate-in fade-in-0 zoom-in-95 duration-180 max-h-[calc(100vh-3rem)] flex flex-col",
           sizeClasses[size],
           className
         )}
       >
-        <div className="flex items-start justify-between pb-3.5 border-b border-slate-100 flex-shrink-0">
+        <div className="flex items-start justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
           <div>
             {title && (
-              <h2 id="modal-title" className="text-base font-semibold tracking-tight text-slate-900">
+              <h2 id="modal-title" className="text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100">
                 {title}
               </h2>
             )}
             {description && (
-              <p id="modal-description" className="mt-0.5 text-xs text-slate-500 leading-normal">
+              <p id="modal-description" className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 leading-normal">
                 {description}
               </p>
             )}
@@ -89,7 +89,7 @@ export function Modal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors -mr-1"
+            className="rounded-lg p-1 text-slate-400 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-200 transition-colors -mr-1"
             aria-label="Close modal"
           >
             <X className="h-4 w-4" />

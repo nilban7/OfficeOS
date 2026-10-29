@@ -20,6 +20,7 @@ from app.schemas.leave import (
     HolidayResponse,
     HolidayUpdate,
     LeaveRequestApprovalAction,
+    LeaveRequestCancelAction,
     LeaveRequestCreate,
     LeaveRequestRejectAction,
     LeaveRequestResponse,
@@ -331,6 +332,20 @@ def _to_request_response(rec: LeaveRequest) -> LeaveRequestResponse:
             email=rev.email,
         )
 
+    canc_rev_brief = None
+    try:
+        canc_rev = rec.cancellation_reviewer
+    except Exception:  # noqa: BLE001
+        canc_rev = None
+
+    if canc_rev:
+        canc_rev_brief = ReviewerBrief(
+            id=canc_rev.id,
+            first_name=canc_rev.first_name,
+            last_name=canc_rev.last_name,
+            email=canc_rev.email,
+        )
+
     return LeaveRequestResponse(
         id=rec.id,
         organization_id=rec.organization_id,
@@ -347,6 +362,12 @@ def _to_request_response(rec: LeaveRequest) -> LeaveRequestResponse:
         reviewer=rev_brief,
         reviewed_at=rec.reviewed_at,
         reviewer_comment=rec.reviewer_comment,
+        cancellation_reason=getattr(rec, "cancellation_reason", None),
+        cancellation_requested_at=getattr(rec, "cancellation_requested_at", None),
+        cancellation_reviewed_by=getattr(rec, "cancellation_reviewed_by", None),
+        cancellation_reviewer=canc_rev_brief,
+        cancellation_reviewed_at=getattr(rec, "cancellation_reviewed_at", None),
+        cancellation_reviewer_comment=getattr(rec, "cancellation_reviewer_comment", None),
         created_at=rec.created_at,
         updated_at=rec.updated_at,
     )
@@ -391,6 +412,7 @@ async def list_leave_requests(
             selectinload(LeaveRequest.employee).selectinload(Employee.department),
             selectinload(LeaveRequest.leave_type),
             selectinload(LeaveRequest.reviewer),
+            selectinload(LeaveRequest.cancellation_reviewer),
         )
         .where(*base_filter)
         .order_by(LeaveRequest.created_at.desc())
@@ -423,6 +445,7 @@ async def get_leave_request(
             selectinload(LeaveRequest.employee).selectinload(Employee.department),
             selectinload(LeaveRequest.leave_type),
             selectinload(LeaveRequest.reviewer),
+            selectinload(LeaveRequest.cancellation_reviewer),
         )
         .where(
             LeaveRequest.id == request_id,
@@ -460,7 +483,7 @@ async def get_leave_summary(
     req_query = select(LeaveRequest).where(
         LeaveRequest.organization_id == organization_id,
         LeaveRequest.employee_id == employee_id,
-        LeaveRequest.status.in_(["approved", "pending"]),
+        LeaveRequest.status.in_(["approved", "pending", "cancellation_requested"]),
         LeaveRequest.start_date <= year_end,
         LeaveRequest.end_date >= year_start,
     )
@@ -471,7 +494,7 @@ async def get_leave_summary(
     pending_by_type: dict[UUID, Decimal] = {}
 
     for r in requests:
-        if r.status == "approved":
+        if r.status in ("approved", "cancellation_requested"):
             used_by_type[r.leave_type_id] = used_by_type.get(r.leave_type_id, Decimal("0.00")) + r.total_days
         elif r.status == "pending":
             pending_by_type[r.leave_type_id] = pending_by_type.get(r.leave_type_id, Decimal("0.00")) + r.total_days
@@ -485,7 +508,8 @@ async def get_leave_summary(
     for lt in leave_types:
         used = used_by_type.get(lt.id, Decimal("0.00"))
         pend = pending_by_type.get(lt.id, Decimal("0.00"))
-        avail = max(Decimal("0.00"), lt.annual_allocation - used - pend)
+        # Leave only decreases when approved (not while pending)
+        avail = max(Decimal("0.00"), lt.annual_allocation - used)
 
         total_alloc += lt.annual_allocation
         total_used += used
@@ -580,7 +604,7 @@ async def create_leave_request(
         select(LeaveRequest).where(
             LeaveRequest.organization_id == organization_id,
             LeaveRequest.employee_id == target_emp.id,
-            LeaveRequest.status.in_(["pending", "approved"]),
+            LeaveRequest.status.in_(["pending", "approved", "cancellation_requested"]),
             LeaveRequest.start_date <= data.end_date,
             LeaveRequest.end_date >= data.start_date,
         )
@@ -701,7 +725,7 @@ async def update_leave_request(
             select(LeaveRequest).where(
                 LeaveRequest.organization_id == organization_id,
                 LeaveRequest.employee_id == rec.employee_id,
-                LeaveRequest.status.in_(["pending", "approved"]),
+                LeaveRequest.status.in_(["pending", "approved", "cancellation_requested"]),
                 LeaveRequest.start_date <= new_end,
                 LeaveRequest.end_date >= new_start,
                 LeaveRequest.id != rec.id,
@@ -1061,6 +1085,308 @@ async def cancel_leave_request(
                 "end_date": str(rec.end_date),
                 "total_days": str(rec.total_days),
                 "cancellation_reason": reason,
+                "route": "/leave",
+                "action_url": "/leave",
+                "notification_type": "leave",
+            },
+            actor_profile_id=actor_profile_id,
+            ip_address=ip_address,
+        )
+    except Exception:  # noqa: BLE001, S110
+        pass
+
+    return await get_leave_request(session, organization_id, rec.id)
+
+
+async def request_leave_cancellation(
+    session: AsyncSession,
+    organization_id: UUID,
+    request_id: UUID,
+    data: LeaveRequestCancelAction,
+    actor_auth_user_id: UUID,
+    actor_profile_id: UUID | None,
+    is_admin_or_manager: bool,
+    ip_address: str | None = None,
+) -> LeaveRequestResponse:
+    rec = await session.scalar(
+        select(LeaveRequest)
+        .options(
+            selectinload(LeaveRequest.employee),
+            selectinload(LeaveRequest.leave_type),
+        )
+        .where(
+            LeaveRequest.id == request_id,
+            LeaveRequest.organization_id == organization_id,
+        )
+    )
+    if rec is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Leave request '{request_id}' not found in this organization",
+        )
+
+    if rec.status == "cancellation_requested":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cancellation has already been requested for this leave request and is awaiting manager review.",
+        )
+
+    if rec.status == "cancelled":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This leave request is already cancelled.",
+        )
+
+    if rec.status != "approved":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Only approved leave requests can have a cancellation requested (current status: '{rec.status}').",
+        )
+
+    # Scoping check: if not admin/manager, must be owner
+    if not is_admin_or_manager:
+        user_emp = await resolve_employee_for_user(session, organization_id, actor_auth_user_id)
+        if user_emp is None or user_emp.id != rec.employee_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not authorized to request cancellation for another employee's leave request",
+            )
+
+    now = datetime.now(UTC)
+    rec.status = "cancellation_requested"
+    rec.cancellation_reason = data.reason.strip() if data.reason else None
+    rec.cancellation_requested_at = now
+    rec.updated_at = now
+
+    await record_audit_log(
+        session=session,
+        organization_id=organization_id,
+        actor_id=actor_profile_id,
+        action="leave_request.cancellation_requested",
+        entity_type="leave_request",
+        entity_id=rec.id,
+        details={
+            "employee_id": str(rec.employee_id),
+            "status": "cancellation_requested",
+            "cancellation_reason": rec.cancellation_reason,
+        },
+        ip_address=ip_address,
+    )
+
+    emp = None
+    try:
+        emp = rec.employee
+    except Exception:  # noqa: BLE001
+        emp = None
+    if emp is None and hasattr(session, "scalar"):
+        try:
+            emp = await session.scalar(select(Employee).where(Employee.id == rec.employee_id))
+        except Exception:  # noqa: BLE001
+            emp = None
+    emp_name = f"{getattr(emp, 'first_name', '')} {getattr(emp, 'last_name', '')}".strip() if emp else "Employee"
+
+    try:
+        await AutomationService.dispatch_event(
+            session=session,
+            organization_id=organization_id,
+            event_name="leave.cancellation_requested",
+            payload={
+                "event": "leave.cancellation_requested",
+                "request_id": str(rec.id),
+                "employee_id": str(rec.employee_id),
+                "employee_name": emp_name,
+                "cancellation_reason": rec.cancellation_reason,
+                "start_date": str(rec.start_date),
+                "end_date": str(rec.end_date),
+                "total_days": str(rec.total_days),
+                "route": "/leave",
+                "action_url": "/leave",
+                "notification_type": "leave",
+            },
+            actor_profile_id=actor_profile_id,
+            ip_address=ip_address,
+        )
+    except Exception:  # noqa: BLE001, S110
+        pass
+
+    return await get_leave_request(session, organization_id, rec.id)
+
+
+async def approve_leave_cancellation(
+    session: AsyncSession,
+    organization_id: UUID,
+    request_id: UUID,
+    data: LeaveRequestApprovalAction,
+    actor_profile_id: UUID | None,
+    ip_address: str | None = None,
+) -> LeaveRequestResponse:
+    rec = await session.scalar(
+        select(LeaveRequest)
+        .options(
+            selectinload(LeaveRequest.employee),
+            selectinload(LeaveRequest.leave_type),
+        )
+        .where(
+            LeaveRequest.id == request_id,
+            LeaveRequest.organization_id == organization_id,
+        )
+    )
+    if rec is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Leave request '{request_id}' not found in this organization",
+        )
+
+    if rec.status not in ("cancellation_requested", "approved"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot approve cancellation for a leave request with status '{rec.status}'. Only cancellation requests can be approved.",
+        )
+
+    now = datetime.now(UTC)
+    rec.status = "cancelled"
+    rec.cancellation_reviewed_by = actor_profile_id
+    rec.cancellation_reviewed_at = now
+    rec.cancellation_reviewer_comment = data.reviewer_comment.strip() if data.reviewer_comment else None
+    rec.updated_at = now
+
+    await record_audit_log(
+        session=session,
+        organization_id=organization_id,
+        actor_id=actor_profile_id,
+        action="leave_request.cancellation_approved",
+        entity_type="leave_request",
+        entity_id=rec.id,
+        details={
+            "employee_id": str(rec.employee_id),
+            "status": "cancelled",
+            "cancellation_reviewer_comment": rec.cancellation_reviewer_comment,
+        },
+        ip_address=ip_address,
+    )
+
+    emp = None
+    try:
+        emp = rec.employee
+    except Exception:  # noqa: BLE001
+        emp = None
+    if emp is None and hasattr(session, "scalar"):
+        try:
+            emp = await session.scalar(select(Employee).where(Employee.id == rec.employee_id))
+        except Exception:  # noqa: BLE001
+            emp = None
+    recipient_profile_id = getattr(emp, "profile_id", None) if emp else None
+    emp_name = f"{getattr(emp, 'first_name', '')} {getattr(emp, 'last_name', '')}".strip() if emp else "Employee"
+
+    try:
+        await AutomationService.dispatch_event(
+            session=session,
+            organization_id=organization_id,
+            event_name="leave.cancellation_approved",
+            payload={
+                "event": "leave.cancellation_approved",
+                "request_id": str(rec.id),
+                "employee_id": str(rec.employee_id),
+                "employee_name": emp_name,
+                "recipient_id": str(recipient_profile_id) if recipient_profile_id else None,
+                "start_date": str(rec.start_date),
+                "end_date": str(rec.end_date),
+                "total_days": str(rec.total_days),
+                "reviewer_comment": rec.cancellation_reviewer_comment,
+                "route": "/leave",
+                "action_url": "/leave",
+                "notification_type": "leave",
+            },
+            actor_profile_id=actor_profile_id,
+            ip_address=ip_address,
+        )
+    except Exception:  # noqa: BLE001, S110
+        pass
+
+    return await get_leave_request(session, organization_id, rec.id)
+
+
+async def reject_leave_cancellation(
+    session: AsyncSession,
+    organization_id: UUID,
+    request_id: UUID,
+    data: LeaveRequestRejectAction,
+    actor_profile_id: UUID | None,
+    ip_address: str | None = None,
+) -> LeaveRequestResponse:
+    rec = await session.scalar(
+        select(LeaveRequest)
+        .options(
+            selectinload(LeaveRequest.employee),
+            selectinload(LeaveRequest.leave_type),
+        )
+        .where(
+            LeaveRequest.id == request_id,
+            LeaveRequest.organization_id == organization_id,
+        )
+    )
+    if rec is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Leave request '{request_id}' not found in this organization",
+        )
+
+    if rec.status != "cancellation_requested":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot reject cancellation for a leave request with status '{rec.status}'. Only cancellation requests can be rejected.",
+        )
+
+    now = datetime.now(UTC)
+    rec.status = "approved"  # Reverts to approved
+    rec.cancellation_reviewed_by = actor_profile_id
+    rec.cancellation_reviewed_at = now
+    rec.cancellation_reviewer_comment = data.reviewer_comment.strip() if data.reviewer_comment else None
+    rec.updated_at = now
+
+    await record_audit_log(
+        session=session,
+        organization_id=organization_id,
+        actor_id=actor_profile_id,
+        action="leave_request.cancellation_rejected",
+        entity_type="leave_request",
+        entity_id=rec.id,
+        details={
+            "employee_id": str(rec.employee_id),
+            "status": "approved",
+            "cancellation_reviewer_comment": rec.cancellation_reviewer_comment,
+        },
+        ip_address=ip_address,
+    )
+
+    emp = None
+    try:
+        emp = rec.employee
+    except Exception:  # noqa: BLE001
+        emp = None
+    if emp is None and hasattr(session, "scalar"):
+        try:
+            emp = await session.scalar(select(Employee).where(Employee.id == rec.employee_id))
+        except Exception:  # noqa: BLE001
+            emp = None
+    recipient_profile_id = getattr(emp, "profile_id", None) if emp else None
+    emp_name = f"{getattr(emp, 'first_name', '')} {getattr(emp, 'last_name', '')}".strip() if emp else "Employee"
+
+    try:
+        await AutomationService.dispatch_event(
+            session=session,
+            organization_id=organization_id,
+            event_name="leave.cancellation_rejected",
+            payload={
+                "event": "leave.cancellation_rejected",
+                "request_id": str(rec.id),
+                "employee_id": str(rec.employee_id),
+                "employee_name": emp_name,
+                "recipient_id": str(recipient_profile_id) if recipient_profile_id else None,
+                "start_date": str(rec.start_date),
+                "end_date": str(rec.end_date),
+                "total_days": str(rec.total_days),
+                "reviewer_comment": rec.cancellation_reviewer_comment,
                 "route": "/leave",
                 "action_url": "/leave",
                 "notification_type": "leave",

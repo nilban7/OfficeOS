@@ -60,7 +60,7 @@ export interface ReviewerBrief {
   email: string;
 }
 
-export type LeaveStatus = "pending" | "approved" | "rejected" | "cancelled";
+export type LeaveStatus = "pending" | "approved" | "rejected" | "cancelled" | "cancellation_requested";
 
 export interface LeaveRequest {
   id: string;
@@ -78,6 +78,12 @@ export interface LeaveRequest {
   reviewer?: ReviewerBrief | null;
   reviewed_at?: string | null;
   reviewer_comment?: string | null;
+  cancellation_reason?: string | null;
+  cancellation_requested_at?: string | null;
+  cancellation_reviewed_by?: string | null;
+  cancellation_reviewer?: ReviewerBrief | null;
+  cancellation_reviewed_at?: string | null;
+  cancellation_reviewer_comment?: string | null;
   created_at: string;
   updated_at: string;
 }

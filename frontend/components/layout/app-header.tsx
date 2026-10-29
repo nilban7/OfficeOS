@@ -11,6 +11,7 @@ import type { UnreadCountResponse } from "@/types/notification";
 import { OrgSwitcher } from "./org-switcher";
 import { UserNav } from "./user-nav";
 import { MobileNav } from "./mobile-nav";
+import { ThemeSwitch } from "./theme-switch";
 
 export function AppHeader() {
   const [isMobileOpen, setIsMobileOpen] = React.useState(false);
@@ -49,13 +50,13 @@ export function AppHeader() {
 
   return (
     <>
-      <header className="sticky top-0 z-20 flex h-16 w-full items-center justify-between border-b border-slate-200/70 bg-white/90 px-4 sm:px-6 backdrop-blur-md shadow-subtle transition-all duration-200">
+      <header className="sticky top-0 z-20 flex h-16 w-full items-center justify-between border-b border-slate-200/70 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 px-4 sm:px-6 backdrop-blur-md shadow-subtle transition-all duration-200">
         {/* Left Section: Mobile Menu Trigger + Org Switcher */}
         <div className="flex items-center space-x-2 sm:space-x-3.5">
           <button
             type="button"
             onClick={handleOpenMobile}
-            className="rounded-lg h-10 w-10 flex items-center justify-center text-slate-600 hover:bg-slate-100 hover:text-slate-900 md:hidden transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="rounded-lg h-10 w-10 flex items-center justify-center text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 md:hidden transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
             aria-label="Open mobile navigation"
           >
             <Menu className="h-5 w-5" />
@@ -71,25 +72,28 @@ export function AppHeader() {
             <input
               type="text"
               placeholder="Quick search... (Press ⌘K)"
-              className="h-9 w-full rounded-lg border border-slate-200/80 bg-slate-50/80 pl-9 pr-12 text-xs text-slate-700 placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/15 transition-all duration-150 cursor-pointer"
+              className="h-9 w-full rounded-lg border border-slate-200/80 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/80 pl-9 pr-12 text-xs text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:border-primary-500 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500/15 transition-all duration-150 cursor-pointer"
               readOnly
             />
-            <kbd className="pointer-events-none absolute right-2.5 top-2.5 inline-flex h-4 items-center rounded border border-slate-200 bg-white px-1 font-sans text-[10px] font-medium text-slate-400 shadow-sm">
+            <kbd className="pointer-events-none absolute right-2.5 top-2.5 inline-flex h-4 items-center rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-1 font-sans text-[10px] font-medium text-slate-400 shadow-sm">
               ⌘K
             </kbd>
           </div>
         </div>
 
-        {/* Right Section: Notifications + User Menu */}
-        <div className="flex items-center space-x-1.5 sm:space-x-2.5">
+        {/* Right Section: Theme Switch + Notifications + User Menu */}
+        <div className="flex items-center space-x-2 sm:space-x-3">
+          {/* Dark / Light Mode Switch (Switch ON for Light, Switch OFF for Dark) */}
+          <ThemeSwitch />
+
           <Link
             href={ROUTES.NOTIFICATIONS}
-            className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+            className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
             aria-label="Notifications"
           >
             <Bell className="h-4.5 w-4.5" />
             {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold text-white shadow-sm ring-2 ring-white">
+              <span className="absolute top-1.5 right-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold text-white shadow-sm ring-2 ring-white dark:ring-slate-900">
                 {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             )}
