@@ -10,6 +10,13 @@ export type AttendanceStatus =
   | "half_day"
   | "on_leave";
 
+export type AttendanceApprovalStatus =
+  | "not_required"
+  | "pending_hr"
+  | "pending_org_head"
+  | "approved"
+  | "rejected";
+
 export interface EmployeeBrief {
   id: string;
   employee_code: string;
@@ -47,6 +54,17 @@ export interface AttendanceRecord {
   check_out_longitude?: number | null;
   check_out_location_name?: string | null;
   device_info?: string | null;
+  is_offsite?: boolean;
+  offsite_reason?: string | null;
+  offsite_location?: string | null;
+  client_name?: string | null;
+  approval_status?: AttendanceApprovalStatus | string;
+  hr_approved_at?: string | null;
+  hr_approved_by_id?: string | null;
+  hr_rejection_reason?: string | null;
+  org_head_approved_at?: string | null;
+  org_head_approved_by_id?: string | null;
+  org_head_rejection_reason?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -65,7 +83,22 @@ export interface AttendanceCheckInRequest {
   location_accuracy?: number | null;
   verification_method?: "web" | "geolocation" | "fingerprint" | "biometric" | "manual" | string;
   device_info?: string | null;
+  is_offsite?: boolean;
+  offsite_reason?: string | null;
+  offsite_location?: string | null;
+  client_name?: string | null;
 }
+
+export interface AttendanceHRReviewAction {
+  action: "approve" | "reject";
+  rejection_reason?: string | null;
+}
+
+export interface AttendanceOrgHeadReviewAction {
+  action: "confirm_reject" | "override_approve";
+  reason?: string | null;
+}
+
 
 export interface AttendanceCheckOutRequest {
   check_out_at?: string;
@@ -93,6 +126,10 @@ export interface AttendanceCreate {
   check_out_longitude?: number | null;
   check_out_location_name?: string | null;
   device_info?: string | null;
+  is_offsite?: boolean;
+  offsite_reason?: string | null;
+  offsite_location?: string | null;
+  client_name?: string | null;
 }
 
 export interface AttendanceUpdate {
@@ -111,6 +148,10 @@ export interface AttendanceUpdate {
   check_out_longitude?: number | null;
   check_out_location_name?: string | null;
   device_info?: string | null;
+  is_offsite?: boolean;
+  offsite_reason?: string | null;
+  offsite_location?: string | null;
+  client_name?: string | null;
 }
 
 export interface AttendanceSummary {

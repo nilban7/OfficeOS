@@ -5,6 +5,8 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
+  XCircle,
   Plus,
   Search,
   Edit2,
@@ -18,6 +20,10 @@ import {
   MapPin,
   Compass,
   Navigation,
+  Building2,
+  Briefcase,
+  UserCheck,
+  ShieldCheck,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +41,7 @@ import { ApiException } from "@/types/api";
 import type { BranchResponse } from "@/types/organization";
 import type { Department, Employee, PaginatedEmployees } from "@/types/employee";
 import type {
+  AttendanceCheckInRequest,
   AttendanceCreate,
   AttendanceDetailResponse,
   AttendanceRecord,
@@ -55,14 +62,27 @@ export default function AttendancePage() {
   const canUpdate = isSystemAdmin || permissions.includes("attendance.update");
   const canDelete = isSystemAdmin || permissions.includes("attendance.delete");
 
+  // Organization Head check (Owner, Admin, or System Admin)
+  const isOrgHead =
+    isSystemAdmin ||
+    membership?.role === "organization_owner" ||
+    membership?.role === "organization_admin";
+
+  // Attendance Approver check (HR Manager, Org Head, or attendance.approve permission)
+  const canApproveAttendance =
+    isSystemAdmin ||
+    isOrgHead ||
+    membership?.role === "hr_manager" ||
+    permissions.includes("attendance.approve");
+
   // Privileged check: only Admin / HR can manually create or modify attendance records for others
   const isPrivileged =
     isSystemAdmin ||
-    membership?.role === "organization_owner" ||
-    membership?.role === "organization_admin" ||
+    isOrgHead ||
     membership?.role === "hr_manager" ||
     permissions.includes("attendance.delete") ||
     permissions.includes("employees.create");
+
 
   // Summary State
   const [summary, setSummary] = React.useState<AttendanceSummary | null>(null);
@@ -113,6 +133,8 @@ export default function AttendancePage() {
   const [filterBranch, setFilterBranch] = React.useState<string>("");
   const [filterStatus, setFilterStatus] = React.useState<string>("");
   const [filterVerification, setFilterVerification] = React.useState<string>("");
+  const [filterIsOffsite, setFilterIsOffsite] = React.useState<string>("");
+  const [filterApprovalStatus, setFilterApprovalStatus] = React.useState<string>("");
   const [currentPage, setCurrentPage] = React.useState(1);
   const [pageSize] = React.useState(20);
   const [sortBy] = React.useState<string>("work_date");
@@ -127,11 +149,28 @@ export default function AttendancePage() {
   const [globalSuccess, setGlobalSuccess] = React.useState<string | null>(null);
   const [globalError, setGlobalError] = React.useState<string | null>(null);
 
+  // Quick Clock-In Mode & Offsite Fields
+  const [clockInMode, setClockInMode] = React.useState<"office" | "offsite">("office");
+  const [offsiteReason, setOffsiteReason] = React.useState("Client Meeting");
+  const [offsiteLocation, setOffsiteLocation] = React.useState("");
+  const [clientName, setClientName] = React.useState("");
+
   // Modals
   const [isMarkOpen, setIsMarkOpen] = React.useState(false);
   const [isEditOpen, setIsEditOpen] = React.useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = React.useState(false);
   const [isQuickClockOutOpen, setIsQuickClockOutOpen] = React.useState(false);
+
+  // Review Modals
+  const [isHRReviewOpen, setIsHRReviewOpen] = React.useState(false);
+  const [reviewingRecord, setReviewingRecord] = React.useState<AttendanceRecord | null>(null);
+  const [hrRejectionReason, setHrRejectionReason] = React.useState("");
+  const [isSubmittingHRReview, setIsSubmittingHRReview] = React.useState(false);
+
+  const [isOrgHeadReviewOpen, setIsOrgHeadReviewOpen] = React.useState(false);
+  const [orgHeadReviewRecord, setOrgHeadReviewRecord] = React.useState<AttendanceRecord | null>(null);
+  const [orgHeadComment, setOrgHeadComment] = React.useState("");
+  const [isSubmittingOrgHeadReview, setIsSubmittingOrgHeadReview] = React.useState(false);
 
   const [editingRecord, setEditingRecord] = React.useState<AttendanceRecord | null>(null);
   const [deletingRecord, setDeletingRecord] = React.useState<AttendanceRecord | null>(null);
@@ -151,6 +190,11 @@ export default function AttendancePage() {
   const [formBranchId, setFormBranchId] = React.useState("");
   const [formNotes, setFormNotes] = React.useState("");
   const [clockNotes, setClockNotes] = React.useState("");
+  const [formIsOffsite, setFormIsOffsite] = React.useState(false);
+  const [formOffsiteReason, setFormOffsiteReason] = React.useState("");
+  const [formOffsiteLocation, setFormOffsiteLocation] = React.useState("");
+  const [formClientName, setFormClientName] = React.useState("");
+
 
   // Check biometric capability & mobile platform authenticator
   React.useEffect(() => {
@@ -271,6 +315,9 @@ export default function AttendancePage() {
       if (filterBranch) params.branch_id = filterBranch;
       if (filterStatus) params.status = filterStatus;
       if (filterVerification) params.verification_method = filterVerification;
+      if (filterIsOffsite === "offsite") params.is_offsite = true;
+      if (filterIsOffsite === "office") params.is_offsite = false;
+      if (filterApprovalStatus) params.approval_status = filterApprovalStatus;
 
       const res = await apiClient.get<PaginatedAttendance>(
         API_ENDPOINTS.attendance.list,
@@ -301,7 +348,10 @@ export default function AttendancePage() {
     filterBranch,
     filterStatus,
     filterVerification,
+    filterIsOffsite,
+    filterApprovalStatus,
   ]);
+
 
   // Initial and reactive data fetching
   React.useEffect(() => {
@@ -386,32 +436,49 @@ export default function AttendancePage() {
     setGlobalError(null);
 
     try {
+      const isOffsite = clockInMode === "offsite";
+      if (isOffsite && !offsiteReason.trim() && !clientName.trim()) {
+        setGlobalError("Please provide the client name or meeting purpose for offsite attendance");
+        setIsClockingIn(false);
+        return;
+      }
+
       const loc = currentLocation || (await acquireLocation());
+
+      const payload: AttendanceCheckInRequest = {
+        notes: clockNotes.trim() || undefined,
+        latitude: loc?.latitude,
+        longitude: loc?.longitude,
+        location_name: isOffsite ? (offsiteLocation.trim() || loc?.locationName) : loc?.locationName,
+        location_accuracy: loc?.accuracy,
+        verification_method: method,
+        device_info: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 100) : undefined,
+        is_offsite: isOffsite,
+        offsite_reason: isOffsite ? offsiteReason.trim() : undefined,
+        offsite_location: isOffsite ? (offsiteLocation.trim() || loc?.locationName) : undefined,
+        client_name: isOffsite ? clientName.trim() : undefined,
+      };
 
       const res = await apiClient.post<AttendanceDetailResponse>(
         API_ENDPOINTS.attendance.clockIn,
-        {
-          notes: clockNotes.trim() || undefined,
-          latitude: loc?.latitude,
-          longitude: loc?.longitude,
-          location_name: loc?.locationName,
-          location_accuracy: loc?.accuracy,
-          verification_method: method,
-          device_info: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 100) : undefined,
-        },
+        payload,
         {
           organizationId: currentOrganization.id,
         }
       );
       setMyTodayRecord(res);
       setClockNotes("");
-      setGlobalSuccess(
-        method === "fingerprint"
-          ? "Fingerprint verified! Clock-in recorded successfully with location coordinates."
-          : loc
-          ? `Clock-in recorded with verified location (${loc.locationName})!`
-          : "Clock-in recorded successfully!"
-      );
+      if (isOffsite) {
+        setGlobalSuccess("Offsite attendance submitted! Awaiting 2-step approval (Step 1: HR review).");
+      } else {
+        setGlobalSuccess(
+          method === "fingerprint"
+            ? "Fingerprint verified! Clock-in recorded successfully with location coordinates."
+            : loc
+            ? `Clock-in recorded with verified location (${loc.locationName})!`
+            : "Clock-in recorded successfully!"
+        );
+      }
       void fetchSummary();
       void fetchAttendanceList();
       invalidateDashboardCache();
@@ -422,6 +489,71 @@ export default function AttendancePage() {
       setIsClockingIn(false);
     }
   };
+
+  const handleHRReview = async (action: "approve" | "reject") => {
+    if (!currentOrganization || !reviewingRecord) return;
+    if (action === "reject" && !hrRejectionReason.trim()) {
+      setGlobalError("Please enter a rejection reason. Rejecting escalates to Organization Head for final decision.");
+      return;
+    }
+    setIsSubmittingHRReview(true);
+    setGlobalError(null);
+    try {
+      await apiClient.post(
+        API_ENDPOINTS.attendance.hrReview(reviewingRecord.id),
+        {
+          action,
+          rejection_reason: hrRejectionReason.trim() || undefined,
+        },
+        { organizationId: currentOrganization.id }
+      );
+      setGlobalSuccess(
+        action === "approve"
+          ? "Offsite attendance approved successfully by HR!"
+          : "Offsite attendance rejected by HR and escalated to Organization Head for review."
+      );
+      setIsHRReviewOpen(false);
+      setReviewingRecord(null);
+      setHrRejectionReason("");
+      void fetchAttendanceList();
+      void fetchSummary();
+    } catch (err) {
+      setGlobalError(err instanceof ApiException ? err.message : "Failed to submit HR review");
+    } finally {
+      setIsSubmittingHRReview(false);
+    }
+  };
+
+  const handleOrgHeadReview = async (action: "confirm_reject" | "override_approve") => {
+    if (!currentOrganization || !orgHeadReviewRecord) return;
+    setIsSubmittingOrgHeadReview(true);
+    setGlobalError(null);
+    try {
+      await apiClient.post(
+        API_ENDPOINTS.attendance.orgHeadReview(orgHeadReviewRecord.id),
+        {
+          action,
+          reason: orgHeadComment.trim() || undefined,
+        },
+        { organizationId: currentOrganization.id }
+      );
+      setGlobalSuccess(
+        action === "confirm_reject"
+          ? "Rejection confirmed by Organization Head."
+          : "Offsite attendance approved by Organization Head (overriding HR rejection)!"
+      );
+      setIsOrgHeadReviewOpen(false);
+      setOrgHeadReviewRecord(null);
+      setOrgHeadComment("");
+      void fetchAttendanceList();
+      void fetchSummary();
+    } catch (err) {
+      setGlobalError(err instanceof ApiException ? err.message : "Failed to complete final review");
+    } finally {
+      setIsSubmittingOrgHeadReview(false);
+    }
+  };
+
 
   const handleQuickClockOut = async (attendanceId?: string) => {
     const targetId = attendanceId || myTodayRecord?.id;
@@ -569,6 +701,10 @@ export default function AttendancePage() {
     setFormCheckOutAt("");
     setFormBranchId("");
     setFormNotes("");
+    setFormIsOffsite(false);
+    setFormOffsiteReason("");
+    setFormOffsiteLocation("");
+    setFormClientName("");
     setFormError(null);
     setIsMarkOpen(true);
   };
@@ -595,6 +731,10 @@ export default function AttendancePage() {
         check_out_at: formCheckOutAt ? new Date(formCheckOutAt).toISOString() : null,
         notes: formNotes.trim() || null,
         verification_method: "manual",
+        is_offsite: formIsOffsite,
+        offsite_reason: formIsOffsite ? formOffsiteReason.trim() : null,
+        offsite_location: formIsOffsite ? formOffsiteLocation.trim() : null,
+        client_name: formIsOffsite ? formClientName.trim() : null,
       };
 
       await apiClient.post<AttendanceDetailResponse>(
@@ -628,6 +768,10 @@ export default function AttendancePage() {
     setFormCheckOutAt(rec.check_out_at ? rec.check_out_at.slice(0, 16) : "");
     setFormBranchId(rec.branch_id || "");
     setFormNotes(rec.notes || "");
+    setFormIsOffsite(Boolean(rec.is_offsite));
+    setFormOffsiteReason(rec.offsite_reason || "");
+    setFormOffsiteLocation(rec.offsite_location || "");
+    setFormClientName(rec.client_name || "");
     setFormError(null);
     setIsEditOpen(true);
   };
@@ -648,6 +792,10 @@ export default function AttendancePage() {
         check_in_at: formCheckInAt ? new Date(formCheckInAt).toISOString() : null,
         check_out_at: formCheckOutAt ? new Date(formCheckOutAt).toISOString() : null,
         notes: formNotes.trim() || null,
+        is_offsite: formIsOffsite,
+        offsite_reason: formIsOffsite ? formOffsiteReason.trim() : null,
+        offsite_location: formIsOffsite ? formOffsiteLocation.trim() : null,
+        client_name: formIsOffsite ? formClientName.trim() : null,
       };
 
       await apiClient.patch<AttendanceDetailResponse>(
@@ -760,6 +908,51 @@ export default function AttendancePage() {
         return <Badge variant="outline" className="whitespace-nowrap px-2.5 py-0.5 text-xs font-semibold">{status}</Badge>;
     }
   };
+
+  // Offsite & 2-Step Approval Status Badge Helper
+  const getApprovalStatusBadge = (rec: AttendanceRecord) => {
+    if (!rec.is_offsite) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200 whitespace-nowrap">
+          <Building2 className="h-2.5 w-2.5" /> In-Office
+        </span>
+      );
+    }
+
+    switch (rec.approval_status) {
+      case "pending_hr":
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-300 whitespace-nowrap animate-pulse">
+            <Clock className="h-2.5 w-2.5" /> Step 1: Pending HR
+          </span>
+        );
+      case "pending_org_head":
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-orange-50 text-orange-800 border border-orange-300 whitespace-nowrap">
+            <AlertTriangle className="h-2.5 w-2.5 text-orange-600" /> Step 2: Pending Org Head
+          </span>
+        );
+      case "approved":
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-300 whitespace-nowrap">
+            <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" /> Offsite Approved
+          </span>
+        );
+      case "rejected":
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-800 border border-rose-300 whitespace-nowrap">
+            <XCircle className="h-2.5 w-2.5 text-rose-600" /> Rejected
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200 whitespace-nowrap">
+            {rec.approval_status}
+          </span>
+        );
+    }
+  };
+
 
   if (isOrgLoading) {
     return <LoadingState fullPage message="Loading organization context..." />;
@@ -930,6 +1123,40 @@ export default function AttendancePage() {
                   </div>
                 </div>
 
+                {/* Offsite banner for today's record */}
+                {myTodayRecord.is_offsite && (
+                  <div className="p-3 bg-amber-50/80 border border-amber-200/90 rounded-lg text-xs space-y-1.5 shadow-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-amber-900 flex items-center gap-1.5">
+                        <Briefcase className="h-4 w-4 text-amber-700 shrink-0" />
+                        {myTodayRecord.client_name ? `Client: ${myTodayRecord.client_name}` : "Offsite Client Meeting"}
+                      </span>
+                      {getApprovalStatusBadge(myTodayRecord)}
+                    </div>
+                    {myTodayRecord.offsite_reason && (
+                      <p className="text-[11px] text-amber-800">
+                        <span className="font-semibold text-amber-900">Purpose:</span> {myTodayRecord.offsite_reason}
+                      </p>
+                    )}
+                    {myTodayRecord.offsite_location && (
+                      <p className="text-[11px] text-amber-800 flex items-center gap-1">
+                        <MapPin className="h-3 w-3 shrink-0 text-amber-700" /> {myTodayRecord.offsite_location}
+                      </p>
+                    )}
+                    {myTodayRecord.hr_rejection_reason && myTodayRecord.approval_status === "pending_org_head" && (
+                      <div className="p-2 bg-orange-100/90 border border-orange-300 text-orange-950 rounded text-[11px] mt-1 space-y-0.5">
+                        <span className="font-bold flex items-center gap-1 text-orange-900">
+                          <AlertTriangle className="h-3 w-3 text-orange-700" /> HR Reviewer Feedback:
+                        </span>
+                        <p className="italic text-orange-900 pl-4">{myTodayRecord.hr_rejection_reason}</p>
+                        <p className="text-[10px] text-orange-800 font-medium pl-4">
+                          HR rejected; currently undergoing Step 2 review by Organization Head.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Location / Verification Pill */}
                 <div className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200/80 rounded-lg text-xs">
                   <div className="flex items-center gap-2 text-slate-600">
@@ -977,9 +1204,90 @@ export default function AttendancePage() {
               </div>
             ) : (
               <div className="space-y-3">
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  You have not clocked in for today yet. When you clock in, your browser GPS coordinates will be captured to verify presence.
-                </p>
+                {/* Mode Selector: Office Premises vs Offsite Client Meeting */}
+                <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-lg text-xs font-medium text-slate-600">
+                  <button
+                    type="button"
+                    onClick={() => setClockInMode("office")}
+                    className={`py-1.5 px-3 rounded-md flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      clockInMode === "office"
+                        ? "bg-white text-slate-900 shadow-xs font-semibold"
+                        : "hover:text-slate-900 text-slate-500"
+                    }`}
+                  >
+                    <Building2 className="h-3.5 w-3.5" />
+                    <span>Office Premises</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setClockInMode("offsite")}
+                    className={`py-1.5 px-3 rounded-md flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      clockInMode === "offsite"
+                        ? "bg-white text-primary-700 shadow-xs font-semibold"
+                        : "hover:text-slate-900 text-slate-500"
+                    }`}
+                  >
+                    <Briefcase className="h-3.5 w-3.5" />
+                    <span>Client Meeting (Offsite)</span>
+                  </button>
+                </div>
+
+                {clockInMode === "office" ? (
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Clocking in at office premises. Browser GPS coordinates and biometric verification will confirm presence.
+                  </p>
+                ) : (
+                  <div className="space-y-2.5 p-3 bg-amber-50/70 border border-amber-200/90 rounded-lg text-xs">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-900">
+                      <Briefcase className="h-4 w-4 text-amber-700" />
+                      <span>Offsite Client Meeting / External Visit</span>
+                    </div>
+                    <p className="text-[11px] text-amber-800 leading-relaxed">
+                      Mark attendance outside office premises. HR approves directly (no further action needed). If HR rejects, it is escalated to Organization Head for final review.
+                    </p>
+
+                    <div className="space-y-2 pt-1">
+                      <div>
+                        <Label className="text-[11px] font-medium text-slate-700">Client / Partner Name *</Label>
+                        <Input
+                          placeholder="e.g. Acme Corp / Tata Motors"
+                          value={clientName}
+                          onChange={(e) => setClientName(e.target.value)}
+                          className="text-xs h-8 bg-white mt-0.5"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[11px] font-medium text-slate-700">Meeting Purpose / Reason *</Label>
+                        <Input
+                          placeholder="e.g. Client Pitch, Product Demo, Site Audit"
+                          value={offsiteReason}
+                          onChange={(e) => setOffsiteReason(e.target.value)}
+                          className="text-xs h-8 bg-white mt-0.5"
+                        />
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-[11px] font-medium text-slate-700">Meeting Location / Venue</Label>
+                          {currentLocation && (
+                            <button
+                              type="button"
+                              onClick={() => setOffsiteLocation(currentLocation.locationName)}
+                              className="text-[10px] text-primary-600 hover:text-primary-700 font-medium"
+                            >
+                              Use Current GPS
+                            </button>
+                          )}
+                        </div>
+                        <Input
+                          placeholder="e.g. Sector 5 Tech Hub, Room 402"
+                          value={offsiteLocation}
+                          onChange={(e) => setOffsiteLocation(e.target.value)}
+                          className="text-xs h-8 bg-white mt-0.5"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* GPS Status Indicator */}
                 <div className="flex items-center justify-between p-2.5 bg-white border border-slate-200 rounded-lg text-xs">
@@ -1009,7 +1317,7 @@ export default function AttendancePage() {
                 </div>
 
                 <Input
-                  placeholder="Optional notes (e.g. Work From Home)..."
+                  placeholder="Optional notes..."
                   value={clockNotes}
                   onChange={(e) => setClockNotes(e.target.value)}
                   className="text-xs"
@@ -1020,10 +1328,15 @@ export default function AttendancePage() {
                   className="w-full min-h-[44px] flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
                 >
                   <LogIn className="h-4 w-4" />
-                  {isClockingIn ? "Verifying & Clocking In..." : "Clock In Now"}
+                  {isClockingIn
+                    ? "Verifying & Clocking In..."
+                    : clockInMode === "offsite"
+                    ? "Submit Offsite Attendance (2-Step Review)"
+                    : "Clock In Now"}
                 </Button>
               </div>
             )}
+
           </CardContent>
         </Card>
 
@@ -1212,6 +1525,42 @@ export default function AttendancePage() {
               </select>
             </div>
 
+            {/* Offsite Filter */}
+            <div>
+              <Label className="text-xs text-slate-500 mb-1 block">Location Type</Label>
+              <select
+                value={filterIsOffsite}
+                onChange={(e) => {
+                  setFilterIsOffsite(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 py-1 text-xs text-slate-800 shadow-xs focus:outline-none focus:ring-1 focus:ring-primary-500"
+              >
+                <option value="">All Locations</option>
+                <option value="office">Office Premises</option>
+                <option value="offsite">Offsite Meetings</option>
+              </select>
+            </div>
+
+            {/* Approval Status Filter */}
+            <div>
+              <Label className="text-xs text-slate-500 mb-1 block">Approval Status</Label>
+              <select
+                value={filterApprovalStatus}
+                onChange={(e) => {
+                  setFilterApprovalStatus(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 py-1 text-xs text-slate-800 shadow-xs focus:outline-none focus:ring-1 focus:ring-primary-500"
+              >
+                <option value="">All Approvals</option>
+                <option value="pending_hr">Pending HR (Step 1)</option>
+                <option value="pending_org_head">Pending Org Head (Step 2)</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </div>
+
             {/* Reset Filter Button */}
             <div className="flex items-end">
               <Button
@@ -1224,6 +1573,8 @@ export default function AttendancePage() {
                   setFilterBranch("");
                   setFilterStatus("");
                   setFilterVerification("");
+                  setFilterIsOffsite("");
+                  setFilterApprovalStatus("");
                   setCurrentPage(1);
                 }}
                 className="w-full h-9 text-xs"
@@ -1283,10 +1634,39 @@ export default function AttendancePage() {
                           </p>
                         </div>
                       </div>
-                      <div className="shrink-0">
+                      <div className="shrink-0 flex flex-col items-end gap-1">
                         {getStatusBadge(rec.status)}
+                        {getApprovalStatusBadge(rec)}
                       </div>
                     </div>
+
+                    {/* Offsite Meeting Context (if offsite) */}
+                    {rec.is_offsite && (
+                      <div className="p-2.5 bg-amber-50/70 border border-amber-200/80 rounded-lg text-xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-amber-900 flex items-center gap-1 text-[11px]">
+                            <Briefcase className="h-3 w-3 text-amber-700" />
+                            {rec.client_name ? `Client: ${rec.client_name}` : "External Client Meeting"}
+                          </span>
+                        </div>
+                        {rec.offsite_reason && (
+                          <p className="text-[11px] text-amber-800">
+                            <span className="font-medium text-amber-900">Purpose:</span> {rec.offsite_reason}
+                          </p>
+                        )}
+                        {rec.offsite_location && (
+                          <p className="text-[11px] text-amber-800 flex items-center gap-1">
+                            <MapPin className="h-2.5 w-2.5 text-amber-700 shrink-0" /> {rec.offsite_location}
+                          </p>
+                        )}
+                        {rec.approval_status === "pending_org_head" && rec.hr_rejection_reason && (
+                          <div className="mt-1 p-2 bg-orange-100 border border-orange-200 rounded text-[11px] text-orange-950 space-y-0.5">
+                            <span className="font-semibold text-orange-900 block">HR Reviewer Feedback (Escalated):</span>
+                            <p className="italic">{rec.hr_rejection_reason}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Clock In / Out / Duration Summary Grid */}
                     <div className="grid grid-cols-2 gap-2 text-xs pt-1">
@@ -1354,18 +1734,49 @@ export default function AttendancePage() {
 
                     {/* Department, Location & Mobile Actions */}
                     <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
-                      <div className="flex items-center gap-1 text-slate-500 text-[11px] truncate max-w-[200px]">
+                      <div className="flex items-center gap-1 text-slate-500 text-[11px] truncate max-w-[160px]">
                         <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
                         <span className="truncate">{rec.branch?.name || rec.employee?.branch_name || "Headquarters"}</span>
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">
+                        {/* 2-Step Approval Action Buttons for HR and Org Head */}
+                        {rec.approval_status === "pending_hr" && canApproveAttendance && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setReviewingRecord(rec);
+                              setHrRejectionReason("");
+                              setIsHRReviewOpen(true);
+                            }}
+                            className="h-7 px-2 text-[11px] text-amber-800 border-amber-300 hover:bg-amber-50 font-semibold flex items-center gap-1 shadow-xs"
+                          >
+                            <UserCheck className="h-3 w-3 text-amber-700" />
+                            <span>HR Review</span>
+                          </Button>
+                        )}
+                        {rec.approval_status === "pending_org_head" && isOrgHead && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setOrgHeadReviewRecord(rec);
+                              setOrgHeadComment("");
+                              setIsOrgHeadReviewOpen(true);
+                            }}
+                            className="h-7 px-2 text-[11px] text-orange-800 border-orange-300 hover:bg-orange-50 font-semibold flex items-center gap-1 shadow-xs"
+                          >
+                            <ShieldCheck className="h-3 w-3 text-orange-700" />
+                            <span>Org Review</span>
+                          </Button>
+                        )}
                         {isPrivileged && canUpdate && (
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => openEditModal(rec)}
-                            className="h-8 px-2 text-xs text-slate-600 hover:text-slate-900 rounded-md hover:bg-slate-100 flex items-center gap-1"
+                            className="h-7 px-2 text-xs text-slate-600 hover:text-slate-900 rounded-md hover:bg-slate-100 flex items-center gap-1"
                             aria-label={`Edit ${rec.employee?.first_name || "record"}`}
                           >
                             <Edit2 className="h-3.5 w-3.5" />
@@ -1377,7 +1788,7 @@ export default function AttendancePage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => openDeleteModal(rec)}
-                            className="h-8 px-2 text-rose-500 hover:text-rose-700 rounded-md hover:bg-rose-50 flex items-center gap-1"
+                            className="h-7 px-2 text-rose-500 hover:text-rose-700 rounded-md hover:bg-rose-50 flex items-center gap-1"
                             aria-label={`Delete ${rec.employee?.first_name || "record"}`}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -1401,7 +1812,8 @@ export default function AttendancePage() {
                       <th className="px-4 py-3.5 whitespace-nowrap min-w-[130px]">Clock Out</th>
                       <th className="px-4 py-3.5 whitespace-nowrap min-w-[75px]">Duration</th>
                       <th className="px-4 py-3.5 whitespace-nowrap min-w-[90px]">Status</th>
-                      <th className="px-4 py-3.5 whitespace-nowrap min-w-[160px]">Verification & Location</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap min-w-[150px]">Location & Approval</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap min-w-[160px]">Verification & Details</th>
                       <th className="px-4 py-3.5 whitespace-nowrap min-w-[100px] text-right sticky right-0 bg-slate-50/95 backdrop-blur-xs z-10 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)]">Actions</th>
                     </tr>
                   </thead>
@@ -1490,7 +1902,36 @@ export default function AttendancePage() {
                         {/* Status */}
                         <td className="px-4 py-3.5 whitespace-nowrap">{getStatusBadge(rec.status)}</td>
 
-                        {/* Verification & Location */}
+                        {/* Location & Approval */}
+                        <td className="px-4 py-3.5 whitespace-nowrap text-xs">
+                          <div className="flex flex-col gap-1 items-start whitespace-nowrap">
+                            {getApprovalStatusBadge(rec)}
+                            {rec.is_offsite && (
+                              <div className="text-[11px] text-slate-600 max-w-[200px] truncate space-y-0.5">
+                                {rec.client_name && (
+                                  <span className="font-semibold text-slate-800 block truncate" title={rec.client_name}>
+                                    Client: {rec.client_name}
+                                  </span>
+                                )}
+                                {rec.offsite_reason && (
+                                  <span className="text-slate-500 block truncate" title={rec.offsite_reason}>
+                                    {rec.offsite_reason}
+                                  </span>
+                                )}
+                                {rec.approval_status === "pending_org_head" && rec.hr_rejection_reason && (
+                                  <span
+                                    className="inline-block text-[10px] text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 truncate max-w-[180px]"
+                                    title={`HR Rejection: ${rec.hr_rejection_reason}`}
+                                  >
+                                    HR: {rec.hr_rejection_reason}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Verification & Details */}
                         <td className="px-4 py-3.5 whitespace-nowrap text-xs">
                           <div className="flex flex-col gap-1 items-start whitespace-nowrap">
                             {rec.verification_method === "fingerprint" || rec.verification_method === "biometric" ? (
@@ -1532,6 +1973,38 @@ export default function AttendancePage() {
                         {/* Actions */}
                         <td className="px-4 py-3.5 whitespace-nowrap text-right sticky right-0 bg-white group-hover:bg-slate-50/90 z-10 shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)]">
                           <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                            {rec.approval_status === "pending_hr" && canApproveAttendance && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setReviewingRecord(rec);
+                                  setHrRejectionReason("");
+                                  setIsHRReviewOpen(true);
+                                }}
+                                className="h-7 px-2 text-xs text-amber-800 border-amber-300 hover:bg-amber-50 font-semibold flex items-center gap-1 shadow-xs"
+                                title="HR Review Offsite Attendance"
+                              >
+                                <UserCheck className="h-3.5 w-3.5 text-amber-700" />
+                                <span>HR Review</span>
+                              </Button>
+                            )}
+                            {rec.approval_status === "pending_org_head" && isOrgHead && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setOrgHeadReviewRecord(rec);
+                                  setOrgHeadComment("");
+                                  setIsOrgHeadReviewOpen(true);
+                                }}
+                                className="h-7 px-2 text-xs text-orange-800 border-orange-300 hover:bg-orange-50 font-semibold flex items-center gap-1 shadow-xs"
+                                title="Org Head Final Review"
+                              >
+                                <ShieldCheck className="h-3.5 w-3.5 text-orange-700" />
+                                <span>Org Review</span>
+                              </Button>
+                            )}
                             {isPrivileged && canUpdate && (
                               <Button
                                 variant="ghost"
@@ -1715,6 +2188,54 @@ export default function AttendancePage() {
             />
           </div>
 
+          {/* Offsite Client Meeting Section */}
+          <div className="pt-2 border-t border-slate-100">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={formIsOffsite}
+                onChange={(e) => setFormIsOffsite(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+              />
+              <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <Briefcase className="h-3.5 w-3.5 text-amber-600" />
+                Client Meeting / Offsite Visit
+              </span>
+            </label>
+
+            {formIsOffsite && (
+              <div className="mt-3 p-3 bg-amber-50/70 border border-amber-200/90 rounded-md space-y-2.5">
+                <div>
+                  <Label className="text-[11px] font-medium text-slate-700">Client / Partner Name</Label>
+                  <Input
+                    placeholder="e.g. Acme Global"
+                    value={formClientName}
+                    onChange={(e) => setFormClientName(e.target.value)}
+                    className="mt-0.5 text-xs bg-white"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[11px] font-medium text-slate-700">Meeting Purpose / Reason</Label>
+                  <Input
+                    placeholder="e.g. Contract Signing, Site Inspection"
+                    value={formOffsiteReason}
+                    onChange={(e) => setFormOffsiteReason(e.target.value)}
+                    className="mt-0.5 text-xs bg-white"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[11px] font-medium text-slate-700">Meeting Location / Venue</Label>
+                  <Input
+                    placeholder="e.g. Client Office, City Center"
+                    value={formOffsiteLocation}
+                    onChange={(e) => setFormOffsiteLocation(e.target.value)}
+                    className="mt-0.5 text-xs bg-white"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
             <Button
               type="button"
@@ -1836,6 +2357,54 @@ export default function AttendancePage() {
             />
           </div>
 
+          {/* Offsite Client Meeting Section in Edit */}
+          <div className="pt-2 border-t border-slate-100">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={formIsOffsite}
+                onChange={(e) => setFormIsOffsite(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+              />
+              <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <Briefcase className="h-3.5 w-3.5 text-amber-600" />
+                Client Meeting / Offsite Visit
+              </span>
+            </label>
+
+            {formIsOffsite && (
+              <div className="mt-3 p-3 bg-amber-50/70 border border-amber-200/90 rounded-md space-y-2.5">
+                <div>
+                  <Label className="text-[11px] font-medium text-slate-700">Client / Partner Name</Label>
+                  <Input
+                    placeholder="e.g. Acme Global"
+                    value={formClientName}
+                    onChange={(e) => setFormClientName(e.target.value)}
+                    className="mt-0.5 text-xs bg-white"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[11px] font-medium text-slate-700">Meeting Purpose / Reason</Label>
+                  <Input
+                    placeholder="e.g. Contract Signing, Site Inspection"
+                    value={formOffsiteReason}
+                    onChange={(e) => setFormOffsiteReason(e.target.value)}
+                    className="mt-0.5 text-xs bg-white"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[11px] font-medium text-slate-700">Meeting Location / Venue</Label>
+                  <Input
+                    placeholder="e.g. Client Office, City Center"
+                    value={formOffsiteLocation}
+                    onChange={(e) => setFormOffsiteLocation(e.target.value)}
+                    className="mt-0.5 text-xs bg-white"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
             <Button
               type="button"
@@ -1935,6 +2504,223 @@ export default function AttendancePage() {
             >
               {isClockingOut ? "Recording..." : "Confirm Clock Out"}
             </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* MODAL 5: HR Review Modal */}
+      <Modal
+        isOpen={isHRReviewOpen}
+        onClose={() => {
+          setIsHRReviewOpen(false);
+          setReviewingRecord(null);
+          setHrRejectionReason("");
+        }}
+        title="HR Review: Offsite Client Meeting"
+      >
+        <div className="space-y-4">
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-slate-900 text-sm">
+                {reviewingRecord?.employee?.first_name} {reviewingRecord?.employee?.last_name}
+              </span>
+              <span className="text-slate-500 font-mono text-[11px]">
+                {reviewingRecord?.employee?.employee_code || "—"}
+              </span>
+            </div>
+            <div className="text-slate-600 text-xs">
+              <span className="font-medium">Date:</span> {formatDate(reviewingRecord?.work_date)} •{" "}
+              <span className="font-medium">Time:</span> {formatTime(reviewingRecord?.check_in_at)} - {formatTime(reviewingRecord?.check_out_at)}
+            </div>
+            {reviewingRecord?.client_name && (
+              <div className="text-slate-700">
+                <span className="font-semibold text-slate-900">Client / Partner:</span> {reviewingRecord.client_name}
+              </div>
+            )}
+            {reviewingRecord?.offsite_reason && (
+              <div className="text-slate-700">
+                <span className="font-semibold text-slate-900">Meeting Purpose:</span> {reviewingRecord.offsite_reason}
+              </div>
+            )}
+            {reviewingRecord?.offsite_location && (
+              <div className="text-slate-700 flex items-center gap-1">
+                <MapPin className="h-3 w-3 text-primary-600 shrink-0" />
+                <span>{reviewingRecord.offsite_location}</span>
+              </div>
+            )}
+            {reviewingRecord?.latitude && reviewingRecord?.longitude && (
+              <div className="text-[11px] text-slate-500 font-mono">
+                GPS: {Number(reviewingRecord.latitude).toFixed(4)}°, {Number(reviewingRecord.longitude).toFixed(4)}°
+              </div>
+            )}
+          </div>
+
+          <div className="p-3 bg-amber-50/80 border border-amber-200 text-amber-900 rounded-md text-xs space-y-1">
+            <span className="font-semibold flex items-center gap-1 text-amber-950">
+              <AlertCircle className="h-3.5 w-3.5 text-amber-700" /> 2-Step Approval Policy
+            </span>
+            <p className="text-[11px] text-amber-800 leading-relaxed">
+              <strong>Approve:</strong> Confirms offsite attendance immediately without further review.
+              <br />
+              <strong>Reject:</strong> Requires a rejection reason and escalates this record to the Organization Head for final review.
+            </p>
+          </div>
+
+          <div>
+            <Label className="text-xs font-semibold text-slate-700">
+              Rejection Reason (Required if Rejecting)
+            </Label>
+            <textarea
+              placeholder="e.g. No client meeting was scheduled in official calendar, or location mismatch..."
+              value={hrRejectionReason}
+              onChange={(e) => setHrRejectionReason(e.target.value)}
+              rows={3}
+              className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 shadow-xs focus:outline-none focus:ring-1 focus:ring-primary-500"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-100">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsHRReviewOpen(false);
+                setReviewingRecord(null);
+                setHrRejectionReason("");
+              }}
+              disabled={isSubmittingHRReview}
+            >
+              Cancel
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => handleHRReview("reject")}
+                disabled={isSubmittingHRReview || !hrRejectionReason.trim()}
+                className="bg-rose-600 hover:bg-rose-700 text-white"
+              >
+                {isSubmittingHRReview ? "Submitting..." : "Reject & Escalate"}
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={() => handleHRReview("approve")}
+                disabled={isSubmittingHRReview}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {isSubmittingHRReview ? "Approving..." : "Approve Attendance"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* MODAL 6: Organization Head Final Review Modal */}
+      <Modal
+        isOpen={isOrgHeadReviewOpen}
+        onClose={() => {
+          setIsOrgHeadReviewOpen(false);
+          setOrgHeadReviewRecord(null);
+          setOrgHeadComment("");
+        }}
+        title="Organization Head Final Review"
+      >
+        <div className="space-y-4">
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-slate-900 text-sm">
+                {orgHeadReviewRecord?.employee?.first_name} {orgHeadReviewRecord?.employee?.last_name}
+              </span>
+              <span className="text-slate-500 font-mono text-[11px]">
+                {orgHeadReviewRecord?.employee?.employee_code || "—"}
+              </span>
+            </div>
+            <div className="text-slate-600 text-xs">
+              <span className="font-medium">Date:</span> {formatDate(orgHeadReviewRecord?.work_date)} •{" "}
+              <span className="font-medium">Times:</span> {formatTime(orgHeadReviewRecord?.check_in_at)} - {formatTime(orgHeadReviewRecord?.check_out_at)}
+            </div>
+            {orgHeadReviewRecord?.client_name && (
+              <div className="text-slate-700">
+                <span className="font-semibold text-slate-900">Client / Partner:</span> {orgHeadReviewRecord.client_name}
+              </div>
+            )}
+            {orgHeadReviewRecord?.offsite_reason && (
+              <div className="text-slate-700">
+                <span className="font-semibold text-slate-900">Meeting Purpose:</span> {orgHeadReviewRecord.offsite_reason}
+              </div>
+            )}
+            {orgHeadReviewRecord?.offsite_location && (
+              <div className="text-slate-700 flex items-center gap-1">
+                <MapPin className="h-3 w-3 text-primary-600 shrink-0" />
+                <span>{orgHeadReviewRecord.offsite_location}</span>
+              </div>
+            )}
+          </div>
+
+          {/* HR Rejection Feedback Callout */}
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-md text-xs space-y-1 text-rose-950">
+            <span className="font-bold flex items-center gap-1.5 text-rose-900">
+              <AlertTriangle className="h-3.5 w-3.5 text-rose-700" />
+              HR Rejection Reason (Escalated to you for final determination):
+            </span>
+            <p className="italic text-rose-900 pl-5">
+              &quot;{orgHeadReviewRecord?.hr_rejection_reason || "No specific reason logged"}&quot;
+            </p>
+          </div>
+
+          <div>
+            <Label className="text-xs font-semibold text-slate-700">
+              Organization Head Final Comments (Optional)
+            </Label>
+            <textarea
+              placeholder="e.g. Confirmed with client sponsor / Verified travel permit..."
+              value={orgHeadComment}
+              onChange={(e) => setOrgHeadComment(e.target.value)}
+              rows={2}
+              className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 shadow-xs focus:outline-none focus:ring-1 focus:ring-primary-500"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-100">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsOrgHeadReviewOpen(false);
+                setOrgHeadReviewRecord(null);
+                setOrgHeadComment("");
+              }}
+              disabled={isSubmittingOrgHeadReview}
+            >
+              Cancel
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => handleOrgHeadReview("confirm_reject")}
+                disabled={isSubmittingOrgHeadReview}
+                className="bg-rose-600 hover:bg-rose-700 text-white"
+              >
+                {isSubmittingOrgHeadReview ? "Processing..." : "Confirm Rejection"}
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={() => handleOrgHeadReview("override_approve")}
+                disabled={isSubmittingOrgHeadReview}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {isSubmittingOrgHeadReview ? "Processing..." : "Override & Approve"}
+              </Button>
+            </div>
           </div>
         </div>
       </Modal>

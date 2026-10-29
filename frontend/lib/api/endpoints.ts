@@ -34,9 +34,16 @@ export const API_ENDPOINTS = {
     list: "/attendance",
     create: "/attendance",
     summary: "/attendance/summary",
+    today: "/attendance/today",
     clockIn: "/attendance/clock-in",
-    clockOut: "/attendance/clock-out",
+    clockOut: (id: string) => `/attendance/${id}/check-out`,
+    detail: (id: string) => `/attendance/${id}`,
+    update: (id: string) => `/attendance/${id}`,
+    delete: (id: string) => `/attendance/${id}`,
+    hrReview: (id: string) => `/attendance/${id}/hr-review`,
+    orgHeadReview: (id: string) => `/attendance/${id}/org-head-review`,
   },
+
   leave: {
     types: "/leave-types",
     typeDetail: (id: string) => `/leave-types/${id}`,

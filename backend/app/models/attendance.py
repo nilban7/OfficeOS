@@ -17,7 +17,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.employee import Employee
-from app.models.identity import Branch, Organization
+from app.models.identity import Branch, Organization, Profile
 
 
 class AttendanceRecord(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -63,6 +63,28 @@ class AttendanceRecord(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     check_out_location_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     device_info: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
+    # Offsite & 2-Step Approval Workflow fields
+    is_offsite: Mapped[bool] = mapped_column(default=False, server_default="false", index=True)
+    offsite_reason: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    offsite_location: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    client_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    approval_status: Mapped[str] = mapped_column(
+        String(32), default="not_required", server_default="not_required", index=True
+    )
+    hr_approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    hr_approved_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True
+    )
+    hr_rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    org_head_approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    org_head_approved_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True
+    )
+    org_head_rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     organization: Mapped[Organization] = relationship()
     employee: Mapped[Employee] = relationship()
     branch: Mapped[Branch | None] = relationship()
+    hr_approved_by: Mapped[Profile | None] = relationship(foreign_keys=[hr_approved_by_id])
+    org_head_approved_by: Mapped[Profile | None] = relationship(foreign_keys=[org_head_approved_by_id])
+
