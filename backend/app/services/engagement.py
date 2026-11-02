@@ -2,16 +2,20 @@ import hashlib
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
+from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.client import Client
 from app.models.engagement import (
     AgreementSignature,
     ClientEngagement,
     EngagementAgreement,
     EngagementChangeRequest,
+    EngagementChatMessage,
     EngagementHandover,
     EngagementIssue,
     EngagementProposal,
@@ -19,10 +23,13 @@ from app.models.engagement import (
     EngagementUatTestCase,
     EngagementWeeklyReport,
 )
-from app.models.project import Project
+from app.models.project import Project, ProjectMember
 from app.schemas.engagement import (
     AgreementCreate,
     ChangeRequestCreate,
+    ChatMessageCreate,
+    ChatParticipant,
+    ChatParticipantsResponse,
     ClientEngagementCreate,
     ClientEngagementUpdate,
     EngagementOverview,
@@ -636,3 +643,236 @@ class EngagementService:
         await db.commit()
         await db.refresh(handover)
         return handover
+    # --- Chat & Discussion Services ---
+    @staticmethod
+    async def list_chat_messages(
+        db: AsyncSession,
+        organization_id: uuid.UUID,
+        engagement_id: uuid.UUID,
+        channel: str | None = None,
+    ) -> list[dict[str, Any]]:
+        eng = await db.get(ClientEngagement, engagement_id)
+        if not eng or eng.organization_id != organization_id:
+            return []
+
+        q = (
+            select(EngagementChatMessage)
+            .options(
+                selectinload(EngagementChatMessage.proposal),
+                selectinload(EngagementChatMessage.issue),
+            )
+            .where(
+                EngagementChatMessage.organization_id == organization_id,
+                EngagementChatMessage.engagement_id == engagement_id,
+            )
+            .order_by(EngagementChatMessage.created_at.asc())
+        )
+        if channel and channel != "all":
+            q = q.where(EngagementChatMessage.channel == channel)
+
+        res = await db.execute(q)
+        records = res.scalars().all()
+        return [
+            {
+                "id": r.id,
+                "organization_id": r.organization_id,
+                "engagement_id": r.engagement_id,
+                "project_id": r.project_id,
+                "sender_profile_id": r.sender_profile_id,
+                "sender_name": r.sender_name,
+                "sender_role": r.sender_role,
+                "sender_type": r.sender_type,
+                "channel": r.channel,
+                "message": r.message,
+                "attachments": r.attachments,
+                "proposal_id": r.proposal_id,
+                "proposal_title": r.proposal.title if r.proposal else None,
+                "issue_id": r.issue_id,
+                "issue_title": r.issue.title if r.issue else None,
+                "created_at": r.created_at,
+            }
+            for r in records
+        ]
+
+    @staticmethod
+    async def create_chat_message(
+        db: AsyncSession,
+        organization_id: uuid.UUID,
+        engagement_id: uuid.UUID,
+        payload: ChatMessageCreate,
+        sender_profile_id: uuid.UUID | None = None,
+        default_sender_name: str | None = None,
+    ) -> dict[str, Any]:
+        eng = await db.get(ClientEngagement, engagement_id)
+        if not eng or eng.organization_id != organization_id:
+            raise HTTPException(status_code=404, detail="Engagement not found")
+
+        sender_name = (payload.sender_name or default_sender_name or "Team Member").strip()
+        sender_role = (payload.sender_role or ("Client Representative" if payload.sender_type == "client" else "Project Member")).strip()
+
+        msg = EngagementChatMessage(
+            organization_id=organization_id,
+            engagement_id=engagement_id,
+            project_id=eng.project_id,
+            sender_profile_id=sender_profile_id,
+            sender_name=sender_name,
+            sender_role=sender_role,
+            sender_type=payload.sender_type or "member",
+            channel=payload.channel or "general",
+            message=payload.message.strip(),
+            attachments=payload.attachments,
+            proposal_id=payload.proposal_id,
+            issue_id=payload.issue_id,
+        )
+        db.add(msg)
+        await db.commit()
+
+        q = (
+            select(EngagementChatMessage)
+            .options(
+                selectinload(EngagementChatMessage.proposal),
+                selectinload(EngagementChatMessage.issue),
+            )
+            .where(EngagementChatMessage.id == msg.id)
+        )
+        res = await db.execute(q)
+        reloaded = res.scalar_one()
+
+        return {
+            "id": reloaded.id,
+            "organization_id": reloaded.organization_id,
+            "engagement_id": reloaded.engagement_id,
+            "project_id": reloaded.project_id,
+            "sender_profile_id": reloaded.sender_profile_id,
+            "sender_name": reloaded.sender_name,
+            "sender_role": reloaded.sender_role,
+            "sender_type": reloaded.sender_type,
+            "channel": reloaded.channel,
+            "message": reloaded.message,
+            "attachments": reloaded.attachments,
+            "proposal_id": reloaded.proposal_id,
+            "proposal_title": reloaded.proposal.title if reloaded.proposal else None,
+            "issue_id": reloaded.issue_id,
+            "issue_title": reloaded.issue.title if reloaded.issue else None,
+            "created_at": reloaded.created_at,
+        }
+
+    @staticmethod
+    async def get_chat_participants(
+        db: AsyncSession, organization_id: uuid.UUID, engagement_id: uuid.UUID
+    ) -> ChatParticipantsResponse:
+        eng = await db.scalar(
+            select(ClientEngagement)
+            .options(
+                selectinload(ClientEngagement.client).selectinload(Client.contacts),
+                selectinload(ClientEngagement.engagement_lead),
+            )
+            .where(
+                ClientEngagement.organization_id == organization_id,
+                ClientEngagement.id == engagement_id,
+            )
+        )
+        if not eng:
+            raise HTTPException(status_code=404, detail="Engagement not found")
+
+        participants: list[ChatParticipant] = []
+        seen_ids: set[uuid.UUID] = set()
+
+        # 1. Client contacts
+        if eng.client and eng.client.contacts:
+            for c in eng.client.contacts:
+                if c.id not in seen_ids:
+                    seen_ids.add(c.id)
+                    participants.append(
+                        ChatParticipant(
+                            id=c.id,
+                            name=c.name,
+                            role=c.designation or ("Primary Client Contact" if c.is_primary else "Client Stakeholder"),
+                            participant_type="client",
+                            email=c.email,
+                            designation=c.designation,
+                        )
+                    )
+        elif eng.client:
+            participants.append(
+                ChatParticipant(
+                    id=eng.client.id,
+                    name=eng.client.name,
+                    role="Client Organization",
+                    participant_type="client",
+                    email=eng.client.email,
+                    designation="Client Stakeholder",
+                )
+            )
+
+        # 2. Engagement Lead
+        if eng.engagement_lead and eng.engagement_lead.id not in seen_ids:
+            lead = eng.engagement_lead
+            seen_ids.add(lead.id)
+            lead_name = f"{lead.first_name} {lead.last_name}".strip()
+            participants.append(
+                ChatParticipant(
+                    id=lead.id,
+                    name=lead_name,
+                    role="Engagement Lead",
+                    participant_type="member",
+                    email=lead.personal_email or getattr(lead, "company_email", None),
+                    designation=lead.designation,
+                )
+            )
+
+        # 3. Project Manager and Project Members (if project linked)
+        project_name = None
+        if eng.project_id:
+            proj = await db.scalar(
+                select(Project)
+                .options(
+                    selectinload(Project.project_manager),
+                    selectinload(Project.members).selectinload(ProjectMember.employee),
+                )
+                .where(
+                    Project.organization_id == organization_id,
+                    Project.id == eng.project_id,
+                )
+            )
+            if proj:
+                project_name = proj.name
+                if proj.project_manager and proj.project_manager.id not in seen_ids:
+                    pm = proj.project_manager
+                    seen_ids.add(pm.id)
+                    pm_name = f"{pm.first_name} {pm.last_name}".strip()
+                    participants.append(
+                        ChatParticipant(
+                            id=pm.id,
+                            name=pm_name,
+                            role="Project Manager",
+                            participant_type="member",
+                            email=pm.personal_email or getattr(pm, "company_email", None),
+                            designation=pm.designation,
+                        )
+                    )
+
+                for m in proj.members:
+                    if m.employee and m.employee.id not in seen_ids:
+                        emp = m.employee
+                        seen_ids.add(emp.id)
+                        emp_name = f"{emp.first_name} {emp.last_name}".strip()
+                        participants.append(
+                            ChatParticipant(
+                                id=emp.id,
+                                name=emp_name,
+                                role=m.role or emp.designation or "Project Member",
+                                participant_type="member",
+                                email=emp.personal_email or getattr(emp, "company_email", None),
+                                designation=emp.designation,
+                            )
+                        )
+
+        return ChatParticipantsResponse(
+            project_id=eng.project_id,
+            project_name=project_name or eng.title,
+            client_id=eng.client_id,
+            client_name=eng.client.name if eng.client else None,
+            members=participants,
+        )
+

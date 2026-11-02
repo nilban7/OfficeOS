@@ -10,6 +10,9 @@ from app.schemas.engagement import (
     AgreementResponse,
     ChangeRequestCreate,
     ChangeRequestResponse,
+    ChatMessageCreate,
+    ChatMessageResponse,
+    ChatParticipantsResponse,
     ClientEngagementCreate,
     ClientEngagementDetail,
     ClientEngagementSummary,
@@ -289,3 +292,38 @@ async def record_handover(
     org_id = uuid.UUID(organization_header)
     handover = await EngagementService.record_handover(session, org_id, id, payload)
     return HandoverResponse.model_validate(handover)
+
+# --- Sub-resource: Chat & Discussion Between Project Members and Client ---
+@router.get("/{id}/messages", response_model=list[ChatMessageResponse])
+async def list_chat_messages(
+    id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(require_permission("engagements.view"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
+    channel: Annotated[str | None, Query()] = None,
+) -> list[ChatMessageResponse]:
+    org_id = uuid.UUID(organization_header)
+    msgs = await EngagementService.list_chat_messages(session, org_id, id, channel=channel)
+    return [ChatMessageResponse.model_validate(m) for m in msgs]
+
+
+@router.post("/{id}/messages", response_model=ChatMessageResponse, status_code=status.HTTP_201_CREATED)
+async def create_chat_message(
+    id: uuid.UUID,
+    payload: ChatMessageCreate,
+    session: Annotated[AsyncSession, Depends(require_permission("engagements.view"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
+) -> ChatMessageResponse:
+    org_id = uuid.UUID(organization_header)
+    msg = await EngagementService.create_chat_message(session, org_id, id, payload)
+    return ChatMessageResponse.model_validate(msg)
+
+
+@router.get("/{id}/chat-participants", response_model=ChatParticipantsResponse)
+async def get_chat_participants(
+    id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(require_permission("engagements.view"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
+) -> ChatParticipantsResponse:
+    org_id = uuid.UUID(organization_header)
+    return await EngagementService.get_chat_participants(session, org_id, id)
+

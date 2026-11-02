@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
+import { EngagementChatPopup } from "@/components/engagements/engagement-chat-popup";
 import {
   Handshake,
   FileText,
@@ -56,7 +57,9 @@ const STAGES: { key: EngagementStage; label: string; icon: any }[] = [
 
 export default function EngagementDetailPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params?.id as string;
+  const initialChatOpen = searchParams?.get("chat") === "true";
   const { currentOrganization } = useOrganization();
   const [engagement, setEngagement] = React.useState<ClientEngagementDetail | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -1735,6 +1738,9 @@ export default function EngagementDetailPage() {
           </div>
         </form>
       </Modal>
+
+      {/* Floating Project & Client Chat in Right Bottom Corner */}
+      <EngagementChatPopup engagement={engagement} initialOpen={initialChatOpen} />
     </div>
   );
 }

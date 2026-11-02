@@ -89,6 +89,12 @@ class ClientEngagement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     handover: Mapped["EngagementHandover | None"] = relationship(
         "EngagementHandover", back_populates="engagement", uselist=False, cascade="all, delete-orphan"
     )
+    chat_messages: Mapped[list["EngagementChatMessage"]] = relationship(
+        "EngagementChatMessage",
+        back_populates="engagement",
+        cascade="all, delete-orphan",
+        order_by="asc(EngagementChatMessage.created_at)",
+    )
 
     __table_args__ = (
         UniqueConstraint("organization_id", "engagement_code", name="uq_client_engagements_code"),
@@ -376,3 +382,36 @@ class EngagementHandover(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     engagement: Mapped["ClientEngagement"] = relationship("ClientEngagement", back_populates="handover")
+
+class EngagementChatMessage(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "engagement_chat_messages"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    engagement_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("client_engagements.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+    sender_profile_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True
+    )
+    sender_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    sender_role: Mapped[str] = mapped_column(String(100), nullable=False)
+    sender_type: Mapped[str] = mapped_column(String(32), server_default="member", default="member", nullable=False)
+    channel: Mapped[str] = mapped_column(String(50), server_default="general", default="general", nullable=False, index=True)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    attachments: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    proposal_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("engagement_proposals.id", ondelete="SET NULL"), nullable=True
+    )
+    issue_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("engagement_issues.id", ondelete="SET NULL"), nullable=True
+    )
+
+    engagement: Mapped["ClientEngagement"] = relationship("ClientEngagement", back_populates="chat_messages")
+    proposal: Mapped["EngagementProposal | None"] = relationship("EngagementProposal", foreign_keys=[proposal_id])
+    issue: Mapped["EngagementIssue | None"] = relationship("EngagementIssue", foreign_keys=[issue_id])
+

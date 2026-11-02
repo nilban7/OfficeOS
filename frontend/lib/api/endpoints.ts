@@ -86,6 +86,8 @@ export const API_ENDPOINTS = {
     createIssue: (id: string) => `/engagements/${id}/issues`,
     createChangeRequest: (id: string) => `/engagements/${id}/change-requests`,
     recordHandover: (id: string) => `/engagements/${id}/handover`,
+    messages: (id: string) => `/engagements/${id}/messages`,
+    participants: (id: string) => `/engagements/${id}/chat-participants`,
   },
   projects: {
     list: "/projects",
