@@ -597,13 +597,13 @@ export default function EmployeesPage() {
   return (
     <div className="space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
-            <Users className="h-6 w-6 text-primary-600" />
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <Users className="h-6 w-6 text-primary-600 dark:text-primary-400" />
             People & HR
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             Manage your organization&apos;s workforce, departments, and employee directory.
           </p>
         </div>
@@ -642,20 +642,20 @@ export default function EmployeesPage() {
       )}
 
       {/* Tab Navigation */}
-      <div className="border-b border-slate-200">
+      <div className="border-b border-slate-200 dark:border-slate-800">
         <nav className="flex space-x-8" aria-label="Tabs">
           <button
             onClick={() => setActiveTab("directory")}
             className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-colors ${
               activeTab === "directory"
-                ? "border-primary-600 text-primary-600"
-                : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                ? "border-primary-600 dark:border-primary-400 text-primary-600 dark:text-primary-300"
+                : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700"
             }`}
           >
             <Users className="h-4 w-4" />
             Employee Directory
             {employeesData.meta.total > 0 && (
-              <span className="ml-1.5 py-0.5 px-2 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+              <span className="ml-1.5 py-0.5 px-2 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                 {employeesData.meta.total}
               </span>
             )}
@@ -665,14 +665,14 @@ export default function EmployeesPage() {
             onClick={() => setActiveTab("departments")}
             className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-colors ${
               activeTab === "departments"
-                ? "border-primary-600 text-primary-600"
-                : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                ? "border-primary-600 dark:border-primary-400 text-primary-600 dark:text-primary-300"
+                : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700"
             }`}
           >
             <FolderTree className="h-4 w-4" />
             Departments
             {departments.length > 0 && (
-              <span className="ml-1.5 py-0.5 px-2 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+              <span className="ml-1.5 py-0.5 px-2 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                 {departments.length}
               </span>
             )}
