@@ -3,26 +3,18 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  Users,
-  Clock,
-  Layers,
-  Plus,
-  BarChart3,
   Briefcase,
-  CheckCircle2,
-  ArrowRight,
-  ShieldCheck,
+  Plus,
+  SlidersHorizontal,
+  LayoutGrid,
 } from "lucide-react";
-import { Card, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { apiClient } from "@/lib/api/client";
 import { API_ENDPOINTS } from "@/lib/api/endpoints";
 import { ROUTES } from "@/constants/routes";
-import { Skeleton } from "@/components/ui/skeleton";
-import { SimpleBarChart, type BarChartItem } from "@/components/ui/simple-chart";
+import { type BarChartItem } from "@/components/ui/simple-chart";
 import type {
   ExecutiveOverviewReport,
   AttendanceReport,
@@ -30,6 +22,29 @@ import type {
   WorkforceReport,
 } from "@/types/reports";
 import type { EngagementOverview } from "@/types/engagement";
+import type {
+  DashboardWidgetId,
+  UserDashboardPreference,
+} from "@/types/dashboard";
+import {
+  getStoredDashboardConfig,
+  saveStoredDashboardConfig,
+  MASTER_DASHBOARD_CONFIG,
+} from "@/lib/dashboard/widget-registry";
+import { DashboardCustomizerModal } from "@/components/dashboard/dashboard-customizer-modal";
+
+// Modular Widget Components
+import { KpiMetricsWidget } from "@/components/dashboard/widgets/kpi-metrics-widget";
+import { AttendanceWidget } from "@/components/dashboard/widgets/attendance-widget";
+import { ProjectsWidget } from "@/components/dashboard/widgets/projects-widget";
+import { WorkforceWidget } from "@/components/dashboard/widgets/workforce-widget";
+import { EngagementsWidget } from "@/components/dashboard/widgets/engagements-widget";
+import { LeaveWidget } from "@/components/dashboard/widgets/leave-widget";
+import { ReportsWidget } from "@/components/dashboard/widgets/reports-widget";
+import { TravelWidget } from "@/components/dashboard/widgets/travel-widget";
+import { FinanceWidget } from "@/components/dashboard/widgets/finance-widget";
+import { ProcurementWidget } from "@/components/dashboard/widgets/procurement-widget";
+import { OperationsWidget } from "@/components/dashboard/widgets/operations-widget";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -41,6 +56,25 @@ export default function DashboardPage() {
   const [workforce, setWorkforce] = React.useState<WorkforceReport | null>(null);
   const [engagements, setEngagements] = React.useState<EngagementOverview | null>(null);
   const [isLoading, setIsLoading] = React.useState<boolean>(true);
+
+  // Customization State
+  const [dashboardPref, setDashboardPref] = React.useState<UserDashboardPreference>(() => ({
+    preset: "master",
+    widgets: MASTER_DASHBOARD_CONFIG,
+    updatedAt: new Date().toISOString(),
+  }));
+  const [isCustomizerOpen, setIsCustomizerOpen] = React.useState<boolean>(false);
+
+  // Load user & tenant specific preferences on mount or context switch
+  React.useEffect(() => {
+    const loaded = getStoredDashboardConfig(user?.id, currentOrganization?.id);
+    setDashboardPref(loaded);
+  }, [user?.id, currentOrganization?.id]);
+
+  const handleSavePreference = (newPref: UserDashboardPreference) => {
+    setDashboardPref(newPref);
+    saveStoredDashboardConfig(newPref, user?.id, currentOrganization?.id);
+  };
 
   React.useEffect(() => {
     let isMounted = true;
@@ -141,7 +175,6 @@ export default function DashboardPage() {
     const currentDay = new Date().getDay();
     const totalStaff = overview?.active_employees_count || 4;
 
-    // Map day-of-week -> active count from trends (sum of present, late, half_day)
     const dayMap = new Map<number, number>();
     if (attendance?.daily_trends) {
       for (const d of attendance.daily_trends) {
@@ -214,6 +247,111 @@ export default function DashboardPage() {
     return `₹${num.toLocaleString("en-IN")}`;
   }, [engagements, projects]);
 
+  // Active widgets according to saved preferences
+  const activeWidgets = React.useMemo(() => {
+    return dashboardPref.widgets
+      .filter((w) => w.visible)
+      .sort((a, b) => a.order - b.order);
+  }, [dashboardPref.widgets]);
+
+  const hasAttendanceAndProjects =
+    activeWidgets.some((w) => w.id === "attendance") &&
+    activeWidgets.some((w) => w.id === "projects");
+
+  function renderWidget(id: DashboardWidgetId) {
+    switch (id) {
+      case "kpi_metrics":
+        return (
+          <div key={id} className="w-full">
+            <KpiMetricsWidget
+              overview={overview}
+              isLoading={isLoading}
+              pipelineDisplay={pipelineDisplay}
+            />
+          </div>
+        );
+      case "attendance":
+        return (
+          <div
+            key={id}
+            className={
+              hasAttendanceAndProjects
+                ? "col-span-12 lg:col-span-7"
+                : "col-span-12"
+            }
+          >
+            <AttendanceWidget
+              attendanceBars={attendanceBars}
+              overview={overview}
+            />
+          </div>
+        );
+      case "projects":
+        return (
+          <div
+            key={id}
+            className={
+              hasAttendanceAndProjects
+                ? "col-span-12 lg:col-span-5"
+                : "col-span-12"
+            }
+          >
+            <ProjectsWidget projects={projects} isLoading={isLoading} />
+          </div>
+        );
+      case "workforce":
+        return (
+          <div key={id} className="col-span-12 lg:col-span-6">
+            <WorkforceWidget departmentList={departmentList} />
+          </div>
+        );
+      case "engagements":
+        return (
+          <div key={id} className="col-span-12 lg:col-span-6">
+            <EngagementsWidget membership={membership} />
+          </div>
+        );
+      case "leave":
+        return (
+          <div key={id} className="col-span-12 lg:col-span-6">
+            <LeaveWidget overview={overview} />
+          </div>
+        );
+      case "reports":
+        return (
+          <div key={id} className="col-span-12 lg:col-span-6">
+            <ReportsWidget overview={overview} />
+          </div>
+        );
+      case "travel":
+        return (
+          <div key={id} className="col-span-12 lg:col-span-6">
+            <TravelWidget />
+          </div>
+        );
+      case "finance":
+        return (
+          <div key={id} className="col-span-12 lg:col-span-6">
+            <FinanceWidget />
+          </div>
+        );
+      case "procurement":
+        return (
+          <div key={id} className="col-span-12 lg:col-span-6">
+            <ProcurementWidget />
+          </div>
+        );
+      case "operations":
+        return (
+          <div key={id} className="col-span-12 lg:col-span-6">
+            <OperationsWidget />
+          </div>
+        );
+      default:
+        return null;
+    }
+  }
+
   return (
     <div className="space-y-6 pb-12">
       {/* Minimalist, Branded Dashboard Header */}
@@ -247,14 +385,36 @@ export default function DashboardPage() {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* Customize Dashboard Button */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsCustomizerOpen(true)}
+            className="text-xs h-9 px-3.5 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-2xs flex items-center gap-1.5"
+            title="Customize your dashboard layout"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5 text-primary-600 dark:text-primary-400" />
+            <span>Customize</span>
+            <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-primary-50 dark:bg-primary-950/70 text-primary-700 dark:text-primary-300 border border-primary-200/60 dark:border-primary-800/80">
+              {activeWidgets.length}
+            </span>
+          </Button>
+
           <Link href={ROUTES.ENGAGEMENTS}>
-            <Button size="sm" variant="outline" className="text-xs h-9 px-3.5 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-2xs">
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-xs h-9 px-3.5 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-2xs"
+            >
               <Briefcase className="h-3.5 w-3.5 mr-1.5 text-slate-400 dark:text-slate-400" />
               <span>Engagements</span>
             </Button>
           </Link>
           <Link href={ROUTES.PROJECTS}>
-            <Button size="sm" className="text-xs h-9 px-3.5 flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white shadow-xs">
+            <Button
+              size="sm"
+              className="text-xs h-9 px-3.5 flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white shadow-xs"
+            >
               <Plus className="h-3.5 w-3.5" />
               <span>New Project</span>
             </Button>
@@ -262,289 +422,51 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 4 Clean Executive Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-        {/* Card 1: Total Workforce */}
-        <Card className="p-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Employees</span>
-            <div className="h-8 w-8 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-transparent dark:border-blue-800/40 flex items-center justify-center">
-              <Users className="h-4 w-4" />
-            </div>
+      {/* Render Dynamic Customizable Widgets */}
+      {activeWidgets.length === 0 ? (
+        <div className="p-12 text-center rounded-2xl border border-dashed border-slate-300 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40 space-y-3">
+          <div className="h-12 w-12 rounded-xl bg-primary-50 dark:bg-primary-950/60 text-primary-600 dark:text-primary-400 flex items-center justify-center mx-auto">
+            <LayoutGrid className="h-6 w-6" />
           </div>
-          <div className="mt-3">
-            <div className="text-3xl font-bold text-slate-900 dark:text-white tabular-nums tracking-tight">
-              {isLoading && !overview ? <Skeleton className="h-8 w-14" /> : overview?.active_employees_count || 4}
+          <h3 className="text-base font-bold text-slate-900 dark:text-white">
+            Your Dashboard is Clean & Empty
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+            You have hidden all widgets. Click customize below to select the modules you want to keep.
+          </p>
+          <Button
+            size="sm"
+            onClick={() => setIsCustomizerOpen(true)}
+            className="mt-2 text-xs"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
+            Customize Dashboard
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {/* KPI metrics widget rendered at top if enabled */}
+          {activeWidgets.some((w) => w.id === "kpi_metrics") &&
+            renderWidget("kpi_metrics")}
+
+          {/* Grid for all other active widgets */}
+          {activeWidgets.some((w) => w.id !== "kpi_metrics") && (
+            <div className="grid grid-cols-12 gap-6">
+              {activeWidgets
+                .filter((w) => w.id !== "kpi_metrics")
+                .map((w) => renderWidget(w.id))}
             </div>
-            <p className="text-xs text-slate-400 dark:text-slate-400 mt-1">
-              Active staff across departments
-            </p>
-          </div>
-        </Card>
+          )}
+        </div>
+      )}
 
-        {/* Card 2: Attendance Today */}
-        <Card className="p-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Active Today</span>
-            <div className="h-8 w-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-transparent dark:border-emerald-800/40 flex items-center justify-center">
-              <Clock className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-3xl font-bold text-slate-900 dark:text-white tabular-nums tracking-tight">
-              {isLoading && !overview ? (
-                <Skeleton className="h-8 w-16" />
-              ) : (
-                `${overview?.attendance_today_count || 0} / ${overview?.active_employees_count || 4}`
-              )}
-            </div>
-            <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1">
-              {overview?.attendance_rate_today ?? "0.0"}% attendance rate
-            </p>
-          </div>
-        </Card>
-
-        {/* Card 3: Active Projects */}
-        <Card className="p-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Active Projects</span>
-            <div className="h-8 w-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-transparent dark:border-indigo-800/40 flex items-center justify-center">
-              <Layers className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-3xl font-bold text-slate-900 dark:text-white tabular-nums tracking-tight">
-              {isLoading && !overview ? <Skeleton className="h-8 w-12" /> : overview?.active_projects_count || 4}
-            </div>
-            <p className="text-xs text-slate-400 dark:text-slate-400 mt-1">
-              Active client & internal engagements
-            </p>
-          </div>
-        </Card>
-
-        {/* Card 4: Commercial Pipeline */}
-        <Card className="p-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Commercial Pipeline</span>
-            <div className="h-8 w-8 rounded-lg bg-violet-50 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400 border border-transparent dark:border-violet-800/40 flex items-center justify-center">
-              <Briefcase className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-3xl font-bold text-slate-900 dark:text-white tabular-nums tracking-tight truncate">
-              {pipelineDisplay}
-            </div>
-            <p className="text-xs text-slate-400 dark:text-slate-400 mt-1">
-              1 executed client agreement
-            </p>
-          </div>
-        </Card>
-      </div>
-
-      {/* Main Analytical Section: 2 Balanced Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Card 1: 7-Day Attendance Velocity (7 Cols) */}
-        <Card className="lg:col-span-7 p-6 shadow-xs flex flex-col justify-between bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
-          <div>
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-              <div>
-                <CardTitle className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4 text-primary-600 dark:text-primary-400" />
-                  <span>Workday Attendance (Mon – Fri)</span>
-                </CardTitle>
-                <CardDescription className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Daily employee presence across the official Monday to Friday workweek.
-                </CardDescription>
-              </div>
-              <Badge variant="success">Mon – Fri Active</Badge>
-            </div>
-
-            {/* Clean 5-Workday Bar Chart */}
-            <div className="pt-6 pb-2">
-              <SimpleBarChart items={attendanceBars} height={170} maxVal={overview?.active_employees_count || 4} />
-            </div>
-          </div>
-
-          {/* Clean Metric Footer */}
-          <div className="grid grid-cols-3 gap-3 pt-4 border-t border-slate-100 dark:border-slate-800 text-xs">
-            <div>
-              <span className="text-slate-400 dark:text-slate-400 block text-[11px]">Workweek Average</span>
-              <strong className="text-slate-800 dark:text-slate-200 text-sm">86.4%</strong>
-            </div>
-            <div>
-              <span className="text-slate-400 dark:text-slate-400 block text-[11px]">Punctuality</span>
-              <strong className="text-emerald-600 dark:text-emerald-400 text-sm">97.8%</strong>
-            </div>
-            <div>
-              <span className="text-slate-400 dark:text-slate-400 block text-[11px]">Work Schedule</span>
-              <strong className="text-slate-800 dark:text-slate-200 text-sm">Mon – Fri Office</strong>
-            </div>
-          </div>
-        </Card>
-
-        {/* Card 2: Active Projects & Delivery Progress (5 Cols) */}
-        <Card className="lg:col-span-5 p-6 shadow-xs flex flex-col justify-between bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
-          <div>
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-              <div>
-                <CardTitle className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Layers className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                  <span>Project Delivery Status</span>
-                </CardTitle>
-                <CardDescription className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Milestone progress and status across active projects.
-                </CardDescription>
-              </div>
-              <Link href={ROUTES.PROJECTS} className="text-xs text-primary-600 dark:text-primary-400 font-medium hover:underline flex items-center gap-0.5">
-                <span>View all</span>
-                <ArrowRight className="h-3 w-3" />
-              </Link>
-            </div>
-
-            {/* Clean Project Progress List */}
-            <div className="space-y-4 pt-4">
-              {/* Project 1 */}
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center text-xs">
-                  <div>
-                    <span className="font-semibold text-slate-900 dark:text-white">RFID Smart Store</span>
-                    <span className="text-slate-400 dark:text-slate-400 text-[11px] block">Horizon Media • ENG-0001</span>
-                  </div>
-                  <Badge variant="success">Delivered</Badge>
-                </div>
-                <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: "100%" }} />
-                </div>
-              </div>
-
-              {/* Project 2 */}
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center text-xs">
-                  <div>
-                    <span className="font-semibold text-slate-900 dark:text-white">POS Core Architecture</span>
-                    <span className="text-slate-400 dark:text-slate-400 text-[11px] block">Retail Suite • PRJ-0002</span>
-                  </div>
-                  <Badge variant="default">65% Active</Badge>
-                </div>
-                <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-primary-600 dark:bg-primary-500 rounded-full" style={{ width: "65%" }} />
-                </div>
-              </div>
-
-              {/* Project 3 */}
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center text-xs">
-                  <div>
-                    <span className="font-semibold text-slate-900 dark:text-white">Microservices Cloud Sync</span>
-                    <span className="text-slate-400 dark:text-slate-400 text-[11px] block">Core Tech • PRJ-0003</span>
-                  </div>
-                  <Badge variant="warning">40% Review</Badge>
-                </div>
-                <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-amber-500 rounded-full" style={{ width: "40%" }} />
-                </div>
-              </div>
-
-              {/* Project 4 */}
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center text-xs">
-                  <div>
-                    <span className="font-semibold text-slate-900 dark:text-white">Operations Automation</span>
-                    <span className="text-slate-400 dark:text-slate-400 text-[11px] block">Internal Ops • PRJ-0004</span>
-                  </div>
-                  <Badge variant="default">25% Active</Badge>
-                </div>
-                <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-indigo-500 rounded-full" style={{ width: "25%" }} />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
-            <span>Overall Delivery Health</span>
-            <span className="font-semibold text-emerald-600 dark:text-emerald-400">On Track • Zero Critical Blockers</span>
-          </div>
-        </Card>
-      </div>
-
-      {/* Bottom Row: Department Breakdown & Key Milestones */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Department Talent Allocation */}
-        <Card className="p-6 shadow-xs">
-          <div className="pb-3 border-b border-slate-100">
-            <CardTitle className="text-base font-bold text-slate-900">
-              Department Headcount Distribution
-            </CardTitle>
-            <CardDescription className="text-xs text-slate-500 mt-0.5">
-              Workforce distribution across functional teams.
-            </CardDescription>
-          </div>
-
-          <div className="space-y-3.5 pt-4">
-            {departmentList.map((dep, idx) => (
-              <div key={idx} className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span className="font-medium text-slate-700">{dep.name}</span>
-                  <span className="font-semibold text-slate-900">
-                    {dep.count} {dep.count === 1 ? "member" : "members"}{" "}
-                    <span className="text-slate-400 text-[11px] font-normal">({dep.pct}%)</span>
-                  </span>
-                </div>
-                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${
-                      idx === 0 ? "bg-primary-600" : idx === 1 ? "bg-indigo-500" : "bg-emerald-500"
-                    }`}
-                    style={{ width: `${dep.pct}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        {/* Key Operational Milestones */}
-        <Card className="p-6 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="pb-3 border-b border-slate-100">
-              <CardTitle className="text-base font-bold text-slate-900">
-                Key Operational Milestones
-              </CardTitle>
-              <CardDescription className="text-xs text-slate-500 mt-0.5">
-                Certified lifecycle accomplishments for current active engagements.
-              </CardDescription>
-            </div>
-
-            <div className="space-y-2.5 pt-4 text-xs">
-              <div className="flex items-center gap-2.5 p-2 rounded-lg bg-slate-50 border border-slate-100">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                <span className="text-slate-700 font-medium">Commercial Proposal Accepted (PRP-0001)</span>
-              </div>
-              <div className="flex items-center gap-2.5 p-2 rounded-lg bg-slate-50 border border-slate-100">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                <span className="text-slate-700 font-medium">Master Services Agreement e-Signed (AGR-0002)</span>
-              </div>
-              <div className="flex items-center gap-2.5 p-2 rounded-lg bg-slate-50 border border-slate-100">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                <span className="text-slate-700 font-medium">Quality Assurance & UAT Acceptance Run (v1.0.0)</span>
-              </div>
-              <div className="flex items-center gap-2.5 p-2 rounded-lg bg-slate-50 border border-slate-100">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                <span className="text-slate-700 font-medium">Final Handover Certificate & SLA Activated (HND-0001)</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-4 mt-4 border-t border-slate-100 flex justify-between items-center text-xs text-slate-400 font-mono">
-            <span className="flex items-center gap-1">
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-500 inline" />
-              PostgreSQL RLS: Enforced
-            </span>
-            <span>Role: {membership?.role?.replace("_", " ") || "Owner"}</span>
-          </div>
-        </Card>
-      </div>
+      {/* Customizer Modal */}
+      <DashboardCustomizerModal
+        isOpen={isCustomizerOpen}
+        onClose={() => setIsCustomizerOpen(false)}
+        currentPreference={dashboardPref}
+        onSave={handleSavePreference}
+      />
     </div>
   );
 }
