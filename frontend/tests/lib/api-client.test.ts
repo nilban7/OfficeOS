@@ -272,4 +272,54 @@ describe("ApiClient", () => {
       message: "Unable to connect to the server. Please check your network connection and verify the backend is running.",
     });
   });
+
+  it("automatically recovers from cold-start 502/503/504 gateway response and retries", async () => {
+    const mockData = { status: "server_awake", items: [1, 2, 3] };
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        headers: {
+          get: (key: string) => (key.toLowerCase() === "content-type" ? "text/html" : null),
+        },
+        text: async () => "Bad Gateway",
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: {
+          get: (key: string) => (key.toLowerCase() === "content-type" ? "application/json" : null),
+        },
+        json: async () => ({ success: true, data: mockData }),
+      });
+
+    const client = new ApiClient("http://localhost:8000/api/v1");
+    const result = await client.get("/me/status");
+
+    expect(result).toEqual(mockData);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("automatically retries on transient network fetch error and recovers", async () => {
+    const mockData = { id: "resilient-1" };
+    global.fetch = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: {
+          get: (key: string) => (key.toLowerCase() === "content-type" ? "application/json" : null),
+        },
+        json: async () => ({ success: true, data: mockData }),
+      });
+
+    const client = new ApiClient("http://localhost:8000/api/v1");
+    const result = await client.get("/profile");
+
+    expect(result).toEqual(mockData);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
 });
+

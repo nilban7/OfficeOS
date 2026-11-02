@@ -110,8 +110,12 @@ export class ApiClient {
     method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
     body?: unknown,
     options?: RequestOptions,
-    isRetry: boolean = false
+    isRetry: boolean = false,
+    attempt: number = 0
   ): Promise<T> {
+    const isGet = method.toUpperCase() === "GET";
+    const maxRetries = options?.maxRetries ?? (isGet ? 2 : 0);
+
     const url = this.buildUrl(path, options?.params);
     const token = await this.getAuthToken();
 
@@ -138,7 +142,6 @@ export class ApiClient {
       headers["X-Organization-Id"] = orgId;
     }
 
-    const isGet = method.toUpperCase() === "GET";
     const cacheKey = `${orgId || ""}:${url}`;
     if (isGet && !options?.skipCache) {
       const cached = this.cache.get(cacheKey);
@@ -166,11 +169,22 @@ export class ApiClient {
           const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
           if (!refreshError && refreshData?.session?.access_token) {
             clearTimeout(timeoutId);
-            return await this.request<T>(path, method, body, options, true);
+            return await this.request<T>(path, method, body, options, true, attempt);
           }
         } catch {
           // Proceed to standard error handling if refresh fails
         }
+      }
+
+      // Handle Cold-Start Gateway errors (502 Bad Gateway, 503 Service Unavailable, 504 Gateway Timeout)
+      const isGatewayColdStart = response.status === 502 || response.status === 503 || response.status === 504;
+      if (isGatewayColdStart && attempt < maxRetries) {
+        clearTimeout(timeoutId);
+        const delay = env.isTest ? 0 : Math.min(1500 * Math.pow(2, attempt), 5000);
+        if (delay > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+        return await this.request<T>(path, method, body, options, isRetry, attempt + 1);
       }
 
       const contentType = response.headers.get("content-type");
@@ -271,6 +285,24 @@ export class ApiClient {
         controller.signal.aborted ||
         (err instanceof DOMException && err.name === "AbortError") ||
         (err instanceof Error && err.name === "AbortError");
+
+      const isFetchError =
+        err instanceof Error &&
+        err.name === "TypeError" &&
+        (err.message === "Failed to fetch" ||
+          err.message.toLowerCase().includes("networkerror") ||
+          err.message.toLowerCase().includes("load failed"));
+
+      // Retry on network/cold-start stalls if retry attempts remaining
+      if ((isAbort || isFetchError) && attempt < maxRetries) {
+        clearTimeout(timeoutId);
+        const delay = env.isTest ? 0 : Math.min(1500 * Math.pow(2, attempt), 5000);
+        if (delay > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+        return await this.request<T>(path, method, body, options, isRetry, attempt + 1);
+      }
+
       if (isAbort) {
         const seconds = Math.round(timeout / 1000);
         throw new ApiException(
@@ -280,11 +312,6 @@ export class ApiClient {
         );
       }
       if (err instanceof Error) {
-        const isFetchError =
-          err.name === "TypeError" &&
-          (err.message === "Failed to fetch" ||
-            err.message.toLowerCase().includes("networkerror") ||
-            err.message.toLowerCase().includes("load failed"));
         const message = isFetchError
           ? "Unable to connect to the server. Please check your network connection and verify the backend is running."
           : err.message;

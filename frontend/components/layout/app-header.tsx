@@ -7,6 +7,7 @@ import { ROUTES } from "@/constants/routes";
 import { useOrganization } from "@/hooks/use-organization";
 import { apiClient } from "@/lib/api/client";
 import { API_ENDPOINTS } from "@/lib/api/endpoints";
+import { keepAlive } from "@/lib/api/keep-alive";
 import type { UnreadCountResponse } from "@/types/notification";
 import { OrgSwitcher } from "./org-switcher";
 import { UserNav } from "./user-nav";
@@ -20,6 +21,18 @@ export function AppHeader() {
 
   const { currentOrganization, permissions } = useOrganization();
   const [unreadCount, setUnreadCount] = React.useState<number>(0);
+  const [isWakingUp, setIsWakingUp] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    const stopKeepAlive = keepAlive.start();
+    const unsubscribe = keepAlive.subscribe((status) => {
+      setIsWakingUp(status.isWakingUp);
+    });
+    return () => {
+      unsubscribe();
+      stopKeepAlive();
+    };
+  }, []);
 
   const canViewNotifications = permissions.includes("notifications.view");
 
@@ -63,6 +76,19 @@ export function AppHeader() {
           </button>
 
           <OrgSwitcher />
+
+          {isWakingUp && (
+            <div
+              role="status"
+              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25 shadow-xs transition-all animate-pulse"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+              </span>
+              <span>Waking up server...</span>
+            </div>
+          )}
         </div>
 
         {/* Center / Search Placeholder (Optional) */}
