@@ -14,6 +14,7 @@ import {
   Briefcase,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { apiClient } from "@/lib/api/client";
 import { API_ENDPOINTS } from "@/lib/api/endpoints";
@@ -35,6 +36,12 @@ export function EngagementChatPopup({
   initialOpen = false,
 }: EngagementChatPopupProps) {
   const { currentOrganization } = useOrganization();
+  const { user } = useAuth();
+  const defaultUserName =
+    user?.fullName ||
+    (user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "") ||
+    "Project Member";
+
   const [isOpen, setIsOpen] = React.useState(initialOpen);
   const [activeChannel, setActiveChannel] = React.useState<"all" | ChatChannel>("all");
   const [showParticipants, setShowParticipants] = React.useState(false);
@@ -48,10 +55,16 @@ export function EngagementChatPopup({
   // New message form state
   const [inputText, setInputText] = React.useState("");
   const [senderType, setSenderType] = React.useState<"member" | "client">("member");
-  const [senderName, setSenderName] = React.useState("Aritra Das");
+  const [senderName, setSenderName] = React.useState(defaultUserName);
   const [senderRole, setSenderRole] = React.useState("Project Member");
   const [selectedProposalId, setSelectedProposalId] = React.useState<string>("");
   const [selectedIssueId, setSelectedIssueId] = React.useState<string>("");
+
+  React.useEffect(() => {
+    if (defaultUserName && senderType === "member") {
+      setSenderName(defaultUserName);
+    }
+  }, [defaultUserName, senderType]);
 
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
@@ -581,7 +594,7 @@ export function EngagementChatPopup({
                     setSenderRole("Client Contact");
                   } else {
                     setSenderType("member");
-                    setSenderName("Aritra Das");
+                    setSenderName(defaultUserName);
                     setSenderRole("Project Member");
                   }
                 }}

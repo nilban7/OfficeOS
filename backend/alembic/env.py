@@ -8,8 +8,12 @@ from app.core.config import get_settings
 from app.models import audit, identity  # noqa: F401
 from app.models.base import Base
 
+db_url = get_settings().database_url
+if "pooler.supabase.com:5432" in db_url:
+    db_url = db_url.replace("pooler.supabase.com:5432", "pooler.supabase.com:6543")
+
 config = context.config
-config.set_main_option("sqlalchemy.url", get_settings().database_url.replace("%", "%%"))
+config.set_main_option("sqlalchemy.url", db_url.replace("%", "%%"))
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
@@ -17,7 +21,7 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    context.configure(url=get_settings().database_url, target_metadata=target_metadata, literal_binds=True)
+    context.configure(url=db_url, target_metadata=target_metadata, literal_binds=True)
     with context.begin_transaction():
         context.run_migrations()
 
@@ -29,8 +33,16 @@ def do_run_migrations(connection) -> None:
 
 
 async def run_migrations_online() -> None:
+    connect_args = {
+        "statement_cache_size": 0,
+        "prepared_statement_cache_size": 0,
+    }
+
     connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}), prefix="sqlalchemy.", poolclass=pool.NullPool
+        config.get_section(config.config_ini_section, {}),
+        prefix="sqlalchemy.",
+        poolclass=pool.NullPool,
+        connect_args=connect_args,
     )
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)

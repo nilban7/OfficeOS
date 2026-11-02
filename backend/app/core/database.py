@@ -6,7 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.config import get_settings
 
 settings = get_settings()
-is_postgres = "postgres" in settings.database_url
+db_url = settings.database_url
+if "pooler.supabase.com:5432" in db_url:
+    # Use transaction pooler on port 6543 to avoid strict 15-connection session limit
+    db_url = db_url.replace("pooler.supabase.com:5432", "pooler.supabase.com:6543")
+
+is_postgres = "postgres" in db_url
 engine_kwargs: dict = {
     "pool_pre_ping": True,
     "pool_recycle": 180,  # Recycle connections every 3 minutes before remote poolers drop them
@@ -14,19 +19,21 @@ engine_kwargs: dict = {
 
 if is_postgres:
     engine_kwargs.update({
-        "pool_size": 10,
-        "max_overflow": 20,
+        "pool_size": 5,
+        "max_overflow": 10,
         "pool_timeout": 15,
         "connect_args": {
             "command_timeout": 25,
             "timeout": 10,
+            "statement_cache_size": 0,
+            "prepared_statement_cache_size": 0,
             "server_settings": {
                 "statement_timeout": "25000",
             },
         },
     })
 
-engine = create_async_engine(settings.database_url, **engine_kwargs)
+engine = create_async_engine(db_url, **engine_kwargs)
 session_factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 

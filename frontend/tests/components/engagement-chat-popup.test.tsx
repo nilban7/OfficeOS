@@ -13,6 +13,12 @@ vi.mock("@/hooks/use-organization", () => ({
   }),
 }));
 
+vi.mock("@/hooks/use-auth", () => ({
+  useAuth: () => ({
+    user: { id: "user-1", fullName: "Niladri Banerjee", email: "officeos@gmail.com" },
+  }),
+}));
+
 vi.mock("@/lib/api/client", () => ({
   apiClient: {
     get: vi.fn(),
