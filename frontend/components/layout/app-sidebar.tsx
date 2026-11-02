@@ -103,8 +103,8 @@ export function AppSidebar() {
                         ? "h-9 w-9 mx-auto justify-center"
                         : "px-2.5 py-2 justify-between",
                       isActive
-                        ? "bg-primary-50/90 text-primary-700 dark:bg-primary-950/60 dark:text-primary-300 shadow-subtle font-semibold"
-                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-slate-100",
+                        ? "bg-primary-50 text-primary-700 dark:bg-primary-950/70 dark:text-primary-200 dark:border dark:border-primary-500/30 shadow-subtle font-semibold"
+                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100",
                       item.disabled && "pointer-events-none opacity-50"
                     )}
                   >

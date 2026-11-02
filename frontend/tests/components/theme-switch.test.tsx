@@ -61,4 +61,15 @@ describe("ThemeSwitch Component", () => {
     expect(screen.getByText("ON")).toBeInTheDocument();
     expect(localStorage.getItem("officeos_theme")).toBe("light");
   });
+
+  it("renders both sun and moon icons on the toggle switch", () => {
+    render(
+      <ThemeProvider>
+        <ThemeSwitch />
+      </ThemeProvider>
+    );
+
+    expect(screen.getByTestId("sun-icon")).toBeInTheDocument();
+    expect(screen.getByTestId("moon-icon")).toBeInTheDocument();
+  });
 });
