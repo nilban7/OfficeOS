@@ -1027,40 +1027,40 @@ export default function AttendancePage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white border-slate-200 shadow-sm">
+        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm">
           <CardContent className="p-4">
-            <span className="text-xs font-medium text-emerald-600 block">Present Today</span>
-            <span className="text-2xl font-bold text-emerald-700 mt-1 block">
+            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 block">Present Today</span>
+            <span className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 mt-1 block">
               {summary?.present_count ?? 0}
             </span>
             <span className="text-[11px] text-slate-400">On time clock-ins</span>
           </CardContent>
         </Card>
 
-        <Card className="bg-white border-slate-200 shadow-sm">
+        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm">
           <CardContent className="p-4">
-            <span className="text-xs font-medium text-amber-600 block">Late Today</span>
-            <span className="text-2xl font-bold text-amber-700 mt-1 block">
+            <span className="text-xs font-medium text-amber-600 dark:text-amber-400 block">Late Today</span>
+            <span className="text-2xl font-bold text-amber-700 dark:text-amber-400 mt-1 block">
               {summary?.late_count ?? 0}
             </span>
             <span className="text-[11px] text-slate-400">Late clock-ins</span>
           </CardContent>
         </Card>
 
-        <Card className="bg-white border-slate-200 shadow-sm">
+        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm">
           <CardContent className="p-4">
-            <span className="text-xs font-medium text-purple-600 block">Half Day Today</span>
-            <span className="text-2xl font-bold text-purple-700 mt-1 block">
+            <span className="text-xs font-medium text-purple-600 dark:text-purple-400 block">Half Day Today</span>
+            <span className="text-2xl font-bold text-purple-700 dark:text-purple-400 mt-1 block">
               {summary?.half_day_count ?? 0}
             </span>
             <span className="text-[11px] text-slate-400">Half-day shifts</span>
           </CardContent>
         </Card>
 
-        <Card className="bg-white border-slate-200 shadow-sm col-span-2 sm:col-span-1">
+        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm col-span-2 sm:col-span-1">
           <CardContent className="p-4">
-            <span className="text-xs font-medium text-rose-600 block">Absent / Leave</span>
-            <span className="text-2xl font-bold text-rose-700 mt-1 block">
+            <span className="text-xs font-medium text-rose-600 dark:text-rose-400 block">Absent / Leave</span>
+            <span className="text-2xl font-bold text-rose-700 dark:text-rose-400 mt-1 block">
               {(summary?.absent_count ?? 0) + (summary?.on_leave_count ?? 0)}
             </span>
             <span className="text-[11px] text-slate-400">
@@ -1073,15 +1073,15 @@ export default function AttendancePage() {
       {/* Attendance Stations: Personal GPS Clock & Biometric Fingerprint Terminal */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Station 1: Personal GPS Clock-In Card */}
-        <Card className="border-primary-200 bg-gradient-to-br from-primary-50/40 via-white to-white shadow-sm flex flex-col">
-          <CardHeader className="pb-3 border-b border-primary-100/60 shrink-0">
-            <CardTitle className="text-base font-semibold text-slate-800 flex items-center justify-between">
+        <Card className="border-primary-200 dark:border-slate-800 bg-gradient-to-br from-primary-50/40 via-white to-white dark:from-slate-900 dark:via-slate-900 dark:to-slate-900 shadow-sm flex flex-col">
+          <CardHeader className="pb-3 border-b border-primary-100/60 dark:border-slate-800 shrink-0">
+            <CardTitle className="text-base font-semibold text-slate-800 dark:text-slate-100 flex items-center justify-between">
               <span className="flex items-center gap-2">
-                <Compass className="h-5 w-5 text-primary-600" />
+                <Compass className="h-5 w-5 text-primary-600 dark:text-primary-400" />
                 My Today Status
               </span>
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-xs bg-white text-slate-700 font-medium">
+                <Badge variant="outline" className="text-xs bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-medium dark:border-slate-700">
                   {new Date().toLocaleDateString(undefined, {
                     month: "short",
                     day: "numeric",
@@ -1097,24 +1097,24 @@ export default function AttendancePage() {
               </div>
             ) : myTodayRecord ? (
               <div className="space-y-4">
-                <div className="grid grid-cols-3 gap-3 p-3 bg-white border border-slate-200 rounded-lg text-center shadow-xs">
+                <div className="grid grid-cols-3 gap-3 p-3 bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-center shadow-xs">
                   <div>
-                    <span className="text-xs text-slate-500 block">Clock In</span>
-                    <span className="text-base font-semibold text-slate-800">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 block">Clock In</span>
+                    <span className="text-base font-semibold text-slate-800 dark:text-slate-100">
                       {formatTime(myTodayRecord.check_in_at)}
                     </span>
                   </div>
                   <div>
-                    <span className="text-xs text-slate-500 block">Clock Out</span>
-                    <span className="text-base font-semibold text-slate-800">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 block">Clock Out</span>
+                    <span className="text-base font-semibold text-slate-800 dark:text-slate-100">
                       {myTodayRecord.check_out_at
                         ? formatTime(myTodayRecord.check_out_at)
                         : "In Progress"}
                     </span>
                   </div>
                   <div>
-                    <span className="text-xs text-slate-500 block">Duration</span>
-                    <span className="text-sm font-semibold text-primary-700">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 block">Duration</span>
+                    <span className="text-sm font-semibold text-primary-700 dark:text-primary-300">
                       {calculateDuration(
                         myTodayRecord.check_in_at,
                         myTodayRecord.check_out_at
@@ -1125,31 +1125,31 @@ export default function AttendancePage() {
 
                 {/* Offsite banner for today's record */}
                 {myTodayRecord.is_offsite && (
-                  <div className="p-3 bg-amber-50/80 border border-amber-200/90 rounded-lg text-xs space-y-1.5 shadow-xs">
+                  <div className="p-3 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/90 dark:border-amber-800/60 rounded-lg text-xs space-y-1.5 shadow-xs">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-amber-900 flex items-center gap-1.5">
-                        <Briefcase className="h-4 w-4 text-amber-700 shrink-0" />
+                      <span className="font-semibold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                        <Briefcase className="h-4 w-4 text-amber-700 dark:text-amber-400 shrink-0" />
                         {myTodayRecord.client_name ? `Client: ${myTodayRecord.client_name}` : "Offsite Client Meeting"}
                       </span>
                       {getApprovalStatusBadge(myTodayRecord)}
                     </div>
                     {myTodayRecord.offsite_reason && (
-                      <p className="text-[11px] text-amber-800">
-                        <span className="font-semibold text-amber-900">Purpose:</span> {myTodayRecord.offsite_reason}
+                      <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                        <span className="font-semibold text-amber-900 dark:text-amber-200">Purpose:</span> {myTodayRecord.offsite_reason}
                       </p>
                     )}
                     {myTodayRecord.offsite_location && (
-                      <p className="text-[11px] text-amber-800 flex items-center gap-1">
-                        <MapPin className="h-3 w-3 shrink-0 text-amber-700" /> {myTodayRecord.offsite_location}
+                      <p className="text-[11px] text-amber-800 dark:text-amber-300 flex items-center gap-1">
+                        <MapPin className="h-3 w-3 shrink-0 text-amber-700 dark:text-amber-400" /> {myTodayRecord.offsite_location}
                       </p>
                     )}
                     {myTodayRecord.hr_rejection_reason && myTodayRecord.approval_status === "pending_org_head" && (
-                      <div className="p-2 bg-orange-100/90 border border-orange-300 text-orange-950 rounded text-[11px] mt-1 space-y-0.5">
-                        <span className="font-bold flex items-center gap-1 text-orange-900">
-                          <AlertTriangle className="h-3 w-3 text-orange-700" /> HR Reviewer Feedback:
+                      <div className="p-2 bg-orange-100/90 dark:bg-orange-950/60 border border-orange-300 dark:border-orange-800 text-orange-950 dark:text-orange-200 rounded text-[11px] mt-1 space-y-0.5">
+                        <span className="font-bold flex items-center gap-1 text-orange-900 dark:text-orange-300">
+                          <AlertTriangle className="h-3 w-3 text-orange-700 dark:text-orange-400" /> HR Reviewer Feedback:
                         </span>
-                        <p className="italic text-orange-900 pl-4">{myTodayRecord.hr_rejection_reason}</p>
-                        <p className="text-[10px] text-orange-800 font-medium pl-4">
+                        <p className="italic text-orange-900 dark:text-orange-200 pl-4">{myTodayRecord.hr_rejection_reason}</p>
+                        <p className="text-[10px] text-orange-800 dark:text-orange-300 font-medium pl-4">
                           HR rejected; currently undergoing Step 2 review by Organization Head.
                         </p>
                       </div>
@@ -1158,9 +1158,9 @@ export default function AttendancePage() {
                 )}
 
                 {/* Location / Verification Pill */}
-                <div className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200/80 rounded-lg text-xs">
-                  <div className="flex items-center gap-2 text-slate-600">
-                    <MapPin className="h-4 w-4 text-primary-600 shrink-0" />
+                <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 rounded-lg text-xs">
+                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                    <MapPin className="h-4 w-4 text-primary-600 dark:text-primary-400 shrink-0" />
                     <span className="truncate max-w-[220px]">
                       {myTodayRecord.location_name ||
                         (myTodayRecord.latitude
@@ -1169,11 +1169,11 @@ export default function AttendancePage() {
                     </span>
                   </div>
                   {myTodayRecord.verification_method === "fingerprint" ? (
-                    <Badge variant="secondary" className="bg-violet-100 text-violet-800 border-violet-200 flex items-center gap-1 text-[11px]">
+                    <Badge variant="secondary" className="bg-violet-100 dark:bg-violet-950/60 text-violet-800 dark:text-violet-300 border-violet-200 dark:border-violet-800 flex items-center gap-1 text-[11px]">
                       <Fingerprint className="h-3 w-3" /> Biometric Verified
                     </Badge>
                   ) : (
-                    <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-200 flex items-center gap-1 text-[11px]">
+                    <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800 flex items-center gap-1 text-[11px]">
                       <Navigation className="h-3 w-3" /> GPS Verified
                     </Badge>
                   )}
@@ -1197,7 +1197,7 @@ export default function AttendancePage() {
                     </Button>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-center gap-2 p-3 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold">
+                  <div className="flex items-center justify-center gap-2 p-3 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-lg text-xs font-semibold">
                     <CheckCircle2 className="h-4 w-4" /> Shift Completed Today
                   </div>
                 )}
@@ -1205,14 +1205,14 @@ export default function AttendancePage() {
             ) : (
               <div className="space-y-3">
                 {/* Mode Selector: Office Premises vs Offsite Client Meeting */}
-                <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-lg text-xs font-medium text-slate-600">
+                <div className="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300">
                   <button
                     type="button"
                     onClick={() => setClockInMode("office")}
                     className={`py-1.5 px-3 rounded-md flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       clockInMode === "office"
-                        ? "bg-white text-slate-900 shadow-xs font-semibold"
-                        : "hover:text-slate-900 text-slate-500"
+                        ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs font-semibold"
+                        : "hover:text-slate-900 dark:hover:text-slate-100 text-slate-500 dark:text-slate-400"
                     }`}
                   >
                     <Building2 className="h-3.5 w-3.5" />
@@ -1223,8 +1223,8 @@ export default function AttendancePage() {
                     onClick={() => setClockInMode("offsite")}
                     className={`py-1.5 px-3 rounded-md flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       clockInMode === "offsite"
-                        ? "bg-white text-primary-700 shadow-xs font-semibold"
-                        : "hover:text-slate-900 text-slate-500"
+                        ? "bg-white dark:bg-slate-900 text-primary-700 dark:text-primary-300 shadow-xs font-semibold"
+                        : "hover:text-slate-900 dark:hover:text-slate-100 text-slate-500 dark:text-slate-400"
                     }`}
                   >
                     <Briefcase className="h-3.5 w-3.5" />
@@ -1233,46 +1233,46 @@ export default function AttendancePage() {
                 </div>
 
                 {clockInMode === "office" ? (
-                  <p className="text-xs text-slate-600 leading-relaxed">
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                     Clocking in at office premises. Browser GPS coordinates and biometric verification will confirm presence.
                   </p>
                 ) : (
-                  <div className="space-y-2.5 p-3 bg-amber-50/70 border border-amber-200/90 rounded-lg text-xs">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-900">
-                      <Briefcase className="h-4 w-4 text-amber-700" />
+                  <div className="space-y-2.5 p-3 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/90 dark:border-amber-800/50 rounded-lg text-xs">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-900 dark:text-amber-200">
+                      <Briefcase className="h-4 w-4 text-amber-700 dark:text-amber-400" />
                       <span>Offsite Client Meeting / External Visit</span>
                     </div>
-                    <p className="text-[11px] text-amber-800 leading-relaxed">
+                    <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
                       Mark attendance outside office premises. HR approves directly (no further action needed). If HR rejects, it is escalated to Organization Head for final review.
                     </p>
 
                     <div className="space-y-2 pt-1">
                       <div>
-                        <Label className="text-[11px] font-medium text-slate-700">Client / Partner Name *</Label>
+                        <Label className="text-[11px] font-medium text-slate-700 dark:text-slate-300">Client / Partner Name *</Label>
                         <Input
                           placeholder="e.g. Acme Corp / Tata Motors"
                           value={clientName}
                           onChange={(e) => setClientName(e.target.value)}
-                          className="text-xs h-8 bg-white mt-0.5"
+                          className="text-xs h-8 bg-white dark:bg-slate-900 dark:border-slate-700 mt-0.5"
                         />
                       </div>
                       <div>
-                        <Label className="text-[11px] font-medium text-slate-700">Meeting Purpose / Reason *</Label>
+                        <Label className="text-[11px] font-medium text-slate-700 dark:text-slate-300">Meeting Purpose / Reason *</Label>
                         <Input
                           placeholder="e.g. Client Pitch, Product Demo, Site Audit"
                           value={offsiteReason}
                           onChange={(e) => setOffsiteReason(e.target.value)}
-                          className="text-xs h-8 bg-white mt-0.5"
+                          className="text-xs h-8 bg-white dark:bg-slate-900 dark:border-slate-700 mt-0.5"
                         />
                       </div>
                       <div>
                         <div className="flex items-center justify-between">
-                          <Label className="text-[11px] font-medium text-slate-700">Meeting Location / Venue</Label>
+                          <Label className="text-[11px] font-medium text-slate-700 dark:text-slate-300">Meeting Location / Venue</Label>
                           {currentLocation && (
                             <button
                               type="button"
                               onClick={() => setOffsiteLocation(currentLocation.locationName)}
-                              className="text-[10px] text-primary-600 hover:text-primary-700 font-medium"
+                              className="text-[10px] text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium"
                             >
                               Use Current GPS
                             </button>
@@ -1282,7 +1282,7 @@ export default function AttendancePage() {
                           placeholder="e.g. Sector 5 Tech Hub, Room 402"
                           value={offsiteLocation}
                           onChange={(e) => setOffsiteLocation(e.target.value)}
-                          className="text-xs h-8 bg-white mt-0.5"
+                          className="text-xs h-8 bg-white dark:bg-slate-900 dark:border-slate-700 mt-0.5"
                         />
                       </div>
                     </div>
@@ -1290,10 +1290,10 @@ export default function AttendancePage() {
                 )}
 
                 {/* GPS Status Indicator */}
-                <div className="flex items-center justify-between p-2.5 bg-white border border-slate-200 rounded-lg text-xs">
+                <div className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-xs">
                   <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-emerald-600 shrink-0" />
-                    <span className="text-slate-600 font-medium">
+                    <MapPin className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span className="text-slate-600 dark:text-slate-300 font-medium">
                       {isLocating
                         ? "Acquiring GPS coordinates..."
                         : locationStatus === "denied"
@@ -1309,7 +1309,7 @@ export default function AttendancePage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => void acquireLocation()}
-                      className="text-[11px] h-7 px-2 text-primary-600 hover:text-primary-700"
+                      className="text-[11px] h-7 px-2 text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
                     >
                       Check Location
                     </Button>
