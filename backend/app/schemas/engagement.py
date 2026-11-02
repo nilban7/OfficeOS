@@ -344,3 +344,54 @@ class ClientEngagementDetail(ClientEngagementSummary):
 
     class Config:
         from_attributes = True
+
+# --- Chat Schemas ---
+class ChatMessageCreate(BaseModel):
+    message: str = Field(..., min_length=1, max_length=5000)
+    sender_name: str | None = None
+    sender_role: str | None = None
+    sender_type: str = "member"  # member, client
+    channel: str = "general"  # general, proposal, disputes
+    proposal_id: uuid.UUID | None = None
+    issue_id: uuid.UUID | None = None
+    attachments: Any | None = None
+
+
+class ChatMessageResponse(BaseModel):
+    id: uuid.UUID
+    organization_id: uuid.UUID
+    engagement_id: uuid.UUID
+    project_id: uuid.UUID | None = None
+    sender_profile_id: uuid.UUID | None = None
+    sender_name: str
+    sender_role: str
+    sender_type: str
+    channel: str
+    message: str
+    attachments: Any | None = None
+    proposal_id: uuid.UUID | None = None
+    proposal_title: str | None = None
+    issue_id: uuid.UUID | None = None
+    issue_title: str | None = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ChatParticipant(BaseModel):
+    id: uuid.UUID
+    name: str
+    role: str
+    participant_type: str  # member, client
+    email: str | None = None
+    designation: str | None = None
+
+
+class ChatParticipantsResponse(BaseModel):
+    project_id: uuid.UUID | None = None
+    project_name: str | None = None
+    client_id: uuid.UUID
+    client_name: str | None = None
+    members: list[ChatParticipant] = []
+

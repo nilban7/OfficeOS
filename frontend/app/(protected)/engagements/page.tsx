@@ -11,6 +11,7 @@ import {
   ChevronRight,
   TrendingUp,
   ShieldCheck,
+  MessageSquare,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -360,8 +361,19 @@ export default function EngagementsCommandCenterPage() {
                       </div>
                     </div>
 
-                    <div className="hidden lg:flex items-center text-slate-400 group-hover:text-primary-600 transition-colors pl-2">
-                      <ChevronRight className="h-5 w-5" />
+                    <div className="flex items-center gap-2 pl-2">
+                      <Link
+                        href={`/engagements/${item.id}?chat=true`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200/80 bg-primary-50/80 px-2.5 py-1.5 text-xs font-semibold text-primary-700 hover:bg-primary-100 transition-colors shadow-subtle dark:border-primary-800 dark:bg-primary-950/50 dark:text-primary-300"
+                        title="Chat with project members & client"
+                      >
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        <span>Chat</span>
+                      </Link>
+                      <div className="hidden lg:flex items-center text-slate-400 group-hover:text-primary-600 transition-colors">
+                        <ChevronRight className="h-5 w-5" />
+                      </div>
                     </div>
                   </div>
                 </Card>

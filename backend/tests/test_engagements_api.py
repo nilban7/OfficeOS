@@ -3,37 +3,26 @@
 Tests models, schemas, stage calculations, digital signature hashing, and service logic.
 """
 
-from datetime import UTC, date, datetime
-from decimal import Decimal
 import hashlib
+from datetime import date
+from decimal import Decimal
 from uuid import uuid4
-
-import pytest
 
 from app.schemas.engagement import (
     AgreementCreate,
-    AgreementResponse,
     ChangeRequestCreate,
-    ChangeRequestResponse,
+    ChatMessageCreate,
+    ChatParticipant,
+    ChatParticipantsResponse,
     ClientEngagementCreate,
-    ClientEngagementDetail,
-    ClientEngagementSummary,
     EngagementOverview,
     HandoverCreateOrUpdate,
-    HandoverResponse,
     IssueCreate,
-    IssueResponse,
     ProposalCreate,
-    ProposalResponse,
     SignatureCreate,
-    SignatureResponse,
-    UatSessionCreate,
-    UatSessionResponse,
     UatTestCaseCreate,
     WeeklyReportCreate,
-    WeeklyReportResponse,
 )
-from app.services.engagement import EngagementService
 
 
 def test_engagement_overview_metrics_contract():
@@ -197,4 +186,61 @@ def test_client_engagement_create_with_project_id():
     assert req.title == "Web Platform Overhaul"
     assert req.project_id == project_id
     assert req.client_id == client_id
+
+def test_chat_message_schema_validation_proposal_channel():
+    prop_id = uuid4()
+    msg = ChatMessageCreate(
+        message="Client agreed to revised payment milestones in Proposal v2.",
+        sender_name="Alice Smith",
+        sender_role="Project Manager",
+        sender_type="member",
+        channel="proposal",
+        proposal_id=prop_id,
+    )
+    assert msg.channel == "proposal"
+    assert msg.proposal_id == prop_id
+    assert msg.sender_type == "member"
+    assert "payment milestones" in msg.message
+
+
+def test_chat_message_schema_validation_dispute_channel():
+    issue_id = uuid4()
+    msg = ChatMessageCreate(
+        message="Clarification on scope dispute: Bug fix has been deployed to staging environment for signoff.",
+        sender_name="John Doe",
+        sender_role="Client Representative",
+        sender_type="client",
+        channel="disputes",
+        issue_id=issue_id,
+    )
+    assert msg.channel == "disputes"
+    assert msg.issue_id == issue_id
+    assert msg.sender_type == "client"
+
+
+def test_chat_participants_response_schema():
+    p1 = ChatParticipant(
+        id=uuid4(),
+        name="Aritra Das",
+        role="Lead Engineer",
+        participant_type="member",
+        designation="Software Engineer",
+    )
+    p2 = ChatParticipant(
+        id=uuid4(),
+        name="Jane Client",
+        role="Product Director",
+        participant_type="client",
+        email="jane@acme.com",
+    )
+    resp = ChatParticipantsResponse(
+        project_id=uuid4(),
+        project_name="OfficeOS SaaS Overhaul",
+        client_id=uuid4(),
+        client_name="Acme International",
+        members=[p1, p2],
+    )
+    assert len(resp.members) == 2
+    assert resp.members[0].participant_type == "member"
+    assert resp.members[1].participant_type == "client"
 

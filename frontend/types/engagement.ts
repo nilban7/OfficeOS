@@ -198,3 +198,51 @@ export interface ClientEngagementDetail extends ClientEngagementSummary {
   change_requests: ChangeRequestItem[];
   handover?: HandoverItem | null;
 }
+
+export type ChatChannel = "general" | "proposal" | "disputes";
+
+export interface EngagementChatMessage {
+  id: string;
+  organization_id: string;
+  engagement_id: string;
+  project_id?: string | null;
+  sender_profile_id?: string | null;
+  sender_name: string;
+  sender_role: string;
+  sender_type: "member" | "client";
+  channel: ChatChannel;
+  message: string;
+  attachments?: any;
+  proposal_id?: string | null;
+  proposal_title?: string | null;
+  issue_id?: string | null;
+  issue_title?: string | null;
+  created_at: string;
+}
+
+export interface ChatParticipant {
+  id: string;
+  name: string;
+  role: string;
+  participant_type: "member" | "client";
+  email?: string | null;
+  designation?: string | null;
+}
+
+export interface ChatParticipantsResponse {
+  project_id?: string | null;
+  project_name?: string | null;
+  client_id: string;
+  client_name?: string | null;
+  members: ChatParticipant[];
+}
+
+export interface SendChatMessageInput {
+  message: string;
+  sender_name?: string;
+  sender_role?: string;
+  sender_type?: "member" | "client";
+  channel?: ChatChannel;
+  proposal_id?: string | null;
+  issue_id?: string | null;
+}
