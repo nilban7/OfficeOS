@@ -112,10 +112,57 @@ body {
 }
 
 .dark .bg-slate-50\/50,
+.dark .bg-slate-50\/75,
 .dark .bg-slate-50\/80,
 .dark .bg-slate-100\/70,
 .dark .bg-slate-100\/90 {
   background-color: rgba(30, 41, 59, 0.7);
+}
+
+/* Dark mode table & row hover states - Prevents blinding whiteout on hover */
+.dark table tbody tr:hover,
+.dark [class*="hover:bg-slate-50"]:hover:not([data-keep-light]),
+.dark [class*="hover:bg-slate-100"]:hover:not([data-keep-light]),
+.dark [class*="hover:bg-gray-50"]:hover:not([data-keep-light]),
+.dark [class*="hover:bg-gray-100"]:hover:not([data-keep-light]) {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Dark mode table headers and cell borders */
+.dark table thead th,
+.dark table thead {
+  background-color: #0b1120 !important;
+  color: #94a3b8 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.dark table tbody tr,
+.dark table tbody td {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Dark mode native form controls (selects, inputs, textareas, checkboxes) */
+.dark select:not([data-keep-light]) {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+}
+
+.dark select option {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([data-keep-light]),
+.dark textarea:not([data-keep-light]) {
+  background-color: #0f172a;
+  color: #f8fafc;
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.dark input[type="checkbox"] {
+  background-color: #0f172a;
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 /* Crisp dark mode borders and card outlines (high contrast) */
