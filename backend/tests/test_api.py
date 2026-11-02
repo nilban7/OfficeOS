@@ -33,6 +33,17 @@ async def test_health_endpoint() -> None:
 
 
 @pytest.mark.asyncio
+async def test_root_health_endpoints() -> None:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        health_resp = await client.get("/health")
+        root_resp = await client.get("/")
+    assert health_resp.status_code == 200
+    assert health_resp.json() == {"status": "ok"}
+    assert root_resp.status_code == 200
+    assert root_resp.json() == {"status": "ok", "service": "OfficeOS API"}
+
+
+@pytest.mark.asyncio
 async def test_me_rejects_missing_authentication() -> None:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/api/v1/me")

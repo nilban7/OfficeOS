@@ -30,6 +30,16 @@ app.add_middleware(
 app.include_router(router)
 
 
+@app.get("/health", tags=["health"])
+async def root_health():
+    return {"status": "ok"}
+
+
+@app.get("/", tags=["health"])
+async def root_index():
+    return {"status": "ok", "service": "OfficeOS API"}
+
+
 def error_response(status_code: int, code: str, message: str, details: object = None) -> JSONResponse:
     body = ApiError(error=ApiErrorDetail(code=code, message=message, details=details))
     return JSONResponse(status_code=status_code, content=body.model_dump(mode="json"))

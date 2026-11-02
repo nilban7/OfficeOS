@@ -48,6 +48,7 @@ export interface RequestOptions {
   organizationId?: string;
   skipCache?: boolean;
   ttlMs?: number;
+  maxRetries?: number;
 }
 
 export class ApiException extends Error {
