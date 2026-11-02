@@ -26,6 +26,25 @@ vi.mock("@/lib/api/client", () => ({
   },
 }));
 
+vi.mock("@/lib/supabase/client", () => {
+  const mockChannel = {
+    on: vi.fn().mockReturnThis(),
+    subscribe: vi.fn().mockImplementation((cb) => {
+      if (typeof cb === "function") cb("SUBSCRIBED");
+      return mockChannel;
+    }),
+    send: vi.fn().mockResolvedValue("ok"),
+    unsubscribe: vi.fn(),
+  };
+
+  return {
+    getSupabaseBrowserClient: () => ({
+      channel: vi.fn().mockReturnValue(mockChannel),
+      removeChannel: vi.fn(),
+    }),
+  };
+});
+
 describe("EngagementChatPopup Component", () => {
   const mockEngagement: ClientEngagementDetail = {
     id: "eng-100",
@@ -232,6 +251,38 @@ describe("EngagementChatPopup Component", () => {
         expect.anything()
       );
     });
+  });
+
+  it("subscribes to Supabase Realtime channel and displays the Live status indicator", async () => {
+    render(<EngagementChatPopup engagement={mockEngagement} initialOpen={true} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Live")).toBeInTheDocument();
+      expect(screen.getByTitle("Connected to Supabase Live Realtime Database")).toBeInTheDocument();
+    });
+  });
+
+  it("optimistically renders sent message immediately in the UI without waiting for server response", async () => {
+    const user = userEvent.setup();
+    // Simulate a slow post response
+    (apiClient.post as any).mockImplementationOnce(
+      () => new Promise((resolve) => setTimeout(resolve, 5000))
+    );
+
+    render(<EngagementChatPopup engagement={mockEngagement} initialOpen={true} />);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/Type message to project members/i)).toBeInTheDocument();
+    });
+
+    const input = screen.getByPlaceholderText(/Type message to project members/i);
+    await user.type(input, "Instant optimistic message test!");
+
+    const sendBtn = screen.getByTitle("Send message");
+    await user.click(sendBtn);
+
+    // The message should appear immediately on screen even though the API response is still pending
+    expect(screen.getByText("Instant optimistic message test!")).toBeInTheDocument();
   });
 });
 
