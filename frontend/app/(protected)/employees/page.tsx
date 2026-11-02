@@ -719,7 +719,7 @@ export default function EmployeesPage() {
                           setFilterDepartment(e.target.value);
                           setCurrentPage(1);
                         }}
-                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
                       >
                         <option value="">All Departments</option>
                         {departments.map((d) => (
@@ -738,7 +738,7 @@ export default function EmployeesPage() {
                           setFilterBranch(e.target.value);
                           setCurrentPage(1);
                         }}
-                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
                       >
                         <option value="">All Branches</option>
                         {branches.map((b) => (
@@ -757,7 +757,7 @@ export default function EmployeesPage() {
                           setFilterStatus(e.target.value);
                           setCurrentPage(1);
                         }}
-                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
                       >
                         <option value="">All Statuses</option>
                         <option value="active">Active</option>
@@ -777,7 +777,7 @@ export default function EmployeesPage() {
                           setFilterType(e.target.value);
                           setCurrentPage(1);
                         }}
-                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
                       >
                         <option value="">All Types</option>
                         <option value="full_time">Full-Time</option>
@@ -789,7 +789,7 @@ export default function EmployeesPage() {
                   </div>
 
                   {/* Secondary Filters: Include Inactive, Sort, Page Size */}
-                  <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-100 text-xs text-slate-600">
+                  <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
                     <label className="flex items-center gap-2 cursor-pointer select-none">
                       <input
                         type="checkbox"
@@ -798,7 +798,7 @@ export default function EmployeesPage() {
                           setIncludeInactive(e.target.checked);
                           setCurrentPage(1);
                         }}
-                        className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                        className="rounded border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-primary-600 focus:ring-primary-500"
                       />
                       <span>Show inactive / terminated employees</span>
                     </label>
@@ -809,7 +809,7 @@ export default function EmployeesPage() {
                         <select
                           value={sortBy}
                           onChange={(e) => setSortBy(e.target.value)}
-                          className="rounded border border-slate-300 bg-white px-2 py-1 text-xs"
+                          className="rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-xs text-slate-900 dark:text-slate-100"
                         >
                           <option value="name">Name</option>
                           <option value="employee_code">Code</option>
@@ -818,7 +818,7 @@ export default function EmployeesPage() {
                         </select>
                         <button
                           onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-                          className="p-1 hover:bg-slate-100 rounded text-slate-600"
+                          className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-600 dark:text-slate-400"
                           title="Toggle sort order"
                         >
                           <ArrowUpDown className="h-3.5 w-3.5" />
@@ -833,7 +833,7 @@ export default function EmployeesPage() {
                             setPageSize(Number(e.target.value));
                             setCurrentPage(1);
                           }}
-                          className="rounded border border-slate-300 bg-white px-2 py-1 text-xs"
+                          className="rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-xs text-slate-900 dark:text-slate-100"
                         >
                           <option value={10}>10</option>
                           <option value={20}>20</option>
@@ -869,9 +869,9 @@ export default function EmployeesPage() {
                 />
               ) : (
                 <div className="space-y-4">
-                  <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-                    <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-                      <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+                  <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+                    <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-left text-sm">
+                      <thead className="bg-slate-50 dark:bg-slate-950/80 text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
                         <tr>
                           <th className="px-4 py-3.5">Employee</th>
                           <th className="px-4 py-3.5">Code</th>
@@ -884,42 +884,42 @@ export default function EmployeesPage() {
                           <th className="px-4 py-3.5 text-right">Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-200">
+                      <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                         {employeesData.items.map((emp) => (
-                          <tr key={emp.id} className="hover:bg-slate-50/75 transition-colors">
+                          <tr key={emp.id} className="hover:bg-slate-50/75 dark:hover:bg-slate-800/60 transition-colors">
                             <td className="px-4 py-3">
-                              <div className="font-medium text-slate-900">
+                              <div className="font-medium text-slate-900 dark:text-slate-100">
                                 {emp.first_name} {emp.last_name}
                               </div>
                               {emp.work_email && (
-                                <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                                <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
                                   <Mail className="h-3 w-3" />
                                   {emp.work_email}
                                 </div>
                               )}
                             </td>
-                            <td className="px-4 py-3 font-mono text-xs font-medium text-slate-700">
+                            <td className="px-4 py-3 font-mono text-xs font-medium text-slate-700 dark:text-slate-300">
                               {emp.employee_code}
                             </td>
-                            <td className="px-4 py-3 text-slate-700">{emp.designation}</td>
-                            <td className="px-4 py-3 text-slate-600">
+                            <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{emp.designation}</td>
+                            <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
                               {emp.department ? emp.department.name : "—"}
                             </td>
-                            <td className="px-4 py-3 text-slate-600">
+                            <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
                               {emp.branch ? emp.branch.name : "—"}
                             </td>
-                            <td className="px-4 py-3 text-slate-600">
+                            <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
                               {formatEmploymentType(emp.employment_type)}
                             </td>
                             <td className="px-4 py-3">{getStatusBadge(emp.status, emp.is_active)}</td>
-                            <td className="px-4 py-3 text-slate-600 text-xs">
+                            <td className="px-4 py-3 text-slate-600 dark:text-slate-400 text-xs">
                               {emp.date_of_joining ? emp.date_of_joining.split("T")[0] : "—"}
                             </td>
                             <td className="px-4 py-3 text-right">
                               <div className="inline-flex items-center gap-1">
                                 <Link
                                   href={`/employees/${emp.id}`}
-                                  className="p-1.5 text-slate-500 hover:text-primary-600 hover:bg-primary-50 rounded"
+                                  className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950/50 rounded"
                                   title="View Employee Profile"
                                 >
                                   <ExternalLink className="h-4 w-4" />
@@ -927,7 +927,7 @@ export default function EmployeesPage() {
                                 {canUpdateEmployees && (
                                   <button
                                     onClick={() => openEditEmployee(emp)}
-                                    className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded"
+                                    className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
                                     title="Edit Employee"
                                   >
                                     <Edit2 className="h-4 w-4" />
@@ -939,7 +939,7 @@ export default function EmployeesPage() {
                                       setTerminatingEmployee(emp);
                                       setIsTerminateOpen(true);
                                     }}
-                                    className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded"
+                                    className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded"
                                     title="Terminate Employee"
                                   >
                                     <PowerOff className="h-4 w-4" />
@@ -954,18 +954,18 @@ export default function EmployeesPage() {
                   </div>
 
                   {/* Pagination Footer */}
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2 py-1 text-sm text-slate-600">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2 py-1 text-sm text-slate-600 dark:text-slate-400">
                     <div>
                       Showing{" "}
-                      <span className="font-semibold text-slate-900">
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">
                         {(currentPage - 1) * pageSize + 1}
                       </span>{" "}
                       to{" "}
-                      <span className="font-semibold text-slate-900">
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">
                         {Math.min(currentPage * pageSize, employeesData.meta.total)}
                       </span>{" "}
                       of{" "}
-                      <span className="font-semibold text-slate-900">
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">
                         {employeesData.meta.total}
                       </span>{" "}
                       employees
@@ -1033,9 +1033,9 @@ export default function EmployeesPage() {
               onAction={canManageDepartments ? openAddDept : undefined}
             />
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-              <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
-                <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+              <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-left text-sm">
+                <thead className="bg-slate-50 dark:bg-slate-950/80 text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
                   <tr>
                     <th className="px-4 py-3.5">Department Name</th>
                     <th className="px-4 py-3.5">Code</th>
@@ -1045,24 +1045,24 @@ export default function EmployeesPage() {
                     <th className="px-4 py-3.5 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200">
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                   {departments.map((d) => (
-                    <tr key={d.id} className="hover:bg-slate-50/75 transition-colors">
-                      <td className="px-4 py-3.5 font-medium text-slate-900">{d.name}</td>
-                      <td className="px-4 py-3.5 font-mono text-xs font-semibold text-slate-700">
+                    <tr key={d.id} className="hover:bg-slate-50/75 dark:hover:bg-slate-800/60 transition-colors">
+                      <td className="px-4 py-3.5 font-medium text-slate-900 dark:text-slate-100">{d.name}</td>
+                      <td className="px-4 py-3.5 font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">
                         {d.code}
                       </td>
-                      <td className="px-4 py-3.5 text-slate-600 max-w-xs truncate">
+                      <td className="px-4 py-3.5 text-slate-600 dark:text-slate-400 max-w-xs truncate">
                         {d.description || "—"}
                       </td>
-                      <td className="px-4 py-3.5 text-slate-700">
+                      <td className="px-4 py-3.5 text-slate-700 dark:text-slate-300">
                         {d.manager_name ? (
                           <span className="inline-flex items-center gap-1.5">
-                            <UserCheck className="h-3.5 w-3.5 text-primary-600" />
+                            <UserCheck className="h-3.5 w-3.5 text-primary-600 dark:text-primary-400" />
                             {d.manager_name}
                           </span>
                         ) : (
-                          <span className="text-slate-400">Unassigned</span>
+                          <span className="text-slate-400 dark:text-slate-500">Unassigned</span>
                         )}
                       </td>
                       <td className="px-4 py-3.5">
@@ -1077,7 +1077,7 @@ export default function EmployeesPage() {
                           <div className="inline-flex items-center gap-1">
                             <button
                               onClick={() => openEditDept(d)}
-                              className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded"
+                              className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
                               title="Edit Department"
                             >
                               <Edit2 className="h-4 w-4" />

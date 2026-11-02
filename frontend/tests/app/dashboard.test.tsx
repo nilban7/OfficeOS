@@ -1,6 +1,6 @@
 import * as React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import DashboardPage from "@/app/(protected)/dashboard/page";
 import { useOrganization } from "@/hooks/use-organization";
 import { useAuth } from "@/hooks/use-auth";
@@ -51,13 +51,16 @@ describe("DashboardPage Component", () => {
     vi.mocked(useOrganization).mockReturnValue({
       currentOrganization: mockOrg,
       isLoadingOrgs: false,
+      isLoadingPermissions: false,
+      isLoading: false,
       orgError: null,
+      permissionError: null,
+      error: null,
       organizations: [mockOrg],
-      currentRole: null,
       membership: null,
       permissions: ["dashboard.view", "reports.view"],
-      refreshOrganizations: vi.fn(),
-      switchOrganization: vi.fn(),
+      selectOrganization: vi.fn(),
+      setOrganizations: vi.fn(),
     });
 
     vi.mocked(useAuth).mockReturnValue({
