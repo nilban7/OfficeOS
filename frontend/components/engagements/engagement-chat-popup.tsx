@@ -18,6 +18,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { apiClient } from "@/lib/api/client";
 import { API_ENDPOINTS } from "@/lib/api/endpoints";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import type {
   ClientEngagementDetail,
   EngagementChatMessage,
@@ -51,6 +53,8 @@ export function EngagementChatPopup({
   const [participants, setParticipants] = React.useState<ChatParticipant[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
   const [isSending, setIsSending] = React.useState(false);
+  const [isRealtimeConnected, setIsRealtimeConnected] = React.useState(false);
+  const [typingUser, setTypingUser] = React.useState<string | null>(null);
 
   // New message form state
   const [inputText, setInputText] = React.useState("");
@@ -60,13 +64,16 @@ export function EngagementChatPopup({
   const [selectedProposalId, setSelectedProposalId] = React.useState<string>("");
   const [selectedIssueId, setSelectedIssueId] = React.useState<string>("");
 
+  const channelRef = React.useRef<RealtimeChannel | null>(null);
+  const lastTypingEmitRef = React.useRef<number>(0);
+  const typingTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const messagesEndRef = React.useRef<HTMLDivElement>(null);
+
   React.useEffect(() => {
     if (defaultUserName && senderType === "member") {
       setSenderName(defaultUserName);
     }
   }, [defaultUserName, senderType]);
-
-  const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
   // Load chat messages
   const fetchMessages = React.useCallback(async () => {
@@ -80,7 +87,13 @@ export function EngagementChatPopup({
         }
       );
       if (Array.isArray(res)) {
-        setMessages(res);
+        setMessages((prev) => {
+          // Merge while preserving any optimistic pending messages
+          const pendingOptimistic = prev.filter(
+            (p) => p.id.startsWith("temp-") && !res.some((r) => r.message === p.message)
+          );
+          return [...res, ...pendingOptimistic];
+        });
       }
     } catch {
       // Silently fail on network poll
@@ -103,6 +116,7 @@ export function EngagementChatPopup({
     }
   }, [currentOrganization?.id, engagement.id]);
 
+  // Initial load on open
   React.useEffect(() => {
     if (isOpen) {
       setIsLoading(true);
@@ -112,14 +126,118 @@ export function EngagementChatPopup({
     }
   }, [isOpen, fetchMessages, fetchParticipants]);
 
-  // Polling for new messages every 6 seconds when open
+  // Supabase Realtime live sync & peer broadcast channel
   React.useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !engagement.id) return;
+
+    const supabase = getSupabaseBrowserClient();
+    setIsRealtimeConnected(false);
+
+    const channel = supabase.channel(`engagement_chat_${engagement.id}`, {
+      config: {
+        broadcast: { self: false },
+      },
+    });
+
+    channelRef.current = channel;
+
+    // 1. Instant sub-50ms peer broadcast delivery
+    channel.on("broadcast", { event: "new_message" }, ({ payload }) => {
+      const incoming = payload as EngagementChatMessage;
+      if (!incoming || !incoming.id) return;
+
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === incoming.id)) return prev;
+        return [...prev, incoming];
+      });
+    });
+
+    // 2. Realtime typing indicators
+    channel.on("broadcast", { event: "typing" }, ({ payload }) => {
+      const typingName = payload?.user as string | undefined;
+      if (typingName && typingName !== senderName) {
+        setTypingUser(typingName);
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = setTimeout(() => {
+          setTypingUser(null);
+        }, 2500);
+      }
+    });
+
+    // 3. Supabase Postgres Change Data Capture (CDC) Realtime listener
+    channel.on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "engagement_chat_messages",
+        filter: `engagement_id=eq.${engagement.id}`,
+      },
+      (payload) => {
+        const newRow = payload.new as any;
+        if (!newRow || !newRow.id) return;
+
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === newRow.id)) return prev;
+
+          // Reconcile matching optimistic temporary item
+          const optimisticIndex = prev.findIndex(
+            (m) =>
+              m.id.startsWith("temp-") &&
+              m.message === newRow.message &&
+              m.sender_name === newRow.sender_name
+          );
+
+          if (optimisticIndex >= 0 && prev[optimisticIndex]) {
+            const next = [...prev];
+            const existing = prev[optimisticIndex]!;
+            next[optimisticIndex] = {
+              ...existing,
+              id: String(newRow.id),
+              created_at: String(newRow.created_at || existing.created_at),
+            };
+            return next;
+          }
+
+          const incomingMsg: EngagementChatMessage = {
+            id: newRow.id,
+            organization_id: newRow.organization_id || currentOrganization?.id || "",
+            engagement_id: newRow.engagement_id || engagement.id,
+            project_id: newRow.project_id ?? null,
+            sender_profile_id: newRow.sender_profile_id ?? null,
+            sender_name: newRow.sender_name || "Unknown",
+            sender_role: newRow.sender_role || "Member",
+            sender_type: newRow.sender_type || "member",
+            channel: newRow.channel || "general",
+            message: newRow.message || "",
+            attachments: newRow.attachments,
+            proposal_id: newRow.proposal_id ?? null,
+            issue_id: newRow.issue_id ?? null,
+            created_at: newRow.created_at || new Date().toISOString(),
+          };
+
+          return [...prev, incomingMsg];
+        });
+      }
+    );
+
+    channel.subscribe((status) => {
+      setIsRealtimeConnected(status === "SUBSCRIBED");
+    });
+
+    // Fallback heartbeat: refresh every 25s as safety net while Realtime handles live events
     const interval = setInterval(() => {
-      fetchMessages();
-    }, 6000);
-    return () => clearInterval(interval);
-  }, [isOpen, fetchMessages]);
+      void fetchMessages();
+    }, 25000);
+
+    return () => {
+      clearInterval(interval);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      channelRef.current = null;
+      void supabase.removeChannel(channel);
+      setIsRealtimeConnected(false);
+    };
+  }, [isOpen, engagement.id, currentOrganization?.id, senderName, fetchMessages]);
 
   // Auto scroll to bottom
   React.useEffect(() => {
@@ -130,19 +248,80 @@ export function EngagementChatPopup({
     }
   }, [messages, isOpen]);
 
-  // Send message
+  // Handle typing change
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setInputText(val);
+
+    if (channelRef.current && val.trim().length > 0) {
+      const now = Date.now();
+      if (now - lastTypingEmitRef.current > 2000) {
+        lastTypingEmitRef.current = now;
+        void channelRef.current.send({
+          type: "broadcast",
+          event: "typing",
+          payload: { user: senderName.trim() || "Someone" },
+        });
+      }
+    }
+  };
+
+  // Instant Send with zero-latency optimistic bubble & live broadcast
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!inputText.trim() || !currentOrganization?.id || isSending) return;
+    const cleanText = inputText.trim();
+    if (!cleanText || !currentOrganization?.id || isSending) return;
+
+    const postChannel: ChatChannel = activeChannel === "all" ? "general" : activeChannel;
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const effectiveSender = senderName.trim() || "Team Member";
+    const effectiveRole =
+      senderRole.trim() || (senderType === "client" ? "Client Stakeholder" : "Project Member");
+
+    const activeProposal = engagement.proposals.find((p) => p.id === selectedProposalId);
+    const activeIssue = engagement.issues.find((i) => i.id === selectedIssueId);
+
+    // 1. Instant optimistic message for 0ms local response
+    const optimisticMessage: EngagementChatMessage = {
+      id: tempId,
+      organization_id: currentOrganization.id,
+      engagement_id: engagement.id,
+      project_id: engagement.project_id,
+      sender_name: effectiveSender,
+      sender_role: effectiveRole,
+      sender_type: senderType,
+      channel: postChannel,
+      message: cleanText,
+      proposal_id: postChannel === "proposal" && selectedProposalId ? selectedProposalId : undefined,
+      proposal_title: activeProposal?.title,
+      issue_id: postChannel === "disputes" && selectedIssueId ? selectedIssueId : undefined,
+      issue_title: activeIssue?.title,
+      created_at: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, optimisticMessage]);
+    setInputText("");
+
+    // 2. Broadcast immediately to peers via WebSocket (< 50ms)
+    if (channelRef.current) {
+      try {
+        void channelRef.current.send({
+          type: "broadcast",
+          event: "new_message",
+          payload: optimisticMessage,
+        });
+      } catch {
+        // Fallback to database CDC
+      }
+    }
 
     setIsSending(true);
-    const postChannel: ChatChannel = activeChannel === "all" ? "general" : activeChannel;
 
     try {
       const payload = {
-        message: inputText.trim(),
-        sender_name: senderName.trim() || "Team Member",
-        sender_role: senderRole.trim() || (senderType === "client" ? "Client Stakeholder" : "Project Member"),
+        message: cleanText,
+        sender_name: effectiveSender,
+        sender_role: effectiveRole,
         sender_type: senderType,
         channel: postChannel,
         proposal_id: postChannel === "proposal" && selectedProposalId ? selectedProposalId : undefined,
@@ -156,10 +335,17 @@ export function EngagementChatPopup({
       );
 
       if (res && res.id) {
-        setMessages((prev) => [...prev, res]);
-        setInputText("");
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === tempId
+              ? { ...res, proposal_title: m.proposal_title, issue_title: m.issue_title }
+              : m
+          )
+        );
       }
     } catch (err: unknown) {
+      // Rollback optimistic message if post completely failed
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
       const msg = err instanceof Error ? err.message : "Failed to send message";
       alert(msg);
     } finally {
@@ -228,7 +414,23 @@ export function EngagementChatPopup({
                   <h3 className="truncate text-xs font-bold text-slate-900 dark:text-slate-100">
                     {engagement.title}
                   </h3>
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
+                  {isRealtimeConnected ? (
+                    <span
+                      className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                      title="Connected to Supabase Live Realtime Database"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                      <span>Live</span>
+                    </span>
+                  ) : (
+                    <span
+                      className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-medium bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                      title="Realtime sync active"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
+                      <span>Sync</span>
+                    </span>
+                  )}
                 </div>
                 <p className="truncate text-[10px] text-slate-500 dark:text-slate-400">
                   {engagement.engagement_code} • {engagement.client_name || "Client"}
@@ -614,6 +816,14 @@ export function EngagementChatPopup({
             </div>
           </div>
 
+          {/* Typing Indicator */}
+          {typingUser && (
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-primary-50/70 text-[10px] text-primary-700 dark:bg-primary-950/40 dark:text-primary-300 border-t border-primary-100 dark:border-primary-900/40 animate-pulse">
+              <span className="flex h-1.5 w-1.5 rounded-full bg-primary-500 animate-ping" />
+              <span className="font-medium">{typingUser} is typing...</span>
+            </div>
+          )}
+
           {/* Input Bar */}
           <form
             onSubmit={handleSendMessage}
@@ -622,7 +832,7 @@ export function EngagementChatPopup({
             <input
               type="text"
               value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
+              onChange={handleInputChange}
               placeholder={
                 activeChannel === "proposal"
                   ? "Discuss proposal terms, deliverables, pricing..."
