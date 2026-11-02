@@ -169,15 +169,19 @@ export default function DashboardPage() {
         count = Math.max(1, totalStaff - (idx % 2 === 0 ? 0 : 1));
       }
 
+      const hasAttendance = count > 0;
+      let barColor = "bg-slate-200 dark:bg-slate-800";
+      if (isToday) {
+        barColor = "bg-emerald-500 dark:bg-emerald-400 shadow-xs";
+      } else if (hasAttendance) {
+        barColor = "bg-primary-600 dark:bg-primary-500 shadow-xs";
+      }
+
       return {
         label: day,
         value: count,
         formattedValue: `${count} / ${totalStaff} Present`,
-        colorClass: isToday
-          ? "bg-emerald-500"
-          : isPast
-          ? "bg-primary-600"
-          : "bg-slate-200",
+        colorClass: barColor,
       };
     });
   }, [attendance, overview]);
@@ -213,30 +217,30 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 pb-12">
       {/* Minimalist, Branded Dashboard Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200/70 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200/70 dark:border-slate-800 pb-5">
         <div className="space-y-1.5">
           {/* Branded Organization Pill with Live Status Indicator */}
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary-50 text-primary-700 border border-primary-200/60 shadow-2xs">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary-50 dark:bg-primary-950/70 text-primary-700 dark:text-primary-300 border border-primary-200/60 dark:border-primary-800/80 shadow-2xs">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span>{currentOrganization?.name || "Niladri Organization Workflow"}</span>
             </span>
-            <span className="text-slate-300">•</span>
-            <span className="text-[11px] font-medium text-slate-400">
+            <span className="text-slate-300 dark:text-slate-700">•</span>
+            <span className="text-[11px] font-medium text-slate-400 dark:text-slate-400">
               {todayFormatted}
             </span>
           </div>
 
           {/* Minimalist Branded Title */}
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
             Welcome back,{" "}
-            <span className="bg-gradient-to-r from-primary-600 via-indigo-600 to-indigo-700 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-primary-600 via-indigo-600 to-indigo-700 dark:from-primary-400 dark:via-indigo-400 dark:to-indigo-300 bg-clip-text text-transparent">
               {greetingName}
             </span>
           </h1>
 
           {/* Clean Contextual Subtitle */}
-          <p className="text-xs sm:text-sm text-slate-500 font-normal">
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-normal">
             Here&apos;s your workspace pulse, attendance trends, and active operations today.
           </p>
         </div>
@@ -244,8 +248,8 @@ export default function DashboardPage() {
         {/* Action Buttons */}
         <div className="flex items-center gap-2 shrink-0">
           <Link href={ROUTES.ENGAGEMENTS}>
-            <Button size="sm" variant="outline" className="text-xs h-9 px-3.5 border-slate-200 text-slate-700 hover:bg-slate-50 shadow-2xs">
-              <Briefcase className="h-3.5 w-3.5 mr-1.5 text-slate-400" />
+            <Button size="sm" variant="outline" className="text-xs h-9 px-3.5 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-2xs">
+              <Briefcase className="h-3.5 w-3.5 mr-1.5 text-slate-400 dark:text-slate-400" />
               <span>Engagements</span>
             </Button>
           </Link>
@@ -261,76 +265,76 @@ export default function DashboardPage() {
       {/* 4 Clean Executive Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
         {/* Card 1: Total Workforce */}
-        <Card className="p-5 bg-white border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500">
+        <Card className="p-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
             <span className="text-xs font-semibold uppercase tracking-wider">Total Employees</span>
-            <div className="h-8 w-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-transparent dark:border-blue-800/40 flex items-center justify-center">
               <Users className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-3xl font-bold text-slate-900 tabular-nums tracking-tight">
+            <div className="text-3xl font-bold text-slate-900 dark:text-white tabular-nums tracking-tight">
               {isLoading && !overview ? <Skeleton className="h-8 w-14" /> : overview?.active_employees_count || 4}
             </div>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-slate-400 dark:text-slate-400 mt-1">
               Active staff across departments
             </p>
           </div>
         </Card>
 
         {/* Card 2: Attendance Today */}
-        <Card className="p-5 bg-white border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500">
+        <Card className="p-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
             <span className="text-xs font-semibold uppercase tracking-wider">Active Today</span>
-            <div className="h-8 w-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-transparent dark:border-emerald-800/40 flex items-center justify-center">
               <Clock className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-3xl font-bold text-slate-900 tabular-nums tracking-tight">
+            <div className="text-3xl font-bold text-slate-900 dark:text-white tabular-nums tracking-tight">
               {isLoading && !overview ? (
                 <Skeleton className="h-8 w-16" />
               ) : (
                 `${overview?.attendance_today_count || 0} / ${overview?.active_employees_count || 4}`
               )}
             </div>
-            <p className="text-xs text-emerald-600 font-medium mt-1">
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1">
               {overview?.attendance_rate_today ?? "0.0"}% attendance rate
             </p>
           </div>
         </Card>
 
         {/* Card 3: Active Projects */}
-        <Card className="p-5 bg-white border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500">
+        <Card className="p-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
             <span className="text-xs font-semibold uppercase tracking-wider">Active Projects</span>
-            <div className="h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-transparent dark:border-indigo-800/40 flex items-center justify-center">
               <Layers className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-3xl font-bold text-slate-900 tabular-nums tracking-tight">
+            <div className="text-3xl font-bold text-slate-900 dark:text-white tabular-nums tracking-tight">
               {isLoading && !overview ? <Skeleton className="h-8 w-12" /> : overview?.active_projects_count || 4}
             </div>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-slate-400 dark:text-slate-400 mt-1">
               Active client & internal engagements
             </p>
           </div>
         </Card>
 
         {/* Card 4: Commercial Pipeline */}
-        <Card className="p-5 bg-white border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500">
+        <Card className="p-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
             <span className="text-xs font-semibold uppercase tracking-wider">Commercial Pipeline</span>
-            <div className="h-8 w-8 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-lg bg-violet-50 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400 border border-transparent dark:border-violet-800/40 flex items-center justify-center">
               <Briefcase className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-3xl font-bold text-slate-900 tabular-nums tracking-tight truncate">
+            <div className="text-3xl font-bold text-slate-900 dark:text-white tabular-nums tracking-tight truncate">
               {pipelineDisplay}
             </div>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-slate-400 dark:text-slate-400 mt-1">
               1 executed client agreement
             </p>
           </div>
@@ -340,15 +344,15 @@ export default function DashboardPage() {
       {/* Main Analytical Section: 2 Balanced Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Card 1: 7-Day Attendance Velocity (7 Cols) */}
-        <Card className="lg:col-span-7 p-6 shadow-xs flex flex-col justify-between">
+        <Card className="lg:col-span-7 p-6 shadow-xs flex flex-col justify-between bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
           <div>
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
               <div>
-                <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4 text-primary-600" />
+                <CardTitle className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-primary-600 dark:text-primary-400" />
                   <span>Workday Attendance (Mon – Fri)</span>
                 </CardTitle>
-                <CardDescription className="text-xs text-slate-500 mt-0.5">
+                <CardDescription className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Daily employee presence across the official Monday to Friday workweek.
                 </CardDescription>
               </div>
@@ -362,36 +366,36 @@ export default function DashboardPage() {
           </div>
 
           {/* Clean Metric Footer */}
-          <div className="grid grid-cols-3 gap-3 pt-4 border-t border-slate-100 text-xs">
+          <div className="grid grid-cols-3 gap-3 pt-4 border-t border-slate-100 dark:border-slate-800 text-xs">
             <div>
-              <span className="text-slate-400 block text-[11px]">Workweek Average</span>
-              <strong className="text-slate-800 text-sm">86.4%</strong>
+              <span className="text-slate-400 dark:text-slate-400 block text-[11px]">Workweek Average</span>
+              <strong className="text-slate-800 dark:text-slate-200 text-sm">86.4%</strong>
             </div>
             <div>
-              <span className="text-slate-400 block text-[11px]">Punctuality</span>
-              <strong className="text-emerald-600 text-sm">97.8%</strong>
+              <span className="text-slate-400 dark:text-slate-400 block text-[11px]">Punctuality</span>
+              <strong className="text-emerald-600 dark:text-emerald-400 text-sm">97.8%</strong>
             </div>
             <div>
-              <span className="text-slate-400 block text-[11px]">Work Schedule</span>
-              <strong className="text-slate-800 text-sm">Mon – Fri Office</strong>
+              <span className="text-slate-400 dark:text-slate-400 block text-[11px]">Work Schedule</span>
+              <strong className="text-slate-800 dark:text-slate-200 text-sm">Mon – Fri Office</strong>
             </div>
           </div>
         </Card>
 
         {/* Card 2: Active Projects & Delivery Progress (5 Cols) */}
-        <Card className="lg:col-span-5 p-6 shadow-xs flex flex-col justify-between">
+        <Card className="lg:col-span-5 p-6 shadow-xs flex flex-col justify-between bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
           <div>
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
               <div>
-                <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Layers className="h-4 w-4 text-indigo-600" />
+                <CardTitle className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                   <span>Project Delivery Status</span>
                 </CardTitle>
-                <CardDescription className="text-xs text-slate-500 mt-0.5">
+                <CardDescription className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Milestone progress and status across active projects.
                 </CardDescription>
               </div>
-              <Link href={ROUTES.PROJECTS} className="text-xs text-primary-600 font-medium hover:underline flex items-center gap-0.5">
+              <Link href={ROUTES.PROJECTS} className="text-xs text-primary-600 dark:text-primary-400 font-medium hover:underline flex items-center gap-0.5">
                 <span>View all</span>
                 <ArrowRight className="h-3 w-3" />
               </Link>
@@ -403,12 +407,12 @@ export default function DashboardPage() {
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center text-xs">
                   <div>
-                    <span className="font-semibold text-slate-900">RFID Smart Store</span>
-                    <span className="text-slate-400 text-[11px] block">Horizon Media • ENG-0001</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">RFID Smart Store</span>
+                    <span className="text-slate-400 dark:text-slate-400 text-[11px] block">Horizon Media • ENG-0001</span>
                   </div>
                   <Badge variant="success">Delivered</Badge>
                 </div>
-                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                   <div className="h-full bg-emerald-500 rounded-full" style={{ width: "100%" }} />
                 </div>
               </div>
@@ -417,13 +421,13 @@ export default function DashboardPage() {
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center text-xs">
                   <div>
-                    <span className="font-semibold text-slate-900">POS Core Architecture</span>
-                    <span className="text-slate-400 text-[11px] block">Retail Suite • PRJ-0002</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">POS Core Architecture</span>
+                    <span className="text-slate-400 dark:text-slate-400 text-[11px] block">Retail Suite • PRJ-0002</span>
                   </div>
                   <Badge variant="default">65% Active</Badge>
                 </div>
-                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-primary-600 rounded-full" style={{ width: "65%" }} />
+                <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-primary-600 dark:bg-primary-500 rounded-full" style={{ width: "65%" }} />
                 </div>
               </div>
 
@@ -431,12 +435,12 @@ export default function DashboardPage() {
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center text-xs">
                   <div>
-                    <span className="font-semibold text-slate-900">Microservices Cloud Sync</span>
-                    <span className="text-slate-400 text-[11px] block">Core Tech • PRJ-0003</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">Microservices Cloud Sync</span>
+                    <span className="text-slate-400 dark:text-slate-400 text-[11px] block">Core Tech • PRJ-0003</span>
                   </div>
                   <Badge variant="warning">40% Review</Badge>
                 </div>
-                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                   <div className="h-full bg-amber-500 rounded-full" style={{ width: "40%" }} />
                 </div>
               </div>
@@ -445,21 +449,21 @@ export default function DashboardPage() {
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center text-xs">
                   <div>
-                    <span className="font-semibold text-slate-900">Operations Automation</span>
-                    <span className="text-slate-400 text-[11px] block">Internal Ops • PRJ-0004</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">Operations Automation</span>
+                    <span className="text-slate-400 dark:text-slate-400 text-[11px] block">Internal Ops • PRJ-0004</span>
                   </div>
                   <Badge variant="default">25% Active</Badge>
                 </div>
-                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                   <div className="h-full bg-indigo-500 rounded-full" style={{ width: "25%" }} />
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="pt-4 border-t border-slate-100 flex justify-between items-center text-xs text-slate-500">
+          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
             <span>Overall Delivery Health</span>
-            <span className="font-semibold text-emerald-600">On Track • Zero Critical Blockers</span>
+            <span className="font-semibold text-emerald-600 dark:text-emerald-400">On Track • Zero Critical Blockers</span>
           </div>
         </Card>
       </div>
