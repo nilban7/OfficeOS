@@ -384,18 +384,18 @@ export default function DashboardPage() {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0">
           {/* Customize Dashboard Button */}
           <Button
             size="sm"
             variant="outline"
             onClick={() => setIsCustomizerOpen(true)}
-            className="text-xs h-8.5 px-3 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-2xs flex items-center gap-1.5"
+            className="text-xs h-9 px-3.5 rounded-lg border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-2xs flex items-center gap-1.5"
             title="Customize your dashboard layout"
           >
             <SlidersHorizontal className="h-3.5 w-3.5 text-primary-600 dark:text-primary-400" />
             <span>Customize</span>
-            <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-primary-50 dark:bg-primary-950/70 text-primary-700 dark:text-primary-300 border border-primary-200/60 dark:border-primary-800/80">
+            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-primary-50 dark:bg-primary-950/70 text-primary-700 dark:text-primary-300 border border-primary-200/60 dark:border-primary-800/80">
               {activeWidgets.length}
             </span>
           </Button>
@@ -404,16 +404,16 @@ export default function DashboardPage() {
             <Button
               size="sm"
               variant="outline"
-              className="text-xs h-8.5 px-3 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-2xs"
+              className="text-xs h-9 px-3.5 rounded-lg border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-2xs flex items-center gap-1.5"
             >
-              <Briefcase className="h-3.5 w-3.5 mr-1.5 text-slate-400 dark:text-slate-400" />
+              <Briefcase className="h-3.5 w-3.5 text-slate-400 dark:text-slate-400" />
               <span>Engagements</span>
             </Button>
           </Link>
           <Link href={ROUTES.PROJECTS}>
             <Button
               size="sm"
-              className="text-xs h-8.5 px-3 flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white shadow-xs"
+              className="text-xs h-9 px-3.5 rounded-lg flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white shadow-xs font-semibold"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>New Project</span>
