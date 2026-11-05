@@ -8,6 +8,10 @@ from app.core.security import AuthenticatedUser
 from app.dependencies.auth import get_current_user
 from app.dependencies.tenant import get_tenant_session
 from app.schemas.common import ApiSuccess
+from app.schemas.internship import (
+    StipendCreateDisburseRequest,
+    StipendDisbursementResponse,
+)
 from app.schemas.payroll import (
     BonusAllocationResponse,
     BonusAllocationUpdate,
@@ -25,6 +29,7 @@ from app.schemas.payroll import (
     SalaryStructureResponse,
 )
 from app.services.identity import get_user_permissions
+from app.services.internship import InternshipService
 from app.services.payroll import PayrollService
 
 router = APIRouter(prefix="/payroll", tags=["Payroll"])
@@ -314,6 +319,80 @@ async def sync_run_endpoint(
 
     run = await PayrollService.sync_payroll_run(session, org_id, payroll_id)
     return ApiSuccess(data=run, message="Payroll run synchronized successfully")
+
+
+@router.get(
+    "/runs/{payroll_id}/stipends",
+    response_model=ApiSuccess[list[StipendDisbursementResponse]],
+    summary="Get intern stipend disbursements for a payroll run",
+)
+async def get_run_stipends_endpoint(
+    payroll_id: UUID,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_tenant_session)],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
+) -> ApiSuccess[list[StipendDisbursementResponse]]:
+    org_id = UUID(organization_header)
+    user_id = UUID(current_user.id)
+    perms = await get_user_permissions(session, user_id, org_id)
+    if "payroll.view" not in perms and "internships.view" not in perms:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: missing payroll.view permission",
+        )
+
+    payroll = await PayrollService.get_payroll_run(session, org_id, payroll_id)
+    stipends = await InternshipService.list_stipend_disbursements(
+        session=session,
+        organization_id=org_id,
+        payroll_id=payroll_id,
+    )
+    if not stipends:
+        stipends = await InternshipService.list_stipend_disbursements(
+            session=session,
+            organization_id=org_id,
+            period_month=payroll.period_month,
+            period_year=payroll.period_year,
+        )
+
+    return ApiSuccess(data=stipends)
+
+
+@router.post(
+    "/runs/{payroll_id}/stipends/disburse",
+    response_model=ApiSuccess[StipendDisbursementResponse],
+    status_code=status.HTTP_201_CREATED,
+    summary="Disburse intern stipend in payroll run",
+)
+async def disburse_run_stipend_endpoint(
+    payroll_id: UUID,
+    payload: StipendCreateDisburseRequest,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_tenant_session)],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
+) -> ApiSuccess[StipendDisbursementResponse]:
+    org_id = UUID(organization_header)
+    user_id = UUID(current_user.id)
+    perms = await get_user_permissions(session, user_id, org_id)
+    if (
+        "payroll.pay" not in perms
+        and "payroll.process" not in perms
+        and "internships.edit" not in perms
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: missing payroll.pay or payroll.process permission",
+        )
+
+    payload.payroll_id = payroll_id
+    data = await InternshipService.create_and_disburse_stipend(
+        session=session,
+        organization_id=org_id,
+        actor_user_id=user_id,
+        payload=payload,
+    )
+    return ApiSuccess(data=data, message="Intern stipend disbursed successfully")
+
 
 
 # ---------------------------------------------------------------------------

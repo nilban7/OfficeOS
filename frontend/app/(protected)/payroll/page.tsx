@@ -13,6 +13,7 @@ import {
   Users,
   Calendar,
   FileText,
+  GraduationCap,
   SlidersHorizontal,
   Trash2,
   Gift,
@@ -36,6 +37,7 @@ import { useOrganization } from "@/hooks/use-organization";
 import { apiClient } from "@/lib/api/client";
 import { API_ENDPOINTS } from "@/lib/api/endpoints";
 import { ROUTES } from "@/constants/routes";
+import type { StipendDisbursement } from "@/types/internship";
 import type {
   Bonus,
   BonusAllocation,
@@ -73,8 +75,8 @@ const BONUS_STATUS_CONFIG: Record<BonusStatus, { label: string; className: strin
 export default function PayrollPage() {
   const { currentOrganization, isLoading: isOrgLoading } = useOrganization();
 
-  // Active Tab: 'runs' | 'structures' | 'payslips' | 'bonuses'
-  const [activeTab, setActiveTab] = React.useState<"runs" | "structures" | "payslips" | "bonuses">("runs");
+  // Active Tab: 'runs' | 'structures' | 'payslips' | 'bonuses' | 'stipends'
+  const [activeTab, setActiveTab] = React.useState<"runs" | "structures" | "payslips" | "bonuses" | "stipends">("runs");
 
   // Data states
   const [kpi, setKpi] = React.useState<PayrollSummaryKPI | null>(null);
@@ -82,6 +84,7 @@ export default function PayrollPage() {
   const [structures, setStructures] = React.useState<SalaryStructure[]>([]);
   const [payslips, setPayslips] = React.useState<Payslip[]>([]);
   const [bonuses, setBonuses] = React.useState<Bonus[]>([]);
+  const [allStipends, setAllStipends] = React.useState<StipendDisbursement[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -201,7 +204,7 @@ export default function PayrollPage() {
     setIsLoading((prev) => (runs.length === 0 ? true : prev));
     setError(null);
     try {
-      const [kpiRes, runsRes, structuresRes, slipsRes, empRes, bonusRes, deptRes, projRes] =
+      const [kpiRes, runsRes, structuresRes, slipsRes, empRes, bonusRes, deptRes, projRes, stipendsRes] =
         await Promise.all([
           apiClient.get<PayrollSummaryKPI>(API_ENDPOINTS.payroll.summary).catch(() => null),
           apiClient.get<PayrollRun[]>(API_ENDPOINTS.payroll.runs).catch(() => []),
@@ -211,6 +214,7 @@ export default function PayrollPage() {
           apiClient.get<Bonus[]>(API_ENDPOINTS.payroll.bonuses).catch(() => []),
           apiClient.get<any>(API_ENDPOINTS.departments.list).catch(() => []),
           apiClient.get<any>(API_ENDPOINTS.projects.list).catch(() => []),
+          apiClient.get<any>(API_ENDPOINTS.internships.stipends).catch(() => []),
         ]);
 
       if (kpiRes) setKpi(kpiRes);
@@ -218,6 +222,8 @@ export default function PayrollPage() {
       setStructures(structuresRes || []);
       setPayslips(slipsRes || []);
       setBonuses(bonusRes || []);
+      const stipendsData = (stipendsRes as any)?.data || stipendsRes;
+      setAllStipends(Array.isArray(stipendsData) ? stipendsData : []);
 
       const rawEmployees = empRes?.items || empRes?.data?.items || empRes || [];
       if (Array.isArray(rawEmployees)) {
@@ -600,6 +606,14 @@ export default function PayrollPage() {
       (b.project_reference && b.project_reference.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  const filteredStipends = allStipends.filter(
+    (s) =>
+      s.intern_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (s.internship_title && s.internship_title.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (s.internship_code && s.internship_code.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (s.payment_reference && s.payment_reference.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
   // Bonus KPIs calculation
   const totalBonusYTD = bonuses
     .filter((b) => b.status === "paid" || b.status === "included_in_payroll")
@@ -844,6 +858,15 @@ export default function PayrollPage() {
           >
             <Gift className="h-3.5 w-3.5 text-amber-500" />
             Bonuses ({bonuses.length})
+          </Button>
+          <Button
+            variant={activeTab === "stipends" ? "primary" : "outline"}
+            size="sm"
+            className="flex items-center gap-1.5"
+            onClick={() => setActiveTab("stipends")}
+          >
+            <GraduationCap className="h-3.5 w-3.5 text-indigo-500" />
+            Intern Stipends ({allStipends.length})
           </Button>
         </div>
 
@@ -1320,6 +1343,95 @@ export default function PayrollPage() {
                       </tr>
                     );
                   })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Tab 5: Intern Stipends */}
+      {activeTab === "stipends" && (
+        <>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Intern Stipend Disbursements</h2>
+              <p className="text-xs text-slate-500">
+                Unified overview of all intern stipend disbursements across organization cohorts and payroll cycles
+              </p>
+            </div>
+            <Link href="/internships">
+              <Button variant="outline" size="sm" className="gap-2">
+                <GraduationCap className="h-4 w-4 text-indigo-600" />
+                Go to Internships Module
+              </Button>
+            </Link>
+          </div>
+
+          {filteredStipends.length === 0 ? (
+            <EmptyState
+              icon={GraduationCap}
+              title="No intern stipends found"
+              description={
+                searchTerm
+                  ? "No stipend disbursements match your search criteria."
+                  : "Stipend disbursements will appear here when disbursed via Salary Runs or from the Internship module."
+              }
+            />
+          ) : (
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+              <table className="w-full text-left text-sm text-slate-600">
+                <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Intern Name</th>
+                    <th className="px-4 py-3">Program / Code</th>
+                    <th className="px-4 py-3">Period</th>
+                    <th className="px-4 py-3">Stipend Amount</th>
+                    <th className="px-4 py-3">Payment Method & Ref</th>
+                    <th className="px-4 py-3">Disbursed Date</th>
+                    <th className="px-4 py-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredStipends.map((stipend) => (
+                    <tr key={stipend.id} className="hover:bg-slate-50/75 transition-colors">
+                      <td className="px-4 py-3 font-semibold text-slate-900">
+                        {stipend.intern_name}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-600">
+                        <Link
+                          href={`/internships/${stipend.internship_id}`}
+                          className="font-medium text-blue-600 hover:underline"
+                        >
+                          {stipend.internship_title || "Internship Program"}
+                        </Link>
+                        {stipend.internship_code && (
+                          <span className="block font-mono text-slate-400">{stipend.internship_code}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-slate-600">
+                        {stipend.period_month}/{stipend.period_year}
+                      </td>
+                      <td className="px-4 py-3 font-bold text-emerald-600">
+                        ${Number(stipend.stipend_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-600">
+                        <span className="capitalize">{stipend.payment_method.replace("_", " ")}</span>
+                        {stipend.payment_reference && (
+                          <span className="block font-mono text-slate-400">Ref: {stipend.payment_reference}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-500">
+                        {stipend.disbursed_at ? stipend.disbursed_at.slice(0, 10) : "Pending"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <Check className="h-3 w-3" />
+                          {stipend.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

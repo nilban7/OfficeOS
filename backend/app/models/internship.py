@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     Date,
     DateTime,
@@ -24,6 +25,7 @@ from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 if TYPE_CHECKING:
     from app.models.employee import Employee
     from app.models.identity import Organization
+    from app.models.payroll import Payroll
 
 
 class Internship(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -89,6 +91,24 @@ class Internship(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         back_populates="internship",
         cascade="all, delete-orphan",
         foreign_keys="[InternshipReview.internship_id]",
+    )
+    students: Mapped[list["InternshipStudent"]] = relationship(
+        "InternshipStudent",
+        back_populates="internship",
+        cascade="all, delete-orphan",
+        foreign_keys="[InternshipStudent.internship_id]",
+    )
+    documents: Mapped[list["InternshipDocument"]] = relationship(
+        "InternshipDocument",
+        back_populates="internship",
+        cascade="all, delete-orphan",
+        foreign_keys="[InternshipDocument.internship_id]",
+    )
+    stipend_disbursements: Mapped[list["InternshipStipendDisbursement"]] = relationship(
+        "InternshipStipendDisbursement",
+        back_populates="internship",
+        cascade="all, delete-orphan",
+        foreign_keys="[InternshipStipendDisbursement.internship_id]",
     )
 
     __table_args__ = (
@@ -206,4 +226,151 @@ class InternshipReview(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "status IN ('draft', 'submitted', 'acknowledged')",
             name="ck_internship_reviews_status",
         ),
+    )
+
+
+class InternshipStudent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "internship_students"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    internship_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("internships.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    student_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    student_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    institution: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    stipend: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), server_default="0.00", default=Decimal("0.00"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(
+        String(30), server_default="active", default="active", nullable=False
+    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    organization: Mapped["Organization"] = relationship(
+        "Organization", foreign_keys=[organization_id]
+    )
+    internship: Mapped["Internship"] = relationship(
+        "Internship", foreign_keys=[internship_id], back_populates="students"
+    )
+
+    __table_args__ = (
+        UniqueConstraint("organization_id", "id", name="uq_internship_students_org_id"),
+        CheckConstraint(
+            "status IN ('planned', 'active', 'completed', 'terminated')",
+            name="ck_internship_students_status",
+        ),
+    )
+
+
+class InternshipDocument(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "internship_documents"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    internship_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("internships.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    document_type: Mapped[str] = mapped_column(
+        String(100), server_default="other", default="other", nullable=False
+    )
+    intern_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_size: Mapped[int] = mapped_column(BigInteger, server_default="0", default=0, nullable=False)
+    mime_type: Mapped[str] = mapped_column(
+        String(100), server_default="application/pdf", default="application/pdf", nullable=False
+    )
+    file_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    organization: Mapped["Organization"] = relationship(
+        "Organization", foreign_keys=[organization_id]
+    )
+    internship: Mapped["Internship"] = relationship(
+        "Internship", foreign_keys=[internship_id], back_populates="documents"
+    )
+
+    __table_args__ = (
+        UniqueConstraint("organization_id", "id", name="uq_internship_documents_org_id"),
+        CheckConstraint(
+            "document_type IN ('offer_letter', 'agreement_nda', 'id_proof', 'college_noc', 'completion_certificate', 'evaluation_report', 'other')",
+            name="ck_internship_documents_type",
+        ),
+    )
+
+
+class InternshipStipendDisbursement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "internship_stipend_disbursements"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    payroll_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("payrolls.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    internship_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("internships.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    intern_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    period_month: Mapped[int] = mapped_column(Integer, nullable=False)
+    period_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    stipend_amount: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), server_default="0.00", default=Decimal("0.00"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(
+        String(30), server_default="pending", default="pending", nullable=False
+    )
+    payment_method: Mapped[str] = mapped_column(
+        String(50), server_default="bank_transfer", default="bank_transfer", nullable=False
+    )
+    payment_reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    disbursed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    organization: Mapped["Organization"] = relationship(
+        "Organization", foreign_keys=[organization_id]
+    )
+    payroll: Mapped["Payroll | None"] = relationship(
+        "Payroll", foreign_keys=[payroll_id]
+    )
+    internship: Mapped["Internship"] = relationship(
+        "Internship", foreign_keys=[internship_id], back_populates="stipend_disbursements"
+    )
+
+    __table_args__ = (
+        UniqueConstraint("organization_id", "id", name="uq_internship_stipends_org_id"),
+        CheckConstraint(
+            "status IN ('pending', 'approved', 'paid', 'cancelled')",
+            name="ck_internship_stipends_status",
+        ),
+        CheckConstraint("period_month BETWEEN 1 AND 12", name="ck_internship_stipends_month"),
+        CheckConstraint("period_year >= 2020", name="ck_internship_stipends_year"),
     )

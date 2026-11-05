@@ -152,4 +152,15 @@ describe("InternshipDetailPage Component", () => {
     // supervisors count badge
     expect(screen.getByRole("button", { name: /supervisors/i })).toHaveTextContent("1");
   });
+
+  it("shows students, documents, and stipends tabs with counts", async () => {
+    render(<InternshipDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /students \/ interns/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /documents/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /stipends/i })).toBeInTheDocument();
+    });
+  });
 });
+

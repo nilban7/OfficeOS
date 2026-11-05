@@ -6,8 +6,11 @@ import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   CheckCircle,
+  CheckCircle2,
   Eye,
   FileText,
+  GraduationCap,
+  Plus,
   RefreshCw,
   Send,
   Sparkles,
@@ -25,6 +28,7 @@ import { apiClient } from "@/lib/api/client";
 import { API_ENDPOINTS } from "@/lib/api/endpoints";
 import { ROUTES } from "@/constants/routes";
 import type { PayrollRun, PayrollStatus, Payslip, PayslipDisburseRequest } from "@/types/payroll";
+import type { Internship, StipendCreateDisburseRequest, StipendDisbursement } from "@/types/internship";
 
 const STATUS_CONFIG: Record<PayrollStatus, { label: string; className: string }> = {
   draft: { label: "Draft", className: "bg-slate-100 text-slate-700 border-slate-300" },
@@ -61,6 +65,24 @@ export default function PayrollRunDetailPage() {
     payment_reference: "",
   });
 
+  // Intern Stipends in this Run
+  const [stipends, setStipends] = React.useState<StipendDisbursement[]>([]);
+  const [activeInternships, setActiveInternships] = React.useState<Internship[]>([]);
+  const [showInternStipendModal, setShowInternStipendModal] = React.useState(false);
+  const [internStipendLoading, setInternStipendLoading] = React.useState(false);
+  const [internStipendError, setInternStipendError] = React.useState<string | null>(null);
+  const [internStipendForm, setInternStipendForm] = React.useState<StipendCreateDisburseRequest>({
+    internship_id: "",
+    intern_name: "",
+    period_month: 1,
+    period_year: 2026,
+    stipend_amount: "0.00",
+    payroll_id: runId,
+    payment_method: "bank_transfer",
+    payment_reference: "",
+    notes: "",
+  });
+
   const fetchRunDetails = React.useCallback(async () => {
     if (!currentOrganization || !runId) return;
     setIsLoading(true);
@@ -73,6 +95,24 @@ export default function PayrollRunDetailPage() {
       });
       setRun(runRes);
       setPayslips(slipsRes || []);
+
+      // Fetch intern stipends for this run / period
+      try {
+        const stipendsRes = await apiClient.get<any>(API_ENDPOINTS.payroll.runStipends(runId));
+        const stipendsData = (stipendsRes as any)?.data || stipendsRes;
+        setStipends(Array.isArray(stipendsData) ? stipendsData : []);
+      } catch {
+        // non-blocking
+      }
+
+      // Fetch active internships for the disbursement dropdown
+      try {
+        const intRes = await apiClient.get<any>(`${API_ENDPOINTS.internships.list}?page_size=100`);
+        const intData = (intRes as any)?.data || intRes;
+        setActiveInternships(intData?.items || []);
+      } catch {
+        // non-blocking
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load payroll run details");
     } finally {
@@ -83,6 +123,38 @@ export default function PayrollRunDetailPage() {
   React.useEffect(() => {
     fetchRunDetails();
   }, [fetchRunDetails]);
+
+  // When run loads, pre-populate period in internStipendForm
+  React.useEffect(() => {
+    if (run) {
+      setInternStipendForm((prev) => ({
+        ...prev,
+        period_month: run.period_month,
+        period_year: run.period_year,
+      }));
+    }
+  }, [run]);
+
+  const handleDisburseInternStipend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!runId || !internStipendForm.internship_id) return;
+    setInternStipendLoading(true);
+    setInternStipendError(null);
+    try {
+      await apiClient.post(API_ENDPOINTS.payroll.disburseRunStipend(runId), {
+        ...internStipendForm,
+        payroll_id: runId,
+        period_month: run?.period_month || internStipendForm.period_month,
+        period_year: run?.period_year || internStipendForm.period_year,
+      });
+      setShowInternStipendModal(false);
+      await fetchRunDetails();
+    } catch (err: unknown) {
+      setInternStipendError(err instanceof Error ? err.message : "Failed to disburse intern stipend");
+    } finally {
+      setInternStipendLoading(false);
+    }
+  };
 
   // Handle Sync / Recalculate
   const handleSyncRun = async () => {
@@ -150,6 +222,10 @@ export default function PayrollRunDetailPage() {
       return acc + bSum;
     }, 0);
   }, [payslips]);
+
+  const totalStipendsInRun = React.useMemo(() => {
+    return stipends.reduce((acc, s) => acc + Number(s.stipend_amount || 0), 0);
+  }, [stipends]);
 
   if (isOrgLoading || isLoading) {
     return <LoadingState message="Loading payroll batch details..." />;
@@ -272,6 +348,21 @@ export default function PayrollRunDetailPage() {
               </div>
               <h3 className="text-xl font-bold text-amber-700 mt-1">
                 +${totalBonusInRun.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </h3>
+            </CardContent>
+          </Card>
+        )}
+        {totalStipendsInRun > 0 && (
+          <Card className="border border-indigo-200 bg-indigo-50/50">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wider text-indigo-800">
+                  Intern Stipends
+                </p>
+                <GraduationCap className="h-4 w-4 text-indigo-500" />
+              </div>
+              <h3 className="text-xl font-bold text-indigo-700 mt-1">
+                ${totalStipendsInRun.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </h3>
             </CardContent>
           </Card>
@@ -404,6 +495,107 @@ export default function PayrollRunDetailPage() {
         </div>
       </div>
 
+      {/* Intern Stipend Disbursements Section */}
+      <div className="space-y-3 pt-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-slate-900">Intern Stipend Payroll Disbursements</h2>
+              <span className="rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-0.5 text-xs font-semibold">
+                {stipends.length} {stipends.length === 1 ? "Disbursement" : "Disbursements"}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Track and disburse stipends for interns enrolled during period {run.period_month}/{run.period_year}
+            </p>
+          </div>
+
+          <Button
+            onClick={() => {
+              if (activeInternships.length > 0 && !internStipendForm.internship_id) {
+                const first = activeInternships[0];
+                if (first) {
+                  setInternStipendForm((prev) => ({
+                    ...prev,
+                    internship_id: first.id,
+                    intern_name: first.intern_name,
+                    stipend_amount: first.stipend || "0.00",
+                  }));
+                }
+              }
+              setShowInternStipendModal(true);
+            }}
+            size="sm"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Disburse Intern Stipend
+          </Button>
+        </div>
+
+        {stipends.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center">
+            <GraduationCap className="h-8 w-8 text-slate-400 mx-auto mb-2" />
+            <p className="text-sm font-medium text-slate-700">No intern stipends disbursed for this period yet.</p>
+            <p className="text-xs text-slate-500 mt-1">
+              Click &quot;Disburse Intern Stipend&quot; above to disburse monthly stipends to active interns.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <table className="w-full text-left text-sm text-slate-600">
+              <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+                <tr>
+                  <th className="px-4 py-3">Intern Name</th>
+                  <th className="px-4 py-3">Internship Program</th>
+                  <th className="px-4 py-3">Period</th>
+                  <th className="px-4 py-3">Stipend Amount</th>
+                  <th className="px-4 py-3">Payment Method & Ref</th>
+                  <th className="px-4 py-3">Disbursed Date</th>
+                  <th className="px-4 py-3">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {stipends.map((stipend) => (
+                  <tr key={stipend.id} className="hover:bg-slate-50/75 transition-colors">
+                    <td className="px-4 py-3 font-semibold text-slate-900">
+                      {stipend.intern_name}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-600">
+                      {stipend.internship_title || "Internship Program"}
+                      {stipend.internship_code && (
+                        <span className="block font-mono text-slate-400">{stipend.internship_code}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-slate-600">
+                      {run.period_month}/{run.period_year}
+                    </td>
+                    <td className="px-4 py-3 font-bold text-emerald-600">
+                      ${Number(stipend.stipend_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-600">
+                      <span className="capitalize">{stipend.payment_method.replace("_", " ")}</span>
+                      {stipend.payment_reference && (
+                        <span className="block font-mono text-slate-400">Ref: {stipend.payment_reference}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-500">
+                      {stipend.disbursed_at ? stipend.disbursed_at.slice(0, 10) : "Pending"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <CheckCircle2 className="h-3 w-3" />
+                        {stipend.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       {/* Disburse Modal */}
       <Modal
         isOpen={showDisburseModal}
@@ -460,6 +652,135 @@ export default function PayrollRunDetailPage() {
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
               {isDisbursing ? "Processing..." : "Confirm Disbursement"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Disburse Intern Stipend Modal */}
+      <Modal
+        isOpen={showInternStipendModal}
+        onClose={() => { setShowInternStipendModal(false); setInternStipendError(null); }}
+        title="Disburse Intern Stipend in Payroll Run"
+        size="md"
+      >
+        <form onSubmit={handleDisburseInternStipend} className="space-y-4">
+          {internStipendError && (
+            <div className="rounded-md bg-rose-50 p-3 text-sm text-rose-600 border border-rose-200">
+              {internStipendError}
+            </div>
+          )}
+
+          <div>
+            <Label htmlFor="stipend_program">Select Internship *</Label>
+            <select
+              id="stipend_program"
+              required
+              className="mt-1.5 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none"
+              value={internStipendForm.internship_id}
+              onChange={(e) => {
+                const sel = activeInternships.find((i) => i.id === e.target.value);
+                setInternStipendForm((prev) => ({
+                  ...prev,
+                  internship_id: e.target.value,
+                  intern_name: sel?.intern_name || prev.intern_name,
+                  stipend_amount: sel?.stipend || prev.stipend_amount,
+                }));
+              }}
+            >
+              <option value="">Select an internship program...</option>
+              {activeInternships.map((int) => (
+                <option key={int.id} value={int.id}>
+                  {int.code} — {int.title} ({int.intern_name})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <Label htmlFor="stipend_intern_name">Intern Name *</Label>
+            <Input
+              id="stipend_intern_name"
+              required
+              value={internStipendForm.intern_name}
+              onChange={(e) =>
+                setInternStipendForm((prev) => ({ ...prev, intern_name: e.target.value }))
+              }
+              placeholder="e.g. Rahul Sharma"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="stipend_amount">Stipend Amount ($) *</Label>
+              <Input
+                id="stipend_amount"
+                type="number"
+                min={0}
+                step="0.01"
+                required
+                value={internStipendForm.stipend_amount}
+                onChange={(e) =>
+                  setInternStipendForm((prev) => ({ ...prev, stipend_amount: e.target.value }))
+                }
+              />
+            </div>
+            <div>
+              <Label htmlFor="stipend_pay_method">Payment Method</Label>
+              <select
+                id="stipend_pay_method"
+                className="mt-1.5 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none"
+                value={internStipendForm.payment_method}
+                onChange={(e) =>
+                  setInternStipendForm((prev) => ({ ...prev, payment_method: e.target.value }))
+                }
+              >
+                <option value="bank_transfer">Direct Bank Transfer</option>
+                <option value="upi">UPI</option>
+                <option value="wire_transfer">Wire Transfer</option>
+                <option value="cheque">Company Cheque</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="stipend_pay_ref">Payment Reference / UTR Number</Label>
+            <Input
+              id="stipend_pay_ref"
+              placeholder="e.g. UTR-20261105-881"
+              value={internStipendForm.payment_reference || ""}
+              onChange={(e) =>
+                setInternStipendForm((prev) => ({ ...prev, payment_reference: e.target.value }))
+              }
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="stipend_notes">Notes</Label>
+            <Input
+              id="stipend_notes"
+              placeholder="Period stipend disbursement via payroll run"
+              value={internStipendForm.notes || ""}
+              onChange={(e) =>
+                setInternStipendForm((prev) => ({ ...prev, notes: e.target.value }))
+              }
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowInternStipendModal(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={internStipendLoading || !internStipendForm.internship_id}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              {internStipendLoading ? "Disbursing..." : "Confirm Stipend Disbursement"}
             </Button>
           </div>
         </form>

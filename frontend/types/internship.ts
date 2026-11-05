@@ -57,6 +57,8 @@ export interface Internship {
 export interface InternshipDetail extends Internship {
   supervisors: InternshipSupervisor[];
   reviews: InternshipReview[];
+  students?: InternshipStudent[];
+  documents?: InternshipDocument[];
 }
 
 export interface InternshipCreate {
@@ -171,3 +173,121 @@ export interface InternshipReviewListResponse {
   page_size: number;
   total_pages: number;
 }
+
+// ---------------------------------------------------------------------------
+// Student / Cohort Enrolled Interns
+// ---------------------------------------------------------------------------
+
+export interface InternshipStudent {
+  id: string;
+  organization_id: string;
+  internship_id: string;
+  student_name: string;
+  student_email?: string | null;
+  institution?: string | null;
+  stipend: string | number;
+  status: "planned" | "active" | "completed" | "terminated";
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InternshipStudentCreate {
+  student_name: string;
+  student_email?: string | null;
+  institution?: string | null;
+  stipend?: number | string;
+  status?: "planned" | "active" | "completed" | "terminated";
+  notes?: string | null;
+}
+
+export interface InternshipStudentUpdate {
+  student_name?: string;
+  student_email?: string | null;
+  institution?: string | null;
+  stipend?: number | string;
+  status?: "planned" | "active" | "completed" | "terminated";
+  notes?: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Documents
+// ---------------------------------------------------------------------------
+
+export type InternshipDocumentType =
+  | "offer_letter"
+  | "agreement_nda"
+  | "id_proof"
+  | "college_noc"
+  | "completion_certificate"
+  | "evaluation_report"
+  | "other";
+
+export interface InternshipDocument {
+  id: string;
+  organization_id: string;
+  internship_id: string;
+  title: string;
+  document_type: InternshipDocumentType;
+  intern_name?: string | null;
+  file_name: string;
+  file_size: number;
+  mime_type: string;
+  file_url?: string | null;
+  notes?: string | null;
+  created_at: string;
+}
+
+export interface InternshipDocumentCreate {
+  title: string;
+  document_type: InternshipDocumentType;
+  intern_name?: string | null;
+  file_name: string;
+  file_size?: number;
+  mime_type?: string;
+  file_url?: string | null;
+  notes?: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Stipend Disbursements
+// ---------------------------------------------------------------------------
+
+export interface StipendDisbursement {
+  id: string;
+  organization_id: string;
+  payroll_id?: string | null;
+  internship_id: string;
+  intern_name: string;
+  period_month: number;
+  period_year: number;
+  stipend_amount: string | number;
+  status: "pending" | "approved" | "paid" | "cancelled";
+  payment_method: string;
+  payment_reference?: string | null;
+  disbursed_at?: string | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  internship_title?: string | null;
+  internship_code?: string | null;
+}
+
+export interface StipendDisburseRequest {
+  payment_method?: string;
+  payment_reference?: string | null;
+  notes?: string | null;
+}
+
+export interface StipendCreateDisburseRequest {
+  internship_id: string;
+  intern_name: string;
+  period_month: number;
+  period_year: number;
+  stipend_amount: number | string;
+  payroll_id?: string | null;
+  payment_method?: string;
+  payment_reference?: string | null;
+  notes?: string | null;
+}
+
