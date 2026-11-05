@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Handshake,
   Plus,
@@ -53,6 +54,7 @@ const HEALTH_COLORS: Record<DeliveryHealth, { badge: string; text: string }> = {
 };
 
 export default function EngagementsCommandCenterPage() {
+  const router = useRouter();
   const { currentOrganization } = useOrganization();
   const [overview, setOverview] = React.useState<EngagementOverview | null>(null);
   const [engagements, setEngagements] = React.useState<ClientEngagementSummary[]>([]);
@@ -313,10 +315,18 @@ export default function EngagementsCommandCenterPage() {
             const healthBadge = HEALTH_COLORS[item.delivery_health] || { badge: "default", text: item.delivery_health };
 
             return (
-              <Link
+              <div
                 key={item.id}
-                href={`/engagements/${item.id}`}
-                className="block group"
+                role="button"
+                tabIndex={0}
+                onClick={() => router.push(`/engagements/${item.id}`)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    router.push(`/engagements/${item.id}`);
+                  }
+                }}
+                className="block group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 rounded-xl"
               >
                 <Card hover className="p-4 sm:p-5 transition-all">
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -377,7 +387,7 @@ export default function EngagementsCommandCenterPage() {
                     </div>
                   </div>
                 </Card>
-              </Link>
+              </div>
             );
           })}
         </div>

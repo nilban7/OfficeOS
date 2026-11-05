@@ -1,21 +1,53 @@
 import React from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor, cleanup, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { EngagementChatPopup } from "@/components/engagements/engagement-chat-popup";
 import { apiClient } from "@/lib/api/client";
 import type { ClientEngagementDetail } from "@/types/engagement";
 
+class MockWebSocket {
+  static OPEN = 1;
+  static CONNECTING = 0;
+  static CLOSING = 2;
+  static CLOSED = 3;
+  static instances: MockWebSocket[] = [];
+  url: string;
+  readyState = 1; // WebSocket.OPEN
+  send = vi.fn();
+  close = vi.fn();
+  onopen: (() => void) | null = null;
+  onmessage: ((event: { data: string }) => void) | null = null;
+  onclose: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+
+  constructor(url: string) {
+    this.url = url;
+    MockWebSocket.instances.push(this);
+    setTimeout(() => {
+      if (this.onopen) this.onopen();
+    }, 10);
+  }
+}
+
+// @ts-expect-error Mocking WebSocket in node/jsdom environment
+global.WebSocket = MockWebSocket;
+
+let mockUser = { id: "00000000-0000-0000-0000-000000000001", email: "officeos@gmail.com" };
+let mockMembership: any = { id: "mem-1", role: "owner" };
+
 vi.mock("@/hooks/use-organization", () => ({
   useOrganization: () => ({
     currentOrganization: { id: "org-test-123", name: "Acme Corp" },
+    membership: mockMembership,
     permissions: ["engagements.view"],
   }),
 }));
 
 vi.mock("@/hooks/use-auth", () => ({
   useAuth: () => ({
-    user: { id: "user-1", fullName: "Niladri Banerjee", email: "officeos@gmail.com" },
+    user: mockUser,
+    isAuthenticated: true,
   }),
 }));
 
@@ -26,26 +58,7 @@ vi.mock("@/lib/api/client", () => ({
   },
 }));
 
-vi.mock("@/lib/supabase/client", () => {
-  const mockChannel = {
-    on: vi.fn().mockReturnThis(),
-    subscribe: vi.fn().mockImplementation((cb) => {
-      if (typeof cb === "function") cb("SUBSCRIBED");
-      return mockChannel;
-    }),
-    send: vi.fn().mockResolvedValue("ok"),
-    unsubscribe: vi.fn(),
-  };
-
-  return {
-    getSupabaseBrowserClient: () => ({
-      channel: vi.fn().mockReturnValue(mockChannel),
-      removeChannel: vi.fn(),
-    }),
-  };
-});
-
-describe("EngagementChatPopup Component", () => {
+describe("EngagementChatPopup Component - Two Separate Windows", () => {
   const mockEngagement: ClientEngagementDetail = {
     id: "eng-100",
     engagement_code: "ENG-0001",
@@ -61,37 +74,11 @@ describe("EngagementChatPopup Component", () => {
     created_at: "2026-10-01T00:00:00Z",
     invoiced_amount: 50000,
     collected_amount: 40000,
-    proposals: [
-      {
-        id: "prop-1",
-        organization_id: "org-test-123",
-        engagement_id: "eng-100",
-        proposal_number: "PRP-0001",
-        title: "Sprint Delivery & SOW",
-        version: 1,
-        status: "accepted",
-        total_amount: 120000,
-        currency: "INR",
-        created_at: "2026-10-02T00:00:00Z",
-      },
-    ],
+    proposals: [],
     agreements: [],
     weekly_reports: [],
     uat_sessions: [],
-    issues: [
-      {
-        id: "issue-1",
-        engagement_id: "eng-100",
-        issue_number: "ISS-0001",
-        title: "Auth Token Expiration Delay",
-        description: "Need shorter refresh window",
-        issue_type: "clarification",
-        priority: "medium",
-        status: "open",
-        reported_by_name: "Dr. Smith",
-        created_at: "2026-10-15T00:00:00Z",
-      },
-    ],
+    issues: [],
     change_requests: [],
     handover: null,
   };
@@ -119,47 +106,25 @@ describe("EngagementChatPopup Component", () => {
     ],
   };
 
-  const mockMessages = [
+  const mockClientMessages = [
     {
-      id: "msg-1",
-      organization_id: "org-test-123",
-      engagement_id: "eng-100",
-      project_id: "proj-1",
-      sender_name: "Aritra Das",
-      sender_role: "Lead Engineer",
-      sender_type: "member",
-      channel: "general",
-      message: "Sprint 2 development on track for delivery next Tuesday.",
-      created_at: "2026-10-20T10:30:00Z",
-    },
-    {
-      id: "msg-2",
+      id: "msg-client-1",
       organization_id: "org-test-123",
       engagement_id: "eng-100",
       project_id: "proj-1",
       sender_name: "Dr. Smith",
       sender_role: "Chief Information Officer",
       sender_type: "client",
-      channel: "proposal",
-      proposal_title: "Sprint Delivery & SOW",
-      message: "We have reviewed proposal deliverables and accepted milestones.",
-      created_at: "2026-10-20T11:00:00Z",
+      channel: "general",
+      visibility: "client",
+      message: "Client update: SOW approved and milestones acknowledged.",
+      created_at: "2026-10-20T10:00:00Z",
     },
   ];
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    (apiClient.get as unknown as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
-      if (url.includes("/chat-participants")) {
-        return Promise.resolve(mockParticipants);
-      }
-      if (url.includes("/messages")) {
-        return Promise.resolve(mockMessages);
-      }
-      return Promise.resolve([]);
-    });
-    (apiClient.post as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
-      id: "msg-new",
+  const mockInternalMessages = [
+    {
+      id: "msg-team-1",
       organization_id: "org-test-123",
       engagement_id: "eng-100",
       project_id: "proj-1",
@@ -167,122 +132,183 @@ describe("EngagementChatPopup Component", () => {
       sender_role: "Lead Engineer",
       sender_type: "member",
       channel: "general",
-      message: "New update sent successfully",
-      created_at: new Date().toISOString(),
+      visibility: "internal",
+      message: "Internal team only: Backend deployment planned for 11 PM tonight.",
+      created_at: "2026-10-20T11:00:00Z",
+    },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUser = { id: "00000000-0000-0000-0000-000000000001", email: "officeos@gmail.com" };
+    mockMembership = { id: "mem-1", role: "owner" };
+    MockWebSocket.instances = [];
+
+    (apiClient.get as unknown as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url.includes("/chat-participants")) {
+        return Promise.resolve(mockParticipants);
+      }
+      if (url.includes("/messages")) {
+        if (url.includes("conversation=internal")) {
+          return Promise.resolve(mockInternalMessages);
+        }
+        return Promise.resolve(mockClientMessages);
+      }
+      return Promise.resolve([]);
+    });
+
+    (apiClient.post as unknown as ReturnType<typeof vi.fn>).mockImplementation((url: string, body?: any) => {
+      if (url.includes("/ws-ticket")) {
+        const isInternal = url.includes("conversation=internal");
+        return Promise.resolve({
+          ticket: isInternal ? "ticket-internal-xyz" : "ticket-client-abc",
+          expires_in: 60,
+          engagement_id: "eng-100",
+          conversation: isInternal ? "internal" : "client",
+        });
+      }
+      return Promise.resolve({
+        id: "msg-created-rest",
+        organization_id: "org-test-123",
+        engagement_id: "eng-100",
+        sender_name: body?.sender_name || "Aritra Das",
+        sender_role: body?.sender_role || "Lead Engineer",
+        sender_type: body?.sender_type || "member",
+        channel: "general",
+        visibility: body?.visibility || "client",
+        message: body?.message || "Rest sent message",
+        client_msg_id: body?.client_msg_id,
+        created_at: new Date().toISOString(),
+      });
     });
   });
 
-  it("renders the floating chat trigger button in the bottom right corner", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("renders the floating chat trigger button", () => {
     render(<EngagementChatPopup engagement={mockEngagement} />);
     const trigger = screen.getByRole("button", { name: /open project & client chat window/i });
     expect(trigger).toBeInTheDocument();
   });
 
-  it("opens the chatting window when clicking the floating symbol", async () => {
-    render(<EngagementChatPopup engagement={mockEngagement} />);
-    const trigger = screen.getByRole("button", { name: /open project & client chat window/i });
-    fireEvent.click(trigger);
-
-    await waitFor(() => {
-      expect(screen.getByText("Healthcare SaaS Platform")).toBeInTheDocument();
-      expect(screen.getByText(/ENG-0001 • Apex Healthcare/i)).toBeInTheDocument();
-    });
-
-    expect(screen.getByText(/Sprint 2 development on track/i)).toBeInTheDocument();
-    expect(screen.getByText(/We have reviewed proposal deliverables/i)).toBeInTheDocument();
-  });
-
-  it("renders channel tabs for proposal discussions and clearing disputes", async () => {
+  it("opens the chatting window with two toggleable tabs: Client Chat and Team Chat", async () => {
     render(<EngagementChatPopup engagement={mockEngagement} initialOpen={true} />);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /📋 Proposals/i })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /⚖️ Disputes/i })).toBeInTheDocument();
+      expect(screen.getByTitle(/Client Chat - Visible to project team/i)).toBeInTheDocument();
+      expect(screen.getByTitle(/Team Chat - Exclusively for internal project team/i)).toBeInTheDocument();
     });
 
-    // Click Proposals tab
-    fireEvent.click(screen.getByRole("button", { name: /📋 Proposals/i }));
-    expect(screen.getByText(/Discuss Proposal:/i)).toBeInTheDocument();
+    // Default active tab is Client Chat
+    expect(
+      screen.getByText("Client update: SOW approved and milestones acknowledged.")
+    ).toBeInTheDocument();
 
-    // Click Disputes tab
-    fireEvent.click(screen.getByRole("button", { name: /⚖️ Disputes/i }));
-    expect(screen.getByText(/Clear Dispute \/ Issue:/i)).toBeInTheDocument();
+    // Verify visibility toggle button is NOT rendered
+    expect(screen.queryByText(/Client & Team Visible/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Internal Team Only/i)).not.toBeInTheDocument();
   });
 
-  it("toggles the participants list showing project members and client contacts", async () => {
-    render(<EngagementChatPopup engagement={mockEngagement} initialOpen={true} />);
-
-    await waitFor(() => {
-      expect(screen.getByTitle("View Project Members and Client Contacts")).toBeInTheDocument();
-    });
-
-    const participantsBtn = screen.getByTitle("View Project Members and Client Contacts");
-    fireEvent.click(participantsBtn);
-
-    await waitFor(() => {
-      expect(screen.getByText(/Project Team Members/i)).toBeInTheDocument();
-      expect(screen.getAllByText("Aritra Das").length).toBeGreaterThanOrEqual(1);
-      expect(screen.getByText(/Client Stakeholders/i)).toBeInTheDocument();
-      expect(screen.getAllByText("Dr. Smith").length).toBeGreaterThanOrEqual(1);
-    });
-  });
-
-  it("allows typing and sending a chat message between project members and client", async () => {
+  it("switches to Team Chat tab and loads internal messages independently", async () => {
     const user = userEvent.setup();
     render(<EngagementChatPopup engagement={mockEngagement} initialOpen={true} />);
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText(/Type message to project members/i)).toBeInTheDocument();
+      expect(screen.getByTitle(/Team Chat - Exclusively for internal project team/i)).toBeInTheDocument();
     });
 
-    const input = screen.getByPlaceholderText(/Type message to project members/i);
-    await user.type(input, "Checking in on project status with client");
-
-    const sendBtn = screen.getByTitle("Send message");
-    await user.click(sendBtn);
+    const teamTab = screen.getByTitle(/Team Chat - Exclusively for internal project team/i);
+    await user.click(teamTab);
 
     await waitFor(() => {
-      expect(apiClient.post).toHaveBeenCalledWith(
-        "/engagements/eng-100/messages",
-        expect.objectContaining({
-          message: "Checking in on project status with client",
-          channel: "general",
-        }),
-        expect.anything()
+      expect(
+        screen.getByText("Internal team only: Backend deployment planned for 11 PM tonight.")
+      ).toBeInTheDocument();
+    });
+
+    // Verify Client Chat messages are not shown in Team Chat
+    expect(
+      screen.queryByText("Client update: SOW approved and milestones acknowledged.")
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides Team Chat tab when switched to Client Contact perspective in testing account", async () => {
+    const user = userEvent.setup();
+    render(<EngagementChatPopup engagement={mockEngagement} initialOpen={true} />);
+
+    await waitFor(() => {
+      expect(screen.getByTitle(/Team Chat - Exclusively for internal project team/i)).toBeInTheDocument();
+      expect(screen.getByTitle(/Test as Client Contact/i)).toBeInTheDocument();
+    });
+
+    const clientPerspectiveBtn = screen.getByTitle(/Test as Client Contact/i);
+    await user.click(clientPerspectiveBtn);
+
+    // In Client Contact perspective, Team Chat tab must be hidden
+    await waitFor(() => {
+      expect(screen.queryByTitle(/Team Chat - Exclusively for internal project team/i)).not.toBeInTheDocument();
+    });
+  });
+
+  it("sends message over WebSocket to the active conversation tab", async () => {
+    const user = userEvent.setup();
+    render(<EngagementChatPopup engagement={mockEngagement} initialOpen={true} />);
+
+    // Wait until WebSocket is connected (Live)
+    await waitFor(() => {
+      expect(screen.getByTitle("WebSocket connected (real-time active)")).toBeInTheDocument();
+    });
+
+    const input = screen.getByPlaceholderText(/Type message to client & team/i);
+    await user.type(input, "Checking in on milestone deliveries");
+
+    const sendBtn = screen.getByTitle(/Send message/i);
+    await user.click(sendBtn);
+
+    const activeWs = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+    expect(activeWs).toBeDefined();
+    if (activeWs) {
+      expect(activeWs.send).toHaveBeenCalledWith(
+        expect.stringContaining('"visibility":"client"')
       );
-    });
+    }
   });
 
-  it("subscribes to Supabase Realtime channel and displays the Live status indicator", async () => {
+  it("receives real-time broadcast message over WebSocket into active conversation without refresh", async () => {
     render(<EngagementChatPopup engagement={mockEngagement} initialOpen={true} />);
 
     await waitFor(() => {
-      expect(screen.getByText("Live")).toBeInTheDocument();
-      expect(screen.getByTitle("Connected to Supabase Live Realtime Database")).toBeInTheDocument();
+      expect(screen.getByTitle("WebSocket connected (real-time active)")).toBeInTheDocument();
     });
-  });
 
-  it("optimistically renders sent message immediately in the UI without waiting for server response", async () => {
-    const user = userEvent.setup();
-    // Simulate a slow post response
-    (apiClient.post as any).mockImplementationOnce(
-      () => new Promise((resolve) => setTimeout(resolve, 5000))
-    );
+    const activeWs = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+    expect(activeWs).toBeDefined();
 
-    render(<EngagementChatPopup engagement={mockEngagement} initialOpen={true} />);
+    const incomingBroadcast = {
+      type: "chat_message",
+      data: {
+        id: "broadcast-msg-client-999",
+        organization_id: "org-test-123",
+        engagement_id: "eng-100",
+        sender_name: "Dr. Smith",
+        sender_role: "Chief Information Officer",
+        sender_type: "client",
+        channel: "general",
+        visibility: "client",
+        message: "Real-time client broadcast: Milestone accepted.",
+        client_msg_id: "client-token-999",
+        created_at: new Date().toISOString(),
+      },
+    };
+
+    act(() => {
+      activeWs?.onmessage?.({ data: JSON.stringify(incomingBroadcast) });
+    });
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText(/Type message to project members/i)).toBeInTheDocument();
+      expect(screen.getByText("Real-time client broadcast: Milestone accepted.")).toBeInTheDocument();
     });
-
-    const input = screen.getByPlaceholderText(/Type message to project members/i);
-    await user.type(input, "Instant optimistic message test!");
-
-    const sendBtn = screen.getByTitle("Send message");
-    await user.click(sendBtn);
-
-    // The message should appear immediately on screen even though the API response is still pending
-    expect(screen.getByText("Instant optimistic message test!")).toBeInTheDocument();
   });
 });
-

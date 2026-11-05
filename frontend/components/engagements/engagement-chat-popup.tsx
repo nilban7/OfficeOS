@@ -12,20 +12,26 @@ import {
   RefreshCw,
   Building2,
   Briefcase,
+  Lock,
+  ShieldCheck,
+  Wifi,
+  WifiOff,
+  UserCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
+import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api/client";
 import { API_ENDPOINTS } from "@/lib/api/endpoints";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import type { RealtimeChannel } from "@supabase/supabase-js";
+import { env } from "@/lib/config/env";
 import type {
   ClientEngagementDetail,
   EngagementChatMessage,
   ChatParticipantsResponse,
   ChatParticipant,
-  ChatChannel,
+  WsTicketResponse,
+  ChatConnectionState,
+  ChatConversation,
 } from "@/types/engagement";
 
 interface EngagementChatPopupProps {
@@ -37,68 +43,136 @@ export function EngagementChatPopup({
   engagement,
   initialOpen = false,
 }: EngagementChatPopupProps) {
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, membership } = useOrganization();
   const { user } = useAuth();
-  const defaultUserName =
-    user?.fullName ||
-    (user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "") ||
-    "Project Member";
-
   const [isOpen, setIsOpen] = React.useState(initialOpen);
-  const [activeChannel, setActiveChannel] = React.useState<"all" | ChatChannel>("all");
   const [showParticipants, setShowParticipants] = React.useState(false);
 
-  // Messages & participants
-  const [messages, setMessages] = React.useState<EngagementChatMessage[]>([]);
+  // Active conversation tab: "client" (Client Chat) or "internal" (Team Chat)
+  const [activeTab, setActiveTab] = React.useState<ChatConversation>("client");
+
+  // Dual-perspective testing switcher for testing account
+  // Testing account: officeos@gmail.com, auth user 00000000-0000-0000-0000-000000000001, or organization owner/admin
+  const isTestingAccount = React.useMemo(() => {
+    if (!user) return false;
+    const testEmails = ["officeos@gmail.com", "aritra@example.com", "admin@officeos.com"];
+    const testIds = ["00000000-0000-0000-0000-000000000001"];
+    const isOwnerOrAdmin = membership?.role === "owner" || membership?.role === "admin";
+    return (
+      (user.email && testEmails.includes(user.email.toLowerCase())) ||
+      testIds.includes(user.id) ||
+      isOwnerOrAdmin
+    );
+  }, [user, membership]);
+
+  // Simulated perspective for testing: "member" or "client"
+  const [testPerspective, setTestPerspective] = React.useState<"member" | "client">("member");
+
+  // Determine if the user is authorized to view & access Team Chat
+  // If simulated as client in testing mode, Team Chat is forbidden and hidden
+  const canAccessTeamChat = React.useMemo(() => {
+    if (isTestingAccount && testPerspective === "client") {
+      return false;
+    }
+    // Organization members/employees can access Team Chat
+    if (membership) {
+      return true;
+    }
+    // If not testing account and not membership, default to false (client user)
+    return false;
+  }, [isTestingAccount, testPerspective, membership]);
+
+  // If user loses permission to view Team Chat (e.g. toggled to Client perspective), switch tab to client
+  React.useEffect(() => {
+    if (!canAccessTeamChat && activeTab === "internal") {
+      setActiveTab("client");
+    }
+  }, [canAccessTeamChat, activeTab]);
+
+  // Independent message histories for Client Chat and Team Chat
+  const [clientMessages, setClientMessages] = React.useState<EngagementChatMessage[]>([]);
+  const [teamMessages, setTeamMessages] = React.useState<EngagementChatMessage[]>([]);
   const [participants, setParticipants] = React.useState<ChatParticipant[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
   const [isSending, setIsSending] = React.useState(false);
-  const [isRealtimeConnected, setIsRealtimeConnected] = React.useState(false);
-  const [typingUser, setTypingUser] = React.useState<string | null>(null);
 
-  // New message form state
+  // Real-time connection state
+  const [connectionState, setConnectionState] = React.useState<ChatConnectionState>("connecting");
+  const wsRef = React.useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const pingIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+  const isComponentMounted = React.useRef(true);
+
+  // Form input state
   const [inputText, setInputText] = React.useState("");
-  const [senderType, setSenderType] = React.useState<"member" | "client">("member");
-  const [senderName, setSenderName] = React.useState(defaultUserName);
-  const [senderRole, setSenderRole] = React.useState("Project Member");
-  const [selectedProposalId, setSelectedProposalId] = React.useState<string>("");
-  const [selectedIssueId, setSelectedIssueId] = React.useState<string>("");
 
-  const channelRef = React.useRef<RealtimeChannel | null>(null);
-  const lastTypingEmitRef = React.useRef<number>(0);
-  const typingTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
-  React.useEffect(() => {
-    if (defaultUserName && senderType === "member") {
-      setSenderName(defaultUserName);
-    }
-  }, [defaultUserName, senderType]);
+  // Helper to construct WebSocket URL
+  const getWsUrl = React.useCallback(
+    (ticket: string, conversation: ChatConversation) => {
+      let wsProto = "ws:";
+      let host = "localhost:8000";
 
-  // Load chat messages
-  const fetchMessages = React.useCallback(async () => {
-    if (!currentOrganization?.id || !engagement.id) return;
-    try {
-      const res = await apiClient.get<EngagementChatMessage[]>(
-        API_ENDPOINTS.engagements.messages(engagement.id),
-        {
-          params: activeChannel !== "all" ? { channel: activeChannel } : undefined,
-          organizationId: currentOrganization.id,
-        }
-      );
-      if (Array.isArray(res)) {
-        setMessages((prev) => {
-          // Merge while preserving any optimistic pending messages
-          const pendingOptimistic = prev.filter(
-            (p) => p.id.startsWith("temp-") && !res.some((r) => r.message === p.message)
-          );
-          return [...res, ...pendingOptimistic];
-        });
+      if (typeof window !== "undefined") {
+        const isHttps = window.location.protocol === "https:";
+        wsProto = isHttps ? "wss:" : "ws:";
+        host = window.location.host;
       }
-    } catch {
-      // Silently fail on network poll
-    }
-  }, [currentOrganization?.id, engagement.id, activeChannel]);
+
+      if (env.apiUrl && (env.apiUrl.startsWith("http://") || env.apiUrl.startsWith("https://"))) {
+        try {
+          const parsed = new URL(env.apiUrl);
+          wsProto = parsed.protocol === "https:" ? "wss:" : "ws:";
+          host = parsed.host;
+        } catch {
+          // Fallback to window host
+        }
+      }
+
+      return `${wsProto}//${host}/api/v1/engagements/${engagement.id}/ws?ticket=${encodeURIComponent(
+        ticket
+      )}&conversation=${conversation}`;
+    },
+    [engagement.id]
+  );
+
+  // Load chat messages: strictly fetches the ENTIRE message history for the specified conversation
+  const fetchMessages = React.useCallback(
+    async (targetConv: ChatConversation = activeTab) => {
+      if (!currentOrganization?.id || !engagement.id) return;
+      try {
+        const endpoint = `${API_ENDPOINTS.engagements.messages(
+          engagement.id
+        )}?conversation=${targetConv}`;
+        const res = await apiClient.get<EngagementChatMessage[]>(endpoint, {
+          organizationId: currentOrganization.id,
+        });
+
+        if (Array.isArray(res)) {
+          const setTargetMessages =
+            targetConv === "internal" ? setTeamMessages : setClientMessages;
+          setTargetMessages((prev) => {
+            if (prev.length === 0) return res;
+            const existingIds = new Set(res.map((m) => m.id));
+            const existingClientMsgIds = new Set(
+              res.filter((m) => m.client_msg_id).map((m) => m.client_msg_id)
+            );
+            // Keep optimistic messages that haven't shown up in REST yet
+            const pendingOptimistic = prev.filter(
+              (p) =>
+                !existingIds.has(p.id) &&
+                (!p.client_msg_id || !existingClientMsgIds.has(p.client_msg_id))
+            );
+            return [...res, ...pendingOptimistic];
+          });
+        }
+      } catch {
+        // Silently handle temporary network error
+      }
+    },
+    [currentOrganization?.id, engagement.id, activeTab]
+  );
 
   // Load participants
   const fetchParticipants = React.useCallback(async () => {
@@ -116,236 +190,286 @@ export function EngagementChatPopup({
     }
   }, [currentOrganization?.id, engagement.id]);
 
-  // Initial load on open
-  React.useEffect(() => {
-    if (isOpen) {
-      setIsLoading(true);
-      Promise.all([fetchMessages(), fetchParticipants()]).finally(() => {
-        setIsLoading(false);
-      });
-    }
-  }, [isOpen, fetchMessages, fetchParticipants]);
+  // Establish persistent WebSocket connection for the active conversation
+  const connectWebSocket = React.useCallback(
+    async (targetConv: ChatConversation = activeTab) => {
+      if (!currentOrganization?.id || !engagement.id || !isOpen) return;
 
-  // Supabase Realtime live sync & peer broadcast channel
-  React.useEffect(() => {
-    if (!isOpen || !engagement.id) return;
-
-    const supabase = getSupabaseBrowserClient();
-    setIsRealtimeConnected(false);
-
-    const channel = supabase.channel(`engagement_chat_${engagement.id}`, {
-      config: {
-        broadcast: { self: false },
-      },
-    });
-
-    channelRef.current = channel;
-
-    // 1. Instant sub-50ms peer broadcast delivery
-    channel.on("broadcast", { event: "new_message" }, ({ payload }) => {
-      const incoming = payload as EngagementChatMessage;
-      if (!incoming || !incoming.id) return;
-
-      setMessages((prev) => {
-        if (prev.some((m) => m.id === incoming.id)) return prev;
-        return [...prev, incoming];
-      });
-    });
-
-    // 2. Realtime typing indicators
-    channel.on("broadcast", { event: "typing" }, ({ payload }) => {
-      const typingName = payload?.user as string | undefined;
-      if (typingName && typingName !== senderName) {
-        setTypingUser(typingName);
-        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-        typingTimeoutRef.current = setTimeout(() => {
-          setTypingUser(null);
-        }, 2500);
+      // Clean up any existing connection
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
       }
-    });
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+        pingIntervalRef.current = null;
+      }
 
-    // 3. Supabase Postgres Change Data Capture (CDC) Realtime listener
-    channel.on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "engagement_chat_messages",
-        filter: `engagement_id=eq.${engagement.id}`,
-      },
-      (payload) => {
-        const newRow = payload.new as any;
-        if (!newRow || !newRow.id) return;
+      try {
+        setConnectionState("connecting");
+        // 1. Obtain short-lived, single-use ticket from authenticated REST endpoint
+        const ticketRes = await apiClient.post<WsTicketResponse>(
+          `${API_ENDPOINTS.engagements.wsTicket(engagement.id)}?conversation=${targetConv}`,
+          {},
+          { organizationId: currentOrganization.id }
+        );
 
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === newRow.id)) return prev;
+        if (!ticketRes || !ticketRes.ticket) {
+          console.warn("[ChatWS] Failed to obtain WebSocket ticket for engagement", engagement.id);
+          setConnectionState("offline");
+          return;
+        }
 
-          // Reconcile matching optimistic temporary item
-          const optimisticIndex = prev.findIndex(
-            (m) =>
-              m.id.startsWith("temp-") &&
-              m.message === newRow.message &&
-              m.sender_name === newRow.sender_name
+        // 2. Open WebSocket connection
+        const wsUrl = getWsUrl(ticketRes.ticket, targetConv);
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          if (!isComponentMounted.current) return;
+          console.info(
+            `[ChatWS] WebSocket connection established for engagement ${engagement.id} [${targetConv}]`
           );
+          setConnectionState("connected");
 
-          if (optimisticIndex >= 0 && prev[optimisticIndex]) {
-            const next = [...prev];
-            const existing = prev[optimisticIndex]!;
-            next[optimisticIndex] = {
-              ...existing,
-              id: String(newRow.id),
-              created_at: String(newRow.created_at || existing.created_at),
-            };
-            return next;
+          // 3. Start 25s ping-pong heartbeat to prevent Render 100s idle proxy timeout
+          const pId = setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: "ping" }));
+            }
+          }, 25000);
+          if (typeof (pId as unknown as { unref?: () => void }).unref === "function") {
+            (pId as unknown as { unref: () => void }).unref();
+          }
+          pingIntervalRef.current = pId;
+        };
+
+        ws.onmessage = (event) => {
+          if (!isComponentMounted.current) return;
+          try {
+            const payload = JSON.parse(event.data);
+            if (payload.type === "chat_message" && payload.data) {
+              const incoming: EngagementChatMessage = payload.data;
+              const incomingConv = incoming.visibility === "internal" ? "internal" : "client";
+              console.info(
+                `[ChatWS] Real-time message received via WebSocket (${incomingConv}):`,
+                incoming.id
+              );
+
+              const updateMsgList = (prev: EngagementChatMessage[]) => {
+                const matchIndex = prev.findIndex(
+                  (m) =>
+                    m.id === incoming.id ||
+                    (m.client_msg_id &&
+                      incoming.client_msg_id &&
+                      m.client_msg_id === incoming.client_msg_id)
+                );
+
+                if (matchIndex !== -1) {
+                  const updated = [...prev];
+                  updated[matchIndex] = incoming;
+                  return updated;
+                }
+                return [...prev, incoming];
+              };
+
+              if (incomingConv === "internal") {
+                setTeamMessages(updateMsgList);
+              } else {
+                setClientMessages(updateMsgList);
+              }
+            } else if (payload.type === "error") {
+              console.error("[ChatWS] WebSocket error received from backend:", payload.message);
+            }
+          } catch (err) {
+            console.warn("[ChatWS] Failed to parse WebSocket frame:", err);
+          }
+        };
+
+        ws.onclose = (event) => {
+          if (!isComponentMounted.current) return;
+          console.info(
+            `[ChatWS] WebSocket closed for engagement ${engagement.id} [${targetConv}], code: ${event.code}`
+          );
+          if (pingIntervalRef.current) {
+            clearInterval(pingIntervalRef.current);
+            pingIntervalRef.current = null;
           }
 
-          const incomingMsg: EngagementChatMessage = {
-            id: newRow.id,
-            organization_id: newRow.organization_id || currentOrganization?.id || "",
-            engagement_id: newRow.engagement_id || engagement.id,
-            project_id: newRow.project_id ?? null,
-            sender_profile_id: newRow.sender_profile_id ?? null,
-            sender_name: newRow.sender_name || "Unknown",
-            sender_role: newRow.sender_role || "Member",
-            sender_type: newRow.sender_type || "member",
-            channel: newRow.channel || "general",
-            message: newRow.message || "",
-            attachments: newRow.attachments,
-            proposal_id: newRow.proposal_id ?? null,
-            issue_id: newRow.issue_id ?? null,
-            created_at: newRow.created_at || new Date().toISOString(),
-          };
+          if (isOpen) {
+            setConnectionState("reconnecting");
+            reconnectTimeoutRef.current = setTimeout(() => {
+              if (isComponentMounted.current && isOpen) {
+                console.info("[ChatWS] Reconnecting and synchronizing entire history...");
+                connectWebSocket(targetConv);
+                fetchMessages(targetConv);
+              }
+            }, 3000);
+          } else {
+            setConnectionState("offline");
+          }
+        };
 
-          return [...prev, incomingMsg];
-        });
+        ws.onerror = () => {
+          if (!isComponentMounted.current) return;
+          console.warn("[ChatWS] WebSocket error occurred for engagement:", engagement.id);
+          setConnectionState("reconnecting");
+        };
+      } catch (err) {
+        console.warn("[ChatWS] Failed to initiate WebSocket connection:", err);
+        if (isComponentMounted.current && isOpen) {
+          setConnectionState("reconnecting");
+          reconnectTimeoutRef.current = setTimeout(() => {
+            if (isComponentMounted.current && isOpen) {
+              connectWebSocket(targetConv);
+              fetchMessages(targetConv);
+            }
+          }, 3000);
+        }
       }
-    );
+    },
+    [currentOrganization?.id, engagement.id, isOpen, getWsUrl, fetchMessages, activeTab]
+  );
 
-    channel.subscribe((status) => {
-      setIsRealtimeConnected(status === "SUBSCRIBED");
-    });
-
-    // Fallback heartbeat: refresh every 25s as safety net while Realtime handles live events
-    const interval = setInterval(() => {
-      void fetchMessages();
-    }, 25000);
+  // On open or activeTab switch: synchronize full history and reconnect WebSocket for active conversation
+  React.useEffect(() => {
+    isComponentMounted.current = true;
+    if (isOpen) {
+      setIsLoading(true);
+      Promise.all([fetchMessages(activeTab), fetchParticipants()]).finally(() => {
+        setIsLoading(false);
+      });
+      connectWebSocket(activeTab);
+    } else {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+      }
+      setConnectionState("offline");
+    }
 
     return () => {
-      clearInterval(interval);
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      channelRef.current = null;
-      void supabase.removeChannel(channel);
-      setIsRealtimeConnected(false);
+      isComponentMounted.current = false;
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+      }
     };
-  }, [isOpen, engagement.id, currentOrganization?.id, senderName, fetchMessages]);
+  }, [isOpen, activeTab, fetchMessages, fetchParticipants, connectWebSocket]);
+
+  const currentMessages = activeTab === "internal" ? teamMessages : clientMessages;
 
   // Auto scroll to bottom
   React.useEffect(() => {
-    if (isOpen && messages.length > 0) {
+    if (!isOpen || currentMessages.length === 0) return;
+    const scrollTimeout = setTimeout(() => {
       if (typeof messagesEndRef.current?.scrollIntoView === "function") {
         messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
       }
-    }
-  }, [messages, isOpen]);
+    }, 50);
+    return () => clearTimeout(scrollTimeout);
+  }, [currentMessages.length, isOpen, activeTab]);
 
-  // Handle typing change
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setInputText(val);
-
-    if (channelRef.current && val.trim().length > 0) {
-      const now = Date.now();
-      if (now - lastTypingEmitRef.current > 2000) {
-        lastTypingEmitRef.current = now;
-        void channelRef.current.send({
-          type: "broadcast",
-          event: "typing",
-          payload: { user: senderName.trim() || "Someone" },
-        });
-      }
-    }
-  };
-
-  // Instant Send with zero-latency optimistic bubble & live broadcast
+  // Send message
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const cleanText = inputText.trim();
-    if (!cleanText || !currentOrganization?.id || isSending) return;
+    if (!inputText.trim() || !currentOrganization?.id || isSending) return;
 
-    const postChannel: ChatChannel = activeChannel === "all" ? "general" : activeChannel;
-    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-    const effectiveSender = senderName.trim() || "Team Member";
-    const effectiveRole =
-      senderRole.trim() || (senderType === "client" ? "Client Stakeholder" : "Project Member");
+    setIsSending(true);
+    const text = inputText.trim();
+    const clientMsgId =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-    const activeProposal = engagement.proposals.find((p) => p.id === selectedProposalId);
-    const activeIssue = engagement.issues.find((i) => i.id === selectedIssueId);
+    // Handle sender persona based on activeTab and testing perspective
+    const isClientPerspective = isTestingAccount && testPerspective === "client";
+    const senderType: "member" | "client" =
+      isClientPerspective && activeTab === "client" ? "client" : "member";
+    const senderName = isClientPerspective && activeTab === "client" ? "Client Contact" : "You";
+    const senderRole =
+      isClientPerspective && activeTab === "client"
+        ? "Client Representative"
+        : activeTab === "internal"
+        ? "Team Member (Internal)"
+        : "Team Member";
 
-    // 1. Instant optimistic message for 0ms local response
-    const optimisticMessage: EngagementChatMessage = {
-      id: tempId,
+    const payload = {
+      message: text,
+      client_msg_id: clientMsgId,
+      channel: "general" as const,
+      visibility: activeTab,
+      conversation: activeTab,
+      sender_type: senderType,
+      sender_name: isClientPerspective ? "Client Contact" : undefined,
+      sender_role: isClientPerspective ? "Client Representative" : undefined,
+    };
+
+    // Optimistically display the message immediately
+    const optimisticId = `temp-${clientMsgId}`;
+    const optimisticMsg: EngagementChatMessage = {
+      id: optimisticId,
       organization_id: currentOrganization.id,
       engagement_id: engagement.id,
-      project_id: engagement.project_id,
-      sender_name: effectiveSender,
-      sender_role: effectiveRole,
+      sender_name: senderName,
+      sender_role: senderRole,
       sender_type: senderType,
-      channel: postChannel,
-      message: cleanText,
-      proposal_id: postChannel === "proposal" && selectedProposalId ? selectedProposalId : undefined,
-      proposal_title: activeProposal?.title,
-      issue_id: postChannel === "disputes" && selectedIssueId ? selectedIssueId : undefined,
-      issue_title: activeIssue?.title,
+      channel: "general",
+      visibility: activeTab,
+      message: text,
+      client_msg_id: clientMsgId,
       created_at: new Date().toISOString(),
     };
 
-    setMessages((prev) => [...prev, optimisticMessage]);
+    const setTargetMessages = activeTab === "internal" ? setTeamMessages : setClientMessages;
+    setTargetMessages((prev) => [...prev, optimisticMsg]);
     setInputText("");
 
-    // 2. Broadcast immediately to peers via WebSocket (< 50ms)
-    if (channelRef.current) {
-      try {
-        void channelRef.current.send({
-          type: "broadcast",
-          event: "new_message",
-          payload: optimisticMessage,
-        });
-      } catch {
-        // Fallback to database CDC
-      }
-    }
-
-    setIsSending(true);
-
     try {
-      const payload = {
-        message: cleanText,
-        sender_name: effectiveSender,
-        sender_role: effectiveRole,
-        sender_type: senderType,
-        channel: postChannel,
-        proposal_id: postChannel === "proposal" && selectedProposalId ? selectedProposalId : undefined,
-        issue_id: postChannel === "disputes" && selectedIssueId ? selectedIssueId : undefined,
-      };
-
-      const res = await apiClient.post<EngagementChatMessage>(
-        API_ENDPOINTS.engagements.messages(engagement.id),
-        payload,
-        { organizationId: currentOrganization.id }
-      );
-
-      if (res && res.id) {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === tempId
-              ? { ...res, proposal_title: m.proposal_title, issue_title: m.issue_title }
-              : m
-          )
+      // Prefer WebSocket transmission if socket is open
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        console.info(`[ChatWS] Sending chat_message over WebSocket [${activeTab}]:`, clientMsgId);
+        wsRef.current.send(
+          JSON.stringify({
+            type: "chat_message",
+            payload: payload,
+          })
         );
+      } else {
+        // Fall back seamlessly to authenticated REST endpoint
+        console.info(`[ChatWS] WebSocket not open, fallback REST [${activeTab}]:`, clientMsgId);
+        const res = await apiClient.post<EngagementChatMessage>(
+          API_ENDPOINTS.engagements.messages(engagement.id),
+          payload,
+          { organizationId: currentOrganization.id }
+        );
+
+        if (res && res.id) {
+          setTargetMessages((prev) =>
+            prev.map((m) =>
+              m.id === optimisticId || (m.client_msg_id && m.client_msg_id === clientMsgId)
+                ? res
+                : m
+            )
+          );
+        }
       }
     } catch (err: unknown) {
-      // Rollback optimistic message if post completely failed
-      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      console.error("[ChatWS] Error sending message:", err);
+      setTargetMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+      setInputText(text);
       const msg = err instanceof Error ? err.message : "Failed to send message";
       alert(msg);
     } finally {
@@ -353,7 +477,6 @@ export function EngagementChatPopup({
     }
   };
 
-  // Quick preset messages
   const handleInsertPreset = (text: string) => {
     setInputText(text);
   };
@@ -387,7 +510,6 @@ export function EngagementChatPopup({
             </>
           )}
 
-          {/* Tooltip badge */}
           {!isOpen && (
             <span className="pointer-events-none absolute right-full mr-3 whitespace-nowrap rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 dark:bg-slate-800">
               💬 Project & Client Chat
@@ -414,21 +536,40 @@ export function EngagementChatPopup({
                   <h3 className="truncate text-xs font-bold text-slate-900 dark:text-slate-100">
                     {engagement.title}
                   </h3>
-                  {isRealtimeConnected ? (
+                  {/* Connection indicator */}
+                  {connectionState === "connected" && (
                     <span
-                      className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
-                      title="Connected to Supabase Live Realtime Database"
+                      title="WebSocket connected (real-time active)"
+                      className="inline-flex items-center gap-1 text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.2 rounded-full border border-emerald-200 dark:border-emerald-800"
                     >
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                      <span>Live</span>
+                      <Wifi className="h-2.5 w-2.5 text-emerald-500 animate-pulse" />
+                      Live
                     </span>
-                  ) : (
+                  )}
+                  {connectionState === "reconnecting" && (
                     <span
-                      className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-medium bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
-                      title="Realtime sync active"
+                      title="Reconnecting WebSocket..."
+                      className="inline-flex items-center gap-1 text-[9px] text-amber-600 dark:text-amber-400 font-semibold bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.2 rounded-full border border-amber-200 dark:border-amber-800"
                     >
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
-                      <span>Sync</span>
+                      <RefreshCw className="h-2.5 w-2.5 text-amber-500 animate-spin" />
+                      Reconnecting
+                    </span>
+                  )}
+                  {connectionState === "connecting" && (
+                    <span
+                      title="Connecting WebSocket..."
+                      className="inline-flex items-center gap-1 text-[9px] text-slate-500 font-semibold bg-slate-100 dark:bg-slate-800 px-1.5 py-0.2 rounded-full"
+                    >
+                      Connecting
+                    </span>
+                  )}
+                  {connectionState === "offline" && (
+                    <span
+                      title="WebSocket offline"
+                      className="inline-flex items-center gap-1 text-[9px] text-rose-500 font-semibold bg-rose-50 dark:bg-rose-950/60 px-1.5 py-0.2 rounded-full border border-rose-200 dark:border-rose-800"
+                    >
+                      <WifiOff className="h-2.5 w-2.5 text-rose-500" />
+                      Offline
                     </span>
                   )}
                 </div>
@@ -444,19 +585,28 @@ export function EngagementChatPopup({
                 variant="ghost"
                 onClick={() => setShowParticipants((prev) => !prev)}
                 className={`h-7 px-2 text-xs gap-1 font-medium ${
-                  showParticipants ? "bg-slate-200/70 dark:bg-slate-800 text-slate-900 dark:text-slate-100" : "text-slate-600 dark:text-slate-400"
+                  showParticipants
+                    ? "bg-slate-200/70 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                    : "text-slate-600 dark:text-slate-400"
                 }`}
                 title="View Project Members and Client Contacts"
               >
                 <Users className="h-3.5 w-3.5 text-primary-600" />
-                <span className="text-[11px]">{participants.length > 0 ? participants.length : "Team"}</span>
+                <span className="text-[11px]">
+                  {participants.length > 0 ? participants.length : "Team"}
+                </span>
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={fetchMessages}
+                onClick={() => {
+                  fetchMessages(activeTab);
+                  if (connectionState !== "connected") {
+                    connectWebSocket(activeTab);
+                  }
+                }}
                 className="h-7 w-7 p-0 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                title="Refresh messages"
+                title="Refresh entire message history and reconnect"
               >
                 <RefreshCw className="h-3.5 w-3.5" />
               </Button>
@@ -472,6 +622,78 @@ export function EngagementChatPopup({
             </div>
           </div>
 
+          {/* Testing Account Perspective Switcher (Only visible to verified testing account / owner) */}
+          {isTestingAccount && (
+            <div className="flex items-center justify-between border-b border-indigo-100 bg-indigo-50/70 px-3 py-1.5 text-[10px] dark:border-indigo-950 dark:bg-indigo-950/40">
+              <span className="font-semibold text-indigo-700 dark:text-indigo-300 flex items-center gap-1">
+                <UserCheck className="h-3 w-3 text-indigo-600" />
+                Test View:
+              </span>
+              <div className="inline-flex rounded-lg bg-white/90 p-0.5 shadow-xs dark:bg-slate-900 border border-indigo-200/60 dark:border-indigo-900">
+                <button
+                  type="button"
+                  onClick={() => setTestPerspective("member")}
+                  className={`rounded-md px-2 py-0.5 font-medium transition-all ${
+                    testPerspective === "member"
+                      ? "bg-primary-600 text-white shadow-xs font-semibold"
+                      : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+                  }`}
+                  title="Test as internal Team Member (has access to both Client Chat and Team Chat)"
+                >
+                  💻 Team Member
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTestPerspective("client")}
+                  className={`rounded-md px-2 py-0.5 font-medium transition-all ${
+                    testPerspective === "client"
+                      ? "bg-emerald-600 text-white shadow-xs font-semibold"
+                      : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+                  }`}
+                  title="Test as Client Contact (strictly Client Chat only, Team Chat hidden)"
+                >
+                  🏢 Client Contact
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Conversation Window Tabs: Client Chat vs Team Chat */}
+          <div className="flex items-center border-b border-slate-200/80 bg-slate-100/70 px-2 py-1.5 dark:border-slate-800 dark:bg-slate-950/70">
+            <div className="flex w-full gap-1 rounded-xl bg-slate-200/60 p-1 dark:bg-slate-900/80">
+              <button
+                type="button"
+                onClick={() => setActiveTab("client")}
+                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all ${
+                  activeTab === "client"
+                    ? "bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-slate-100"
+                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+                }`}
+                title="Client Chat - Visible to project team and client contacts"
+              >
+                <Users className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Client Chat</span>
+              </button>
+
+              {/* Team Chat Tab is strictly hidden from client contacts */}
+              {canAccessTeamChat && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("internal")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all ${
+                    activeTab === "internal"
+                      ? "bg-white text-purple-900 shadow-xs dark:bg-slate-800 dark:text-purple-300"
+                      : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+                  }`}
+                  title="Team Chat - Exclusively for internal project team discussions"
+                >
+                  <Lock className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                  <span>Team Chat</span>
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Participants Dropdown / Drawer */}
           {showParticipants && (
             <div className="border-b border-slate-200/80 bg-slate-50/95 p-3 text-xs dark:border-slate-800 dark:bg-slate-950/90 max-h-48 overflow-y-auto space-y-2.5 animate-in fade-in duration-150">
@@ -483,7 +705,7 @@ export function EngagementChatPopup({
               </div>
               <div className="space-y-1">
                 {projectMembers.length === 0 ? (
-                  <p className="text-[11px] text-slate-400 italic">No assigned project members yet.</p>
+                  <p className="text-[11px] text-slate-400 italic">No assigned team members</p>
                 ) : (
                   projectMembers.map((m) => (
                     <div
@@ -499,6 +721,7 @@ export function EngagementChatPopup({
                 )}
               </div>
 
+              {/* Only show Client Stakeholders list in Client Chat or to internal users */}
               <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 dark:border-slate-800">
                 <span className="font-semibold text-slate-800 dark:text-slate-200 text-[11px] uppercase tracking-wider flex items-center gap-1">
                   <Building2 className="h-3 w-3 text-emerald-600" />
@@ -527,96 +750,29 @@ export function EngagementChatPopup({
             </div>
           )}
 
-          {/* Channel Tabs */}
-          <div className="flex border-b border-slate-200/80 bg-white px-2 py-1.5 dark:border-slate-800 dark:bg-slate-900 gap-1 text-xs">
-            <button
-              type="button"
-              onClick={() => setActiveChannel("all")}
-              className={`flex-1 rounded-md py-1 px-1.5 text-center font-medium transition-colors text-[11px] ${
-                activeChannel === "all"
-                  ? "bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-white"
-                  : "text-slate-500 hover:text-slate-800 dark:text-slate-400"
-              }`}
-            >
-              All Messages
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveChannel("general")}
-              className={`flex-1 rounded-md py-1 px-1.5 text-center font-medium transition-colors text-[11px] ${
-                activeChannel === "general"
-                  ? "bg-primary-50 text-primary-700 dark:bg-primary-950/60 dark:text-primary-300 font-semibold"
-                  : "text-slate-500 hover:text-slate-800 dark:text-slate-400"
-              }`}
-            >
-              💬 General
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveChannel("proposal")}
-              className={`flex-1 rounded-md py-1 px-1.5 text-center font-medium transition-colors text-[11px] ${
-                activeChannel === "proposal"
-                  ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 font-semibold"
-                  : "text-slate-500 hover:text-slate-800 dark:text-slate-400"
-              }`}
-            >
-              📋 Proposals
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveChannel("disputes")}
-              className={`flex-1 rounded-md py-1 px-1.5 text-center font-medium transition-colors text-[11px] ${
-                activeChannel === "disputes"
-                  ? "bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 font-semibold"
-                  : "text-slate-500 hover:text-slate-800 dark:text-slate-400"
-              }`}
-            >
-              ⚖️ Disputes
-            </button>
+          {/* Conversation Banner Header */}
+          <div
+            className={`px-3 py-1 text-[10px] font-medium flex items-center justify-between border-b ${
+              activeTab === "internal"
+                ? "bg-purple-50/80 text-purple-800 border-purple-200/70 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900/60"
+                : "bg-emerald-50/80 text-emerald-800 border-emerald-200/70 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/60"
+            }`}
+          >
+            <div className="flex items-center gap-1">
+              {activeTab === "internal" ? (
+                <>
+                  <ShieldCheck className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+                  <span>Team Chat: Internal discussions (hidden from client)</span>
+                </>
+              ) : (
+                <>
+                  <Users className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                  <span>Client Chat: Shared with project team & client</span>
+                </>
+              )}
+            </div>
+            <span className="text-[9px] opacity-75">{currentMessages.length} msgs</span>
           </div>
-
-          {/* Proposals / Disputes context selectors when active */}
-          {activeChannel === "proposal" && engagement.proposals.length > 0 && (
-            <div className="flex items-center gap-1.5 bg-indigo-50/70 dark:bg-indigo-950/40 px-3 py-1.5 border-b border-indigo-100 dark:border-indigo-900/50 text-xs">
-              <FileText className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
-              <span className="text-[10px] font-semibold text-indigo-800 dark:text-indigo-300">
-                Discuss Proposal:
-              </span>
-              <select
-                value={selectedProposalId}
-                onChange={(e) => setSelectedProposalId(e.target.value)}
-                className="h-6 flex-1 rounded bg-white text-[11px] text-slate-800 border border-indigo-200/80 px-1.5 focus:outline-none dark:bg-slate-900 dark:text-slate-200 dark:border-indigo-800"
-              >
-                <option value="">(All or General Proposal Discussion)</option>
-                {engagement.proposals.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.proposal_number}: {p.title} ({p.status})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {activeChannel === "disputes" && engagement.issues.length > 0 && (
-            <div className="flex items-center gap-1.5 bg-amber-50/70 dark:bg-amber-950/40 px-3 py-1.5 border-b border-amber-100 dark:border-amber-900/50 text-xs">
-              <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-              <span className="text-[10px] font-semibold text-amber-800 dark:text-amber-300">
-                Clear Dispute / Issue:
-              </span>
-              <select
-                value={selectedIssueId}
-                onChange={(e) => setSelectedIssueId(e.target.value)}
-                className="h-6 flex-1 rounded bg-white text-[11px] text-slate-800 border border-amber-200/80 px-1.5 focus:outline-none dark:bg-slate-900 dark:text-slate-200 dark:border-amber-800"
-              >
-                <option value="">(All or General Dispute Discussion)</option>
-                {engagement.issues.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.issue_number}: {i.title} [{i.status}]
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
 
           {/* Message List */}
           <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50/50 dark:bg-slate-950/50">
@@ -624,73 +780,53 @@ export function EngagementChatPopup({
               <div className="flex h-full items-center justify-center text-xs text-slate-400">
                 Loading messages...
               </div>
-            ) : messages.length === 0 ? (
+            ) : currentMessages.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center text-center p-4">
-                <div className="h-10 w-10 rounded-full bg-primary-50 dark:bg-primary-950/50 text-primary-600 flex items-center justify-center mb-2">
-                  <Sparkles className="h-5 w-5" />
+                <div
+                  className={`h-10 w-10 rounded-full flex items-center justify-center mb-2 ${
+                    activeTab === "internal"
+                      ? "bg-purple-50 text-purple-600 dark:bg-purple-950/50"
+                      : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50"
+                  }`}
+                >
+                  {activeTab === "internal" ? (
+                    <Lock className="h-5 w-5" />
+                  ) : (
+                    <Sparkles className="h-5 w-5" />
+                  )}
                 </div>
                 <h4 className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                  {activeChannel === "proposal"
-                    ? "Discuss Commercial Proposals"
-                    : activeChannel === "disputes"
-                    ? "Clear Queries & Project Disputes"
-                    : "No Messages Yet"}
+                  {activeTab === "internal" ? "Team Chat (Internal)" : "Client Chat"}
                 </h4>
-                <p className="text-[11px] text-slate-500 max-w-xs mt-1">
-                  Start the conversation between project team members and{" "}
-                  <strong>{engagement.client_name || "the client"}</strong>.
+                <p className="mt-1 text-[11px] text-slate-500 max-w-[260px]">
+                  {activeTab === "internal"
+                    ? "Private channel for assigned project team members. Client contacts cannot view this conversation."
+                    : "Shared conversation between project team members and client stakeholders."}
                 </p>
 
-                {/* Preset suggestions */}
-                <div className="mt-3 flex flex-wrap gap-1.5 justify-center max-w-xs">
-                  {activeChannel === "proposal" ? (
+                {/* Preset Suggestions */}
+                <div className="mt-4 flex flex-wrap justify-center gap-1.5">
+                  {activeTab === "internal" ? (
                     <>
                       <button
                         type="button"
                         onClick={() =>
                           handleInsertPreset(
-                            "We have reviewed the proposal deliverables and agreed to proceed."
+                            "Internal update: Architecture review completed, proceeding with implementation."
                           )
                         }
-                        className="rounded-full bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 px-2.5 py-1 text-[10px] text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50"
+                        className="rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-2.5 py-1 text-[10px] text-slate-700 dark:text-slate-300 hover:bg-slate-50"
                       >
-                        ✓ Agree on deliverables
+                        🔒 Internal progress note
                       </button>
                       <button
                         type="button"
                         onClick={() =>
-                          handleInsertPreset(
-                            "Could we adjust milestone 2 payment terms to 30 days after UAT signoff?"
-                          )
+                          handleInsertPreset("Checking blockers for today's deployment.")
                         }
-                        className="rounded-full bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 px-2.5 py-1 text-[10px] text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50"
+                        className="rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-2.5 py-1 text-[10px] text-slate-700 dark:text-slate-300 hover:bg-slate-50"
                       >
-                        💳 Review payment terms
-                      </button>
-                    </>
-                  ) : activeChannel === "disputes" ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleInsertPreset(
-                            "Dispute resolution update: The root cause has been addressed and tested on staging."
-                          )
-                        }
-                        className="rounded-full bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800 px-2.5 py-1 text-[10px] text-amber-700 dark:text-amber-300 hover:bg-amber-50"
-                      >
-                        🔧 Root cause resolved
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleInsertPreset(
-                            "Client clarification: Scope confirmed, we can mark this dispute cleared."
-                          )
-                        }
-                        className="rounded-full bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800 px-2.5 py-1 text-[10px] text-amber-700 dark:text-amber-300 hover:bg-amber-50"
-                      >
-                        ✅ Confirm dispute cleared
+                        ⚡ Blocker check
                       </button>
                     </>
                   ) : (
@@ -706,19 +842,28 @@ export function EngagementChatPopup({
                       >
                         👋 Welcome team & client
                       </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleInsertPreset(
+                            "Checking in on current sprint progress and upcoming deliverables."
+                          )
+                        }
+                        className="rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-2.5 py-1 text-[10px] text-slate-700 dark:text-slate-300 hover:bg-slate-50"
+                      >
+                        💬 Sprint progress check
+                      </button>
                     </>
                   )}
                 </div>
               </div>
             ) : (
-              messages.map((m) => {
+              currentMessages.map((m) => {
                 const isClient = m.sender_type === "client";
                 return (
                   <div
                     key={m.id}
-                    className={`flex flex-col space-y-1 ${
-                      isClient ? "items-start" : "items-end"
-                    }`}
+                    className={`flex flex-col space-y-1 ${isClient ? "items-start" : "items-end"}`}
                   >
                     <div className="flex items-center gap-1.5 text-[10px]">
                       <span className="font-semibold text-slate-800 dark:text-slate-200">
@@ -728,6 +873,8 @@ export function EngagementChatPopup({
                         className={`px-1.5 py-0.2 rounded text-[9px] font-medium border ${
                           isClient
                             ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                            : activeTab === "internal"
+                            ? "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800"
                             : "bg-primary-50 text-primary-700 border-primary-200 dark:bg-primary-950/60 dark:text-primary-300 dark:border-primary-800"
                         }`}
                       >
@@ -742,9 +889,11 @@ export function EngagementChatPopup({
                     </div>
 
                     <div
-                      className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs shadow-sm leading-relaxed ${
+                      className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs shadow-xs leading-relaxed ${
                         isClient
                           ? "bg-white text-slate-800 border border-slate-200/80 rounded-tl-sm dark:bg-slate-900 dark:text-slate-200 dark:border-slate-800"
+                          : activeTab === "internal"
+                          ? "bg-gradient-to-r from-purple-700 to-indigo-700 text-white rounded-tr-sm"
                           : "bg-gradient-to-r from-primary-600 to-indigo-600 text-white rounded-tr-sm"
                       }`}
                     >
@@ -783,47 +932,6 @@ export function EngagementChatPopup({
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Posting Persona Bar */}
-          <div className="flex items-center justify-between border-t border-slate-200/80 bg-slate-50/90 px-3 py-1.5 text-[10px] dark:border-slate-800 dark:bg-slate-900/90">
-            <div className="flex items-center gap-1 text-slate-500">
-              <span>Posting as:</span>
-              <button
-                type="button"
-                onClick={() => {
-                  if (senderType === "member") {
-                    setSenderType("client");
-                    setSenderName(engagement.client_name || "Client Stakeholder");
-                    setSenderRole("Client Contact");
-                  } else {
-                    setSenderType("member");
-                    setSenderName(defaultUserName);
-                    setSenderRole("Project Member");
-                  }
-                }}
-                className={`font-semibold rounded px-1.5 py-0.5 border text-[10px] transition-colors ${
-                  senderType === "client"
-                    ? "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300"
-                    : "bg-primary-50 text-primary-800 border-primary-300 dark:bg-primary-950/60 dark:text-primary-300"
-                }`}
-                title="Click to toggle posting between Project Member and Client"
-              >
-                {senderType === "client" ? "🏢 Client" : "💻 Project Member"} ({senderName})
-              </button>
-            </div>
-
-            <div className="text-[10px] text-slate-400">
-              {activeChannel === "all" ? "Channel: General" : `Channel: ${activeChannel}`}
-            </div>
-          </div>
-
-          {/* Typing Indicator */}
-          {typingUser && (
-            <div className="flex items-center gap-1.5 px-3 py-1 bg-primary-50/70 text-[10px] text-primary-700 dark:bg-primary-950/40 dark:text-primary-300 border-t border-primary-100 dark:border-primary-900/40 animate-pulse">
-              <span className="flex h-1.5 w-1.5 rounded-full bg-primary-500 animate-ping" />
-              <span className="font-medium">{typingUser} is typing...</span>
-            </div>
-          )}
-
           {/* Input Bar */}
           <form
             onSubmit={handleSendMessage}
@@ -832,13 +940,13 @@ export function EngagementChatPopup({
             <input
               type="text"
               value={inputText}
-              onChange={handleInputChange}
+              onChange={(e) => setInputText(e.target.value)}
               placeholder={
-                activeChannel === "proposal"
-                  ? "Discuss proposal terms, deliverables, pricing..."
-                  : activeChannel === "disputes"
-                  ? "Clarify or resolve project dispute / query..."
-                  : "Type message to project members & client..."
+                activeTab === "internal"
+                  ? "Type internal team message (hidden from client)..."
+                  : isTestingAccount && testPerspective === "client"
+                  ? "Type message as client contact..."
+                  : "Type message to client & team..."
               }
               className="flex-1 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-200"
             />
@@ -846,8 +954,12 @@ export function EngagementChatPopup({
               type="submit"
               size="sm"
               disabled={!inputText.trim() || isSending}
-              className="h-8 w-8 rounded-xl p-0 bg-primary-600 hover:bg-primary-700 text-white shrink-0 shadow-sm"
-              title="Send message"
+              className={`h-8 w-8 rounded-xl p-0 text-white shrink-0 shadow-xs ${
+                activeTab === "internal"
+                  ? "bg-purple-600 hover:bg-purple-700"
+                  : "bg-primary-600 hover:bg-primary-700"
+              }`}
+              title="Send message (near real-time via WebSocket)"
             >
               <Send className="h-3.5 w-3.5" />
             </Button>

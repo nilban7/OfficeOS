@@ -352,6 +352,9 @@ class ChatMessageCreate(BaseModel):
     sender_role: str | None = None
     sender_type: str = "member"  # member, client
     channel: str = "general"  # general, proposal, disputes
+    visibility: str = "client"  # client, internal
+    conversation: str | None = None  # client, internal
+    client_msg_id: uuid.UUID | None = None
     proposal_id: uuid.UUID | None = None
     issue_id: uuid.UUID | None = None
     attachments: Any | None = None
@@ -367,7 +370,9 @@ class ChatMessageResponse(BaseModel):
     sender_role: str
     sender_type: str
     channel: str
+    visibility: str = "client"
     message: str
+    client_msg_id: uuid.UUID | None = None
     attachments: Any | None = None
     proposal_id: uuid.UUID | None = None
     proposal_title: str | None = None
@@ -394,4 +399,11 @@ class ChatParticipantsResponse(BaseModel):
     client_id: uuid.UUID
     client_name: str | None = None
     members: list[ChatParticipant] = []
+
+
+class WsTicketResponse(BaseModel):
+    ticket: str
+    expires_in: int
+    engagement_id: uuid.UUID
+    conversation: str = "client"
 
