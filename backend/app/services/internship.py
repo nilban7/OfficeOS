@@ -10,22 +10,37 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.employee import Employee
-from app.models.internship import Internship, InternshipReview, InternshipSupervisor
+from app.models.internship import (
+    Internship,
+    InternshipDocument,
+    InternshipReview,
+    InternshipStipendDisbursement,
+    InternshipStudent,
+    InternshipSupervisor,
+)
 from app.schemas.common import PaginatedData, PaginationMeta
 from app.schemas.internship import (
     EmployeeSummary,
     InternshipAction,
     InternshipCreate,
     InternshipDetail,
+    InternshipDocumentCreate,
+    InternshipDocumentResponse,
     InternshipExtend,
     InternshipResponse,
     InternshipReviewCreate,
     InternshipReviewResponse,
     InternshipReviewUpdate,
+    InternshipStudentCreate,
+    InternshipStudentResponse,
+    InternshipStudentUpdate,
     InternshipSummary,
     InternshipSupervisorCreate,
     InternshipSupervisorResponse,
     InternshipUpdate,
+    StipendCreateDisburseRequest,
+    StipendDisbursementResponse,
+    StipendDisburseRequest,
 )
 from app.services.organization import record_audit_log
 
@@ -123,6 +138,62 @@ def _build_review_response(review: InternshipReview) -> InternshipReviewResponse
         reviewer=_build_employee_summary(review.reviewer) if hasattr(review, "reviewer") else None,
         internship=_build_internship_summary(review.internship) if hasattr(review, "internship") else None,
     )
+
+
+def _build_student_response(student: InternshipStudent) -> InternshipStudentResponse:
+    return InternshipStudentResponse(
+        id=student.id,
+        organization_id=student.organization_id,
+        internship_id=student.internship_id,
+        student_name=student.student_name,
+        student_email=student.student_email,
+        institution=student.institution,
+        stipend=student.stipend or 0,
+        status=student.status,
+        notes=student.notes,
+        created_at=student.created_at,
+        updated_at=student.updated_at,
+    )
+
+
+def _build_document_response(doc: InternshipDocument) -> InternshipDocumentResponse:
+    return InternshipDocumentResponse(
+        id=doc.id,
+        organization_id=doc.organization_id,
+        internship_id=doc.internship_id,
+        title=doc.title,
+        document_type=doc.document_type,
+        intern_name=doc.intern_name,
+        file_name=doc.file_name,
+        file_size=doc.file_size or 0,
+        mime_type=doc.mime_type or "application/pdf",
+        file_url=doc.file_url,
+        notes=doc.notes,
+        created_at=doc.created_at,
+    )
+
+
+def _build_stipend_response(stipend: InternshipStipendDisbursement) -> StipendDisbursementResponse:
+    return StipendDisbursementResponse(
+        id=stipend.id,
+        organization_id=stipend.organization_id,
+        payroll_id=stipend.payroll_id,
+        internship_id=stipend.internship_id,
+        intern_name=stipend.intern_name,
+        period_month=stipend.period_month,
+        period_year=stipend.period_year,
+        stipend_amount=stipend.stipend_amount or 0,
+        status=stipend.status,
+        payment_method=stipend.payment_method,
+        payment_reference=stipend.payment_reference,
+        disbursed_at=stipend.disbursed_at,
+        notes=stipend.notes,
+        created_at=stipend.created_at,
+        updated_at=stipend.updated_at,
+        internship_title=stipend.internship.title if hasattr(stipend, "internship") and stipend.internship else None,
+        internship_code=stipend.internship.code if hasattr(stipend, "internship") and stipend.internship else None,
+    )
+
 
 
 class InternshipService:
@@ -279,6 +350,8 @@ class InternshipService:
                 selectinload(Internship.supervisor),
                 selectinload(Internship.supervisors).selectinload(InternshipSupervisor.employee),
                 selectinload(Internship.reviews).selectinload(InternshipReview.reviewer),
+                selectinload(Internship.students),
+                selectinload(Internship.documents),
             )
         )
         res = await session.execute(stmt)
@@ -291,6 +364,8 @@ class InternshipService:
 
         supervisor_responses = [_build_supervisor_response(s) for s in internship.supervisors]
         review_responses = [_build_review_response(r) for r in internship.reviews]
+        student_responses = [_build_student_response(s) for s in internship.students]
+        doc_responses = [_build_document_response(d) for d in internship.documents]
 
         resp = _build_internship_response(
             internship,
@@ -301,6 +376,8 @@ class InternshipService:
             **resp.model_dump(),
             supervisors=supervisor_responses,
             reviews=review_responses,
+            students=student_responses,
+            documents=doc_responses,
         )
 
     @staticmethod
@@ -921,3 +998,412 @@ class InternshipService:
             entity_id=review_id,
             details={"internship_id": str(internship_id)},
         )
+
+    # =========================================================================
+    # Students / Cohort Interns
+    # =========================================================================
+
+    @staticmethod
+    async def list_students(
+        session: AsyncSession,
+        organization_id: UUID,
+        internship_id: UUID,
+    ) -> list[InternshipStudentResponse]:
+        stmt = (
+            select(InternshipStudent)
+            .where(
+                InternshipStudent.organization_id == organization_id,
+                InternshipStudent.internship_id == internship_id,
+            )
+            .order_by(InternshipStudent.created_at.asc())
+        )
+        res = await session.execute(stmt)
+        return [_build_student_response(s) for s in _to_list(res.scalars())]
+
+    @staticmethod
+    async def create_student(
+        session: AsyncSession,
+        organization_id: UUID,
+        internship_id: UUID,
+        actor_user_id: UUID,
+        payload: InternshipStudentCreate,
+    ) -> InternshipStudentResponse:
+        # Verify internship exists
+        internship_stmt = select(Internship).where(
+            Internship.organization_id == organization_id,
+            Internship.id == internship_id,
+        )
+        internship_res = await session.execute(internship_stmt)
+        if not internship_res.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Internship not found.",
+            )
+
+        student = InternshipStudent(
+            id=uuid.uuid4(),
+            organization_id=organization_id,
+            internship_id=internship_id,
+            student_name=payload.student_name.strip(),
+            student_email=payload.student_email,
+            institution=payload.institution,
+            stipend=payload.stipend,
+            status=payload.status,
+            notes=payload.notes,
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        session.add(student)
+        await session.flush()
+
+        await record_audit_log(
+            session=session,
+            organization_id=organization_id,
+            actor_id=actor_user_id,
+            action="internship.create_student",
+            entity_type="internship_student",
+            entity_id=student.id,
+            details={"internship_id": str(internship_id), "student_name": student.student_name},
+        )
+
+        return _build_student_response(student)
+
+    @staticmethod
+    async def update_student(
+        session: AsyncSession,
+        organization_id: UUID,
+        internship_id: UUID,
+        student_id: UUID,
+        actor_user_id: UUID,
+        payload: InternshipStudentUpdate,
+    ) -> InternshipStudentResponse:
+        stmt = select(InternshipStudent).where(
+            InternshipStudent.organization_id == organization_id,
+            InternshipStudent.internship_id == internship_id,
+            InternshipStudent.id == student_id,
+        )
+        res = await session.execute(stmt)
+        student = res.scalar_one_or_none()
+        if not student:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Student not found for this internship.",
+            )
+
+        if payload.student_name is not None:
+            student.student_name = payload.student_name.strip()
+        if payload.student_email is not None:
+            student.student_email = payload.student_email
+        if payload.institution is not None:
+            student.institution = payload.institution
+        if payload.stipend is not None:
+            student.stipend = payload.stipend
+        if payload.status is not None:
+            student.status = payload.status
+        if payload.notes is not None:
+            student.notes = payload.notes
+
+        student.updated_at = datetime.now(UTC)
+        await session.flush()
+
+        await record_audit_log(
+            session=session,
+            organization_id=organization_id,
+            actor_id=actor_user_id,
+            action="internship.update_student",
+            entity_type="internship_student",
+            entity_id=student.id,
+            details={"internship_id": str(internship_id)},
+        )
+
+        return _build_student_response(student)
+
+    @staticmethod
+    async def delete_student(
+        session: AsyncSession,
+        organization_id: UUID,
+        internship_id: UUID,
+        student_id: UUID,
+        actor_user_id: UUID,
+    ) -> None:
+        stmt = select(InternshipStudent).where(
+            InternshipStudent.organization_id == organization_id,
+            InternshipStudent.internship_id == internship_id,
+            InternshipStudent.id == student_id,
+        )
+        res = await session.execute(stmt)
+        student = res.scalar_one_or_none()
+        if not student:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Student not found for this internship.",
+            )
+
+        await session.delete(student)
+        await session.flush()
+
+        await record_audit_log(
+            session=session,
+            organization_id=organization_id,
+            actor_id=actor_user_id,
+            action="internship.delete_student",
+            entity_type="internship_student",
+            entity_id=student_id,
+            details={"internship_id": str(internship_id)},
+        )
+
+    # =========================================================================
+    # Documents
+    # =========================================================================
+
+    @staticmethod
+    async def list_documents(
+        session: AsyncSession,
+        organization_id: UUID,
+        internship_id: UUID,
+    ) -> list[InternshipDocumentResponse]:
+        stmt = (
+            select(InternshipDocument)
+            .where(
+                InternshipDocument.organization_id == organization_id,
+                InternshipDocument.internship_id == internship_id,
+            )
+            .order_by(InternshipDocument.created_at.desc())
+        )
+        res = await session.execute(stmt)
+        return [_build_document_response(d) for d in _to_list(res.scalars())]
+
+    @staticmethod
+    async def create_document(
+        session: AsyncSession,
+        organization_id: UUID,
+        internship_id: UUID,
+        actor_user_id: UUID,
+        payload: InternshipDocumentCreate,
+    ) -> InternshipDocumentResponse:
+        internship_stmt = select(Internship).where(
+            Internship.organization_id == organization_id,
+            Internship.id == internship_id,
+        )
+        internship_res = await session.execute(internship_stmt)
+        if not internship_res.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Internship not found.",
+            )
+
+        doc = InternshipDocument(
+            id=uuid.uuid4(),
+            organization_id=organization_id,
+            internship_id=internship_id,
+            title=payload.title.strip(),
+            document_type=payload.document_type,
+            intern_name=payload.intern_name.strip() if payload.intern_name else None,
+            file_name=payload.file_name.strip(),
+            file_size=payload.file_size,
+            mime_type=payload.mime_type,
+            file_url=payload.file_url,
+            notes=payload.notes,
+            created_at=datetime.now(UTC),
+        )
+        session.add(doc)
+        await session.flush()
+
+        await record_audit_log(
+            session=session,
+            organization_id=organization_id,
+            actor_id=actor_user_id,
+            action="internship.create_document",
+            entity_type="internship_document",
+            entity_id=doc.id,
+            details={
+                "internship_id": str(internship_id),
+                "title": doc.title,
+                "document_type": doc.document_type,
+            },
+        )
+
+        return _build_document_response(doc)
+
+    @staticmethod
+    async def delete_document(
+        session: AsyncSession,
+        organization_id: UUID,
+        internship_id: UUID,
+        document_id: UUID,
+        actor_user_id: UUID,
+    ) -> None:
+        stmt = select(InternshipDocument).where(
+            InternshipDocument.organization_id == organization_id,
+            InternshipDocument.internship_id == internship_id,
+            InternshipDocument.id == document_id,
+        )
+        res = await session.execute(stmt)
+        doc = res.scalar_one_or_none()
+        if not doc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Document not found for this internship.",
+            )
+
+        await session.delete(doc)
+        await session.flush()
+
+        await record_audit_log(
+            session=session,
+            organization_id=organization_id,
+            actor_id=actor_user_id,
+            action="internship.delete_document",
+            entity_type="internship_document",
+            entity_id=document_id,
+            details={"internship_id": str(internship_id)},
+        )
+
+    # =========================================================================
+    # Stipend Disbursements
+    # =========================================================================
+
+    @staticmethod
+    async def list_stipend_disbursements(
+        session: AsyncSession,
+        organization_id: UUID,
+        internship_id: UUID | None = None,
+        payroll_id: UUID | None = None,
+        period_month: int | None = None,
+        period_year: int | None = None,
+    ) -> list[StipendDisbursementResponse]:
+        stmt = (
+            select(InternshipStipendDisbursement)
+            .where(InternshipStipendDisbursement.organization_id == organization_id)
+            .options(selectinload(InternshipStipendDisbursement.internship))
+        )
+        if internship_id:
+            stmt = stmt.where(InternshipStipendDisbursement.internship_id == internship_id)
+        if payroll_id:
+            stmt = stmt.where(InternshipStipendDisbursement.payroll_id == payroll_id)
+        if period_month:
+            stmt = stmt.where(InternshipStipendDisbursement.period_month == period_month)
+        if period_year:
+            stmt = stmt.where(InternshipStipendDisbursement.period_year == period_year)
+
+        stmt = stmt.order_by(
+            InternshipStipendDisbursement.period_year.desc(),
+            InternshipStipendDisbursement.period_month.desc(),
+            InternshipStipendDisbursement.created_at.desc(),
+        )
+        res = await session.execute(stmt)
+        return [_build_stipend_response(s) for s in _to_list(res.scalars())]
+
+    @staticmethod
+    async def create_and_disburse_stipend(
+        session: AsyncSession,
+        organization_id: UUID,
+        actor_user_id: UUID,
+        payload: StipendCreateDisburseRequest,
+    ) -> StipendDisbursementResponse:
+        # Check internship exists
+        internship_stmt = select(Internship).where(
+            Internship.organization_id == organization_id,
+            Internship.id == payload.internship_id,
+        )
+        internship_res = await session.execute(internship_stmt)
+        internship = internship_res.scalar_one_or_none()
+        if not internship:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Internship not found.",
+            )
+
+        now = datetime.now(UTC)
+        disbursement = InternshipStipendDisbursement(
+            id=uuid.uuid4(),
+            organization_id=organization_id,
+            payroll_id=payload.payroll_id,
+            internship_id=payload.internship_id,
+            intern_name=payload.intern_name.strip(),
+            period_month=payload.period_month,
+            period_year=payload.period_year,
+            stipend_amount=payload.stipend_amount,
+            status="paid",
+            payment_method=payload.payment_method,
+            payment_reference=payload.payment_reference,
+            disbursed_at=now,
+            notes=payload.notes,
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(disbursement)
+        await session.flush()
+
+        # Reload with internship relationship for response
+        disbursement.internship = internship
+
+        await record_audit_log(
+            session=session,
+            organization_id=organization_id,
+            actor_id=actor_user_id,
+            action="internship.disburse_stipend",
+            entity_type="internship_stipend_disbursement",
+            entity_id=disbursement.id,
+            details={
+                "internship_id": str(payload.internship_id),
+                "intern_name": disbursement.intern_name,
+                "amount": str(disbursement.stipend_amount),
+                "period": f"{disbursement.period_year}-{disbursement.period_month:02d}",
+                "payment_reference": disbursement.payment_reference,
+            },
+        )
+
+        return _build_stipend_response(disbursement)
+
+    @staticmethod
+    async def disburse_existing_stipend(
+        session: AsyncSession,
+        organization_id: UUID,
+        disbursement_id: UUID,
+        actor_user_id: UUID,
+        payload: StipendDisburseRequest,
+    ) -> StipendDisbursementResponse:
+        stmt = (
+            select(InternshipStipendDisbursement)
+            .where(
+                InternshipStipendDisbursement.organization_id == organization_id,
+                InternshipStipendDisbursement.id == disbursement_id,
+            )
+            .options(selectinload(InternshipStipendDisbursement.internship))
+        )
+        res = await session.execute(stmt)
+        disbursement = res.scalar_one_or_none()
+        if not disbursement:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Stipend disbursement record not found.",
+            )
+
+        now = datetime.now(UTC)
+        disbursement.status = "paid"
+        disbursement.payment_method = payload.payment_method
+        disbursement.payment_reference = payload.payment_reference
+        disbursement.disbursed_at = now
+        if payload.notes:
+            disbursement.notes = payload.notes
+        disbursement.updated_at = now
+
+        await session.flush()
+
+        await record_audit_log(
+            session=session,
+            organization_id=organization_id,
+            actor_id=actor_user_id,
+            action="internship.disburse_stipend",
+            entity_type="internship_stipend_disbursement",
+            entity_id=disbursement.id,
+            details={
+                "intern_name": disbursement.intern_name,
+                "amount": str(disbursement.stipend_amount),
+                "payment_reference": disbursement.payment_reference,
+            },
+        )
+
+        return _build_stipend_response(disbursement)
+

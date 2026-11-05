@@ -7,6 +7,7 @@ import {
   Plus,
   Search,
   Eye,
+  ArrowRight,
   X,
   Calendar,
   Users,
@@ -26,12 +27,12 @@ import { API_ENDPOINTS } from "@/lib/api/endpoints";
 import type { Internship, InternshipCreate, InternshipStatus } from "@/types/internship";
 
 const STATUS_CONFIG: Record<InternshipStatus, { label: string; className: string }> = {
-  planned: { label: "Planned", className: "bg-slate-100 text-slate-700 border-slate-300" },
-  active: { label: "Active", className: "bg-blue-50 text-blue-700 border-blue-200" },
-  completed: { label: "Completed", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  extended: { label: "Extended", className: "bg-amber-50 text-amber-700 border-amber-200" },
-  terminated: { label: "Terminated", className: "bg-rose-50 text-rose-700 border-rose-200" },
-  cancelled: { label: "Cancelled", className: "bg-neutral-100 text-neutral-700 border-neutral-300" },
+  planned: { label: "Planned", className: "bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700" },
+  active: { label: "Active", className: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800" },
+  completed: { label: "Completed", className: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800" },
+  extended: { label: "Extended", className: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800" },
+  terminated: { label: "Terminated", className: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800" },
+  cancelled: { label: "Cancelled", className: "bg-neutral-100 text-neutral-700 border-neutral-300 dark:bg-neutral-800 dark:text-neutral-300 dark:border-neutral-700" },
 };
 
 export default function InternshipsPage() {
@@ -211,53 +212,78 @@ export default function InternshipsPage() {
             {filteredInternships.map((internship) => {
               const statusCfg = STATUS_CONFIG[internship.status];
               return (
-                <Card key={internship.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <Link
-                          href={`/internships/${internship.id}`}
-                          className="block font-semibold text-slate-900 hover:text-blue-600 truncate"
-                        >
-                          {internship.title}
-                        </Link>
-                        <p className="mt-0.5 text-xs text-slate-500">{internship.code}</p>
-                      </div>
-                      <span
-                        className={`shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusCfg.className}`}
-                      >
-                        {statusCfg.label}
-                      </span>
-                    </div>
-                    <div className="mt-3 space-y-1.5 text-sm text-slate-600">
-                      <div className="flex items-center gap-2">
-                        <Users className="h-3.5 w-3.5 text-slate-400" />
-                        <span className="truncate">{internship.intern_name}</span>
-                      </div>
-                      {internship.institution && (
-                        <div className="flex items-center gap-2">
-                          <Building2 className="h-3.5 w-3.5 text-slate-400" />
-                          <span className="truncate text-xs">{internship.institution}</span>
+                <Card
+                  key={internship.id}
+                  className="hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5 border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl overflow-hidden flex flex-col justify-between"
+                >
+                  <CardContent className="p-5 flex flex-col justify-between h-full">
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <Link
+                            href={`/internships/${internship.id}`}
+                            className="block font-semibold text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors text-base truncate"
+                          >
+                            {internship.title}
+                          </Link>
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium border border-slate-200/60 dark:border-slate-700/60">
+                              {internship.code}
+                            </span>
+                            {Number(internship.stipend) > 0 && (
+                              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                                ₹{Number(internship.stipend).toLocaleString()}/mo
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      )}
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                        <span className="text-xs">
-                          {internship.start_date.slice(0, 10)} → {internship.end_date.slice(0, 10)}
+                        <span
+                          className={`shrink-0 inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${statusCfg.className}`}
+                        >
+                          {statusCfg.label}
                         </span>
                       </div>
+
+                      <div className="mt-3.5 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
+                          <span className="font-medium text-slate-800 dark:text-slate-200 truncate">
+                            {internship.intern_name}
+                          </span>
+                        </div>
+                        {internship.institution && (
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
+                            <span className="truncate text-xs text-slate-500 dark:text-slate-400">
+                              {internship.institution}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
+                          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                            {internship.start_date.slice(0, 10)} → {internship.end_date.slice(0, 10)}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="mt-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3 text-xs text-slate-500">
-                        <span>{internship.supervisors_count} supervisors</span>
-                        <span>{internship.reviews_count} reviews</span>
+
+                    <div className="mt-5 pt-3.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                        <span className="bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200/50 dark:border-slate-700/50">
+                          {internship.supervisors_count} supervisors
+                        </span>
+                        <span className="bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200/50 dark:border-slate-700/50">
+                          {internship.reviews_count} reviews
+                        </span>
                       </div>
                       <Link
                         href={`/internships/${internship.id}`}
-                        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+                        className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-500 text-white text-xs font-semibold shadow-sm hover:shadow transition-all group"
                       >
-                        <Eye className="h-3 w-3" />
-                        View
+                        <Eye className="h-3.5 w-3.5" />
+                        <span>View Program</span>
+                        <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
                       </Link>
                     </div>
                   </CardContent>

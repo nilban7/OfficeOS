@@ -15,11 +15,14 @@ from app.schemas.common import PaginatedData, PaginationMeta
 from app.schemas.internship import (
     InternshipAction,
     InternshipCreate,
+    InternshipDocumentCreate,
     InternshipExtend,
     InternshipResponse,
     InternshipReviewResponse,
+    InternshipStudentCreate,
     InternshipSupervisorCreate,
     InternshipSupervisorResponse,
+    StipendCreateDisburseRequest,
 )
 from app.services.internship import InternshipService
 
@@ -301,3 +304,118 @@ async def test_delete_review_not_found_raises():
             actor_user_id=uuid4(),
         )
     assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_create_student_success():
+    mock_internship = MagicMock()
+    mock_internship.id = uuid4()
+
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = mock_internship
+
+    mock_session = AsyncMock()
+    mock_session.execute = AsyncMock(return_value=mock_result)
+    mock_session.flush = AsyncMock()
+    mock_session.add = MagicMock()
+
+    org_id = uuid4()
+    actor_id = uuid4()
+
+    with patch("app.services.internship.record_audit_log", new=AsyncMock()):
+        resp = await InternshipService.create_student(
+            session=mock_session,
+            organization_id=org_id,
+            internship_id=mock_internship.id,
+            actor_user_id=actor_id,
+            payload=InternshipStudentCreate(
+                student_name="Bob Intern",
+                student_email="bob@example.com",
+                institution="Tech University",
+                stipend=Decimal("600.00"),
+                status="active",
+            ),
+        )
+
+    assert resp.student_name == "Bob Intern"
+    assert resp.stipend == Decimal("600.00")
+    assert resp.organization_id == org_id
+
+
+@pytest.mark.asyncio
+async def test_create_document_success():
+    mock_internship = MagicMock()
+    mock_internship.id = uuid4()
+
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = mock_internship
+
+    mock_session = AsyncMock()
+    mock_session.execute = AsyncMock(return_value=mock_result)
+    mock_session.flush = AsyncMock()
+    mock_session.add = MagicMock()
+
+    org_id = uuid4()
+    actor_id = uuid4()
+
+    with patch("app.services.internship.record_audit_log", new=AsyncMock()):
+        resp = await InternshipService.create_document(
+            session=mock_session,
+            organization_id=org_id,
+            internship_id=mock_internship.id,
+            actor_user_id=actor_id,
+            payload=InternshipDocumentCreate(
+                title="Signed Agreement",
+                document_type="agreement_nda",
+                intern_name="Bob Intern",
+                file_name="nda_signed.pdf",
+                file_size=102400,
+                mime_type="application/pdf",
+                file_url="https://example.com/docs/nda_signed.pdf",
+            ),
+        )
+
+    assert resp.title == "Signed Agreement"
+    assert resp.document_type == "agreement_nda"
+    assert resp.file_size == 102400
+
+
+@pytest.mark.asyncio
+async def test_create_and_disburse_stipend_success():
+    mock_internship = MagicMock()
+    mock_internship.id = uuid4()
+    mock_internship.title = "Engineering Internship"
+    mock_internship.code = "INT-2026-01"
+
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = mock_internship
+
+    mock_session = AsyncMock()
+    mock_session.execute = AsyncMock(return_value=mock_result)
+    mock_session.flush = AsyncMock()
+    mock_session.add = MagicMock()
+
+    org_id = uuid4()
+    actor_id = uuid4()
+
+    with patch("app.services.internship.record_audit_log", new=AsyncMock()):
+        resp = await InternshipService.create_and_disburse_stipend(
+            session=mock_session,
+            organization_id=org_id,
+            actor_user_id=actor_id,
+            payload=StipendCreateDisburseRequest(
+                internship_id=mock_internship.id,
+                intern_name="Bob Intern",
+                period_month=11,
+                period_year=2026,
+                stipend_amount=Decimal("750.00"),
+                payment_method="bank_transfer",
+                payment_reference="TXN-STIPEND-9988",
+            ),
+        )
+
+    assert resp.intern_name == "Bob Intern"
+    assert resp.status == "paid"
+    assert resp.stipend_amount == Decimal("750.00")
+    assert resp.payment_reference == "TXN-STIPEND-9988"
+
