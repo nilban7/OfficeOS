@@ -88,6 +88,7 @@ export const API_ENDPOINTS = {
     recordHandover: (id: string) => `/engagements/${id}/handover`,
     messages: (id: string) => `/engagements/${id}/messages`,
     participants: (id: string) => `/engagements/${id}/chat-participants`,
+    wsTicket: (id: string) => `/engagements/${id}/ws-ticket`,
   },
   projects: {
     list: "/projects",

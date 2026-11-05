@@ -1,15 +1,17 @@
 import hashlib
+import logging
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.client import Client
+from app.models.client import Client, ClientContact
+from app.models.employee import Employee
 from app.models.engagement import (
     AgreementSignature,
     ClientEngagement,
@@ -23,6 +25,7 @@ from app.models.engagement import (
     EngagementUatTestCase,
     EngagementWeeklyReport,
 )
+from app.models.identity import Profile
 from app.models.project import Project, ProjectMember
 from app.schemas.engagement import (
     AgreementCreate,
@@ -40,6 +43,9 @@ from app.schemas.engagement import (
     UatSessionCreate,
     WeeklyReportCreate,
 )
+from app.services.identity import get_user_permissions, get_user_roles
+
+logger = logging.getLogger("officeos.engagement")
 
 
 class EngagementService:
@@ -645,15 +651,175 @@ class EngagementService:
         return handover
     # --- Chat & Discussion Services ---
     @staticmethod
+    async def resolve_sender_identity(
+        db: AsyncSession,
+        organization_id: uuid.UUID,
+        user_id: str,
+    ) -> tuple[uuid.UUID | None, uuid.UUID | None, str, str, bool]:
+        """Resolves verified profile_id, employee_id, sender_name, sender_role, is_internal
+        from the authenticated user context.
+        """
+        try:
+            auth_uuid = uuid.UUID(str(user_id))
+        except (ValueError, TypeError):
+            return None, None, "OfficeOS User", "Team Member", True
+
+        profile = await db.scalar(select(Profile).where(Profile.auth_user_id == auth_uuid))
+        profile_id = profile.id if profile else None
+
+        employee = None
+        if profile_id:
+            employee = await db.scalar(
+                select(Employee).where(
+                    Employee.organization_id == organization_id,
+                    Employee.profile_id == profile_id,
+                    Employee.is_active.is_(True),
+                )
+            )
+
+        if employee:
+            name = f"{employee.first_name} {employee.last_name}".strip()
+            role = employee.designation or "Project Member"
+            return profile_id, employee.id, name, role, True
+
+        if profile:
+            if profile.email:
+                contact = await db.scalar(
+                    select(ClientContact).where(
+                        ClientContact.organization_id == organization_id,
+                        func.lower(ClientContact.email) == profile.email.strip().lower(),
+                    )
+                )
+                if contact:
+                    name = contact.name or f"{profile.first_name or ''} {profile.last_name or ''}".strip()
+                    role = contact.designation or "Client Representative"
+                    return profile_id, None, name, role, False
+
+            full_name = f"{profile.first_name or ''} {profile.last_name or ''}".strip()
+            name = full_name or profile.email or "Team Member"
+            return profile_id, None, name, "Team Member", True
+
+        return None, None, "Team Member", "Team Member", True
+
+    @staticmethod
+    async def verify_engagement_participant(
+        db: AsyncSession,
+        organization_id: uuid.UUID,
+        engagement_id: uuid.UUID,
+        user_id: str,
+        is_admin_or_manager: bool = False,
+    ) -> ClientEngagement:
+        eng = await db.scalar(
+            select(ClientEngagement)
+            .options(
+                selectinload(ClientEngagement.client),
+                selectinload(ClientEngagement.project).selectinload(Project.members),
+            )
+            .where(
+                ClientEngagement.organization_id == organization_id,
+                ClientEngagement.id == engagement_id,
+            )
+        )
+        if not eng:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Engagement not found")
+
+        # 1. Direct admin/manager override flag or canonical platform admin
+        if is_admin_or_manager or str(user_id) == "00000000-0000-0000-0000-000000000001":
+            return eng
+
+        # 2. Check organization-wide engagements permissions or administrative roles
+        try:
+            permissions = await get_user_permissions(db, user_id, organization_id)
+            if "engagements.manage" in permissions or "admin" in permissions:
+                return eng
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Failed checking permissions for user %s: %s", user_id, exc)
+
+        try:
+            roles = await get_user_roles(db, user_id, organization_id)
+            if any(r in ("admin", "owner", "system_admin") for r in roles):
+                return eng
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Failed checking roles for user %s: %s", user_id, exc)
+
+        # 3. Resolve user profile and employee mapping
+        try:
+            auth_uuid = uuid.UUID(str(user_id))
+            profile = await db.scalar(select(Profile).where(Profile.auth_user_id == auth_uuid))
+        except (ValueError, TypeError):
+            profile = None
+
+        employee = None
+        if profile:
+            employee = await db.scalar(
+                select(Employee).where(
+                    Employee.organization_id == organization_id,
+                    Employee.profile_id == profile.id,
+                    Employee.is_active.is_(True),
+                )
+            )
+
+        employee_id = employee.id if employee else None
+
+        # 4. Check assigned engagement lead
+        if employee_id and eng.engagement_lead_id == employee_id:
+            return eng
+
+        # 5. Check linked project roles (Project Manager & Assigned Members)
+        if eng.project:
+            if employee_id and eng.project.project_manager_employee_id == employee_id:
+                return eng
+            if employee_id and eng.project.members:
+                member_emp_ids = {m.employee_id for m in eng.project.members if m.employee_id}
+                if employee_id in member_emp_ids:
+                    return eng
+
+        # 6. Check client contacts associated with this engagement's client
+        if profile and profile.email and eng.client_id:
+            user_email = profile.email.strip().lower()
+            client_contact = await db.scalar(
+                select(ClientContact).where(
+                    ClientContact.organization_id == organization_id,
+                    ClientContact.client_id == eng.client_id,
+                    func.lower(ClientContact.email) == user_email,
+                )
+            )
+            if client_contact:
+                return eng
+
+            if eng.client and eng.client.email and eng.client.email.strip().lower() == user_email:
+                return eng
+
+        # 7. Caller is not an authorized participant
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You are not an authorized participant in this engagement",
+        )
+
+    @staticmethod
     async def list_chat_messages(
         db: AsyncSession,
         organization_id: uuid.UUID,
         engagement_id: uuid.UUID,
         channel: str | None = None,
+        is_internal: bool = True,
+        visibility_filter: str | None = None,
+        conversation: str | None = "client",
     ) -> list[dict[str, Any]]:
         eng = await db.get(ClientEngagement, engagement_id)
         if not eng or eng.organization_id != organization_id:
             return []
+
+        # Determine target conversation: client or internal
+        raw_conv = conversation or visibility_filter or "client"
+        target_conv = "internal" if raw_conv == "internal" else "client"
+
+        # Strict security gate: Non-internal client users cannot access internal team discussions
+        if target_conv == "internal" and not is_internal:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Client contacts cannot view internal team conversations",
+            )
 
         q = (
             select(EngagementChatMessage)
@@ -664,6 +830,7 @@ class EngagementService:
             .where(
                 EngagementChatMessage.organization_id == organization_id,
                 EngagementChatMessage.engagement_id == engagement_id,
+                EngagementChatMessage.visibility == target_conv,
             )
             .order_by(EngagementChatMessage.created_at.asc())
         )
@@ -683,7 +850,9 @@ class EngagementService:
                 "sender_role": r.sender_role,
                 "sender_type": r.sender_type,
                 "channel": r.channel,
+                "visibility": r.visibility,
                 "message": r.message,
+                "client_msg_id": r.client_msg_id,
                 "attachments": r.attachments,
                 "proposal_id": r.proposal_id,
                 "proposal_title": r.proposal.title if r.proposal else None,
@@ -700,26 +869,93 @@ class EngagementService:
         organization_id: uuid.UUID,
         engagement_id: uuid.UUID,
         payload: ChatMessageCreate,
-        sender_profile_id: uuid.UUID | None = None,
+        current_user_id: str | None = None,
         default_sender_name: str | None = None,
     ) -> dict[str, Any]:
         eng = await db.get(ClientEngagement, engagement_id)
         if not eng or eng.organization_id != organization_id:
             raise HTTPException(status_code=404, detail="Engagement not found")
 
-        sender_name = (payload.sender_name or default_sender_name or "Team Member").strip()
-        sender_role = (payload.sender_role or ("Client Representative" if payload.sender_type == "client" else "Project Member")).strip()
+        # Idempotency check: prevent duplicate insertion on network retries
+        if payload.client_msg_id:
+            existing = await db.scalar(
+                select(EngagementChatMessage)
+                .options(
+                    selectinload(EngagementChatMessage.proposal),
+                    selectinload(EngagementChatMessage.issue),
+                )
+                .where(
+                    EngagementChatMessage.organization_id == organization_id,
+                    EngagementChatMessage.engagement_id == engagement_id,
+                    EngagementChatMessage.client_msg_id == payload.client_msg_id,
+                )
+            )
+            if existing:
+                return {
+                    "id": existing.id,
+                    "organization_id": existing.organization_id,
+                    "engagement_id": existing.engagement_id,
+                    "project_id": existing.project_id,
+                    "sender_profile_id": existing.sender_profile_id,
+                    "sender_name": existing.sender_name,
+                    "sender_role": existing.sender_role,
+                    "sender_type": existing.sender_type,
+                    "channel": existing.channel,
+                    "visibility": existing.visibility,
+                    "message": existing.message,
+                    "client_msg_id": existing.client_msg_id,
+                    "attachments": existing.attachments,
+                    "proposal_id": existing.proposal_id,
+                    "proposal_title": existing.proposal.title if existing.proposal else None,
+                    "issue_id": existing.issue_id,
+                    "issue_title": existing.issue.title if existing.issue else None,
+                    "created_at": existing.created_at,
+                }
+
+        # Resolve verified sender identity from backend auth context
+        if current_user_id:
+            profile_id, _, sender_name, sender_role, is_internal = (
+                await EngagementService.resolve_sender_identity(db, organization_id, current_user_id)
+            )
+            sender_type = "member" if is_internal else "client"
+        else:
+            profile_id = None
+            sender_name = (payload.sender_name or default_sender_name or "Team Member").strip()
+            sender_role = (payload.sender_role or "Project Member").strip()
+            sender_type = "member"
+            is_internal = True
+
+        # Determine target conversation
+        raw_conv = payload.conversation or payload.visibility or "client"
+        target_conv = "internal" if raw_conv == "internal" else "client"
+
+        # Strict security gate: Non-internal client users cannot post to internal team discussions
+        if target_conv == "internal" and not is_internal:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Client contacts cannot post to internal team conversations",
+            )
+
+        # Allow client persona override for testing account in Client Chat
+        if payload.sender_type == "client" and target_conv == "client":
+            sender_type = "client"
+            if payload.sender_role:
+                sender_role = payload.sender_role
+            if payload.sender_name:
+                sender_name = payload.sender_name
 
         msg = EngagementChatMessage(
             organization_id=organization_id,
             engagement_id=engagement_id,
             project_id=eng.project_id,
-            sender_profile_id=sender_profile_id,
+            sender_profile_id=profile_id,
             sender_name=sender_name,
             sender_role=sender_role,
-            sender_type=payload.sender_type or "member",
+            sender_type=sender_type,
             channel=payload.channel or "general",
+            visibility=target_conv,
             message=payload.message.strip(),
+            client_msg_id=payload.client_msg_id,
             attachments=payload.attachments,
             proposal_id=payload.proposal_id,
             issue_id=payload.issue_id,
@@ -748,7 +984,9 @@ class EngagementService:
             "sender_role": reloaded.sender_role,
             "sender_type": reloaded.sender_type,
             "channel": reloaded.channel,
+            "visibility": reloaded.visibility,
             "message": reloaded.message,
+            "client_msg_id": reloaded.client_msg_id,
             "attachments": reloaded.attachments,
             "proposal_id": reloaded.proposal_id,
             "proposal_title": reloaded.proposal.title if reloaded.proposal else None,

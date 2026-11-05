@@ -1,10 +1,26 @@
+import logging
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import session_factory, set_transaction_context
+from app.core.security import AuthenticatedUser
+from app.dependencies.auth import get_current_user
 from app.dependencies.tenant import require_permission
+
+logger = logging.getLogger("officeos.engagements")
 from app.schemas.engagement import (
     AgreementCreate,
     AgreementResponse,
@@ -30,7 +46,9 @@ from app.schemas.engagement import (
     UatSessionResponse,
     WeeklyReportCreate,
     WeeklyReportResponse,
+    WsTicketResponse,
 )
+from app.services.chat_ws import chat_connection_manager, chat_ticket_store
 from app.services.engagement import EngagementService
 
 router = APIRouter(prefix="/engagements", tags=["Client Engagements"])
@@ -297,12 +315,25 @@ async def record_handover(
 @router.get("/{id}/messages", response_model=list[ChatMessageResponse])
 async def list_chat_messages(
     id: uuid.UUID,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(require_permission("engagements.view"))],
     organization_header: Annotated[str, Header(alias="X-Organization-Id")],
     channel: Annotated[str | None, Query()] = None,
+    visibility: Annotated[str | None, Query()] = None,
+    conversation: Annotated[str | None, Query()] = "client",
 ) -> list[ChatMessageResponse]:
     org_id = uuid.UUID(organization_header)
-    msgs = await EngagementService.list_chat_messages(session, org_id, id, channel=channel)
+    await EngagementService.verify_engagement_participant(session, org_id, id, current_user.id)
+    _, _, _, _, is_internal = await EngagementService.resolve_sender_identity(session, org_id, current_user.id)
+    msgs = await EngagementService.list_chat_messages(
+        session,
+        org_id,
+        id,
+        channel=channel,
+        is_internal=is_internal,
+        visibility_filter=visibility,
+        conversation=conversation,
+    )
     return [ChatMessageResponse.model_validate(m) for m in msgs]
 
 
@@ -310,20 +341,200 @@ async def list_chat_messages(
 async def create_chat_message(
     id: uuid.UUID,
     payload: ChatMessageCreate,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(require_permission("engagements.view"))],
     organization_header: Annotated[str, Header(alias="X-Organization-Id")],
 ) -> ChatMessageResponse:
     org_id = uuid.UUID(organization_header)
-    msg = await EngagementService.create_chat_message(session, org_id, id, payload)
+    await EngagementService.verify_engagement_participant(session, org_id, id, current_user.id)
+    msg = await EngagementService.create_chat_message(
+        session,
+        org_id,
+        id,
+        payload,
+        current_user_id=current_user.id,
+    )
+    logger.info("Chat message %s saved via REST for engagement %s by %s", msg.get("id"), id, current_user.id)
+    target_conv = msg.get("visibility", "client")
+    # Broadcast to connected WebSocket participants in the specific conversation room
+    delivered_count = await chat_connection_manager.broadcast_message(
+        id,
+        msg,
+        conversation=target_conv,
+    )
+    logger.info(
+        "REST chat message %s broadcast to %d active WebSocket clients in room %s [%s]",
+        msg.get("id"),
+        delivered_count,
+        id,
+        target_conv,
+    )
     return ChatMessageResponse.model_validate(msg)
 
 
 @router.get("/{id}/chat-participants", response_model=ChatParticipantsResponse)
 async def get_chat_participants(
     id: uuid.UUID,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(require_permission("engagements.view"))],
     organization_header: Annotated[str, Header(alias="X-Organization-Id")],
 ) -> ChatParticipantsResponse:
     org_id = uuid.UUID(organization_header)
+    await EngagementService.verify_engagement_participant(session, org_id, id, current_user.id)
     return await EngagementService.get_chat_participants(session, org_id, id)
+
+
+@router.post("/{id}/ws-ticket", response_model=WsTicketResponse)
+async def create_ws_ticket(
+    id: uuid.UUID,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(require_permission("engagements.view"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
+    conversation: Annotated[str, Query()] = "client",
+) -> WsTicketResponse:
+    org_id = uuid.UUID(organization_header)
+    await EngagementService.verify_engagement_participant(session, org_id, id, current_user.id)
+    profile_id, _, user_name, user_role, is_internal = await EngagementService.resolve_sender_identity(
+        session, org_id, current_user.id
+    )
+
+    norm_conv = "internal" if conversation == "internal" else "client"
+    if norm_conv == "internal" and not is_internal:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Client contacts cannot connect to internal team chat",
+        )
+
+    ticket = await chat_ticket_store.issue_ticket(
+        user_id=current_user.id,
+        org_id=org_id,
+        engagement_id=id,
+        profile_id=profile_id,
+        user_name=user_name,
+        user_role=user_role,
+        is_internal=is_internal,
+        conversation=norm_conv,
+        ttl_seconds=60,
+    )
+    return WsTicketResponse(ticket=ticket, expires_in=60, engagement_id=id, conversation=norm_conv)
+
+
+@router.websocket("/{id}/ws")
+async def engagement_chat_websocket(
+    websocket: WebSocket,
+    id: uuid.UUID,
+    ticket: Annotated[str | None, Query()] = None,
+    conversation: Annotated[str | None, Query()] = None,
+):
+    effective_ticket = ticket or websocket.query_params.get("ticket")
+    if not effective_ticket:
+        logger.warning("WebSocket rejected: No ticket provided for engagement %s", id)
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    chat_ticket = await chat_ticket_store.redeem_ticket(effective_ticket, id)
+    if not chat_ticket:
+        logger.warning("WebSocket rejected: Invalid or expired ticket for engagement %s", id)
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    req_conv = conversation or websocket.query_params.get("conversation")
+    effective_conv = "internal" if (req_conv or chat_ticket.conversation) == "internal" else "client"
+
+    if effective_conv == "internal" and not chat_ticket.is_internal:
+        logger.warning(
+            "WebSocket rejected: Non-internal user %s attempted connection to internal room %s",
+            chat_ticket.user_name,
+            id,
+        )
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    await chat_connection_manager.connect(id, websocket, chat_ticket, conversation=effective_conv)
+    logger.info(
+        "WebSocket client connected to engagement %s [%s] (user: %s, role: %s, internal: %s)",
+        id,
+        effective_conv,
+        chat_ticket.user_name,
+        chat_ticket.user_role,
+        chat_ticket.is_internal,
+    )
+
+    try:
+        while True:
+            data = await websocket.receive_json()
+            event_type = data.get("type")
+
+            if event_type == "ping":
+                await chat_connection_manager.send_pong(websocket)
+                continue
+
+            if event_type == "chat_message":
+                raw_payload = data.get("payload", {})
+                try:
+                    payload = ChatMessageCreate(**raw_payload)
+                    payload.conversation = effective_conv
+                    payload.visibility = effective_conv
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Invalid chat_message payload received over WebSocket for engagement %s: %s", id, exc)
+                    await websocket.send_json({"type": "error", "message": f"Invalid payload: {exc}"})
+                    continue
+
+                # Short-lived database session per message event (prevents long-lived open transactions)
+                async with session_factory() as session:
+                    try:
+                        await set_transaction_context(session, chat_ticket.user_id, str(chat_ticket.org_id))
+                        msg = await EngagementService.create_chat_message(
+                            session,
+                            chat_ticket.org_id,
+                            id,
+                            payload,
+                            current_user_id=chat_ticket.user_id,
+                        )
+                    except Exception as exc:
+                        await session.rollback()
+                        logger.exception("Failed to persist message via WebSocket for engagement %s", id)
+                        await websocket.send_json({"type": "error", "message": f"Failed to save message: {exc}"})
+                        continue
+
+                logger.info(
+                    "Message %s persisted via WebSocket for engagement %s by %s [%s]",
+                    msg.get("id"),
+                    id,
+                    chat_ticket.user_id,
+                    effective_conv,
+                )
+
+                # Broadcast to authorized participants in this specific conversation room
+                delivered_count = await chat_connection_manager.broadcast_message(
+                    id,
+                    msg,
+                    conversation=effective_conv,
+                )
+                logger.info(
+                    "WebSocket message %s broadcast to %d participants in room %s [%s]",
+                    msg.get("id"),
+                    delivered_count,
+                    id,
+                    effective_conv,
+                )
+
+    except WebSocketDisconnect as ws_disc:
+        logger.info(
+            "WebSocket disconnected from engagement %s [%s] for user %s (code: %s)",
+            id,
+            effective_conv,
+            chat_ticket.user_name,
+            getattr(ws_disc, "code", None),
+        )
+        await chat_connection_manager.disconnect(id, websocket, conversation=effective_conv)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "WebSocket unexpected error in engagement %s [%s] for user %s: %s",
+            id,
+            effective_conv,
+            chat_ticket.user_name,
+            exc,
+        )
+        await chat_connection_manager.disconnect(id, websocket, conversation=effective_conv)
 
