@@ -15,11 +15,11 @@ interface ProjectsWidgetProps {
 
 export function ProjectsWidget(_props: ProjectsWidgetProps = {}) {
   return (
-    <Card className="p-6 shadow-xs flex flex-col justify-between bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 h-full">
+    <Card className="p-3.5 sm:p-4.5 shadow-xs flex flex-col justify-between bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 h-full">
       <div>
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between pb-2.5 sm:pb-3 border-b border-slate-100 dark:border-slate-800">
           <div>
-            <CardTitle className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <CardTitle className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <Layers className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
               <span>Project Delivery Status</span>
             </CardTitle>
@@ -39,13 +39,13 @@ export function ProjectsWidget(_props: ProjectsWidgetProps = {}) {
         </div>
 
         {/* Clean Project Progress List */}
-        <div className="space-y-4 pt-4">
+        <div className="space-y-2.5 sm:space-y-3 pt-2.5 sm:pt-3">
           {/* Project 1 */}
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <div className="flex justify-between items-center text-xs">
               <div>
                 <span className="font-semibold text-slate-900 dark:text-white">RFID Smart Store</span>
-                <span className="text-slate-400 dark:text-slate-400 text-[11px] block">Horizon Media • ENG-0001</span>
+                <span className="text-slate-400 dark:text-slate-400 text-[10px] sm:text-[11px] block">Horizon Media • ENG-0001</span>
               </div>
               <Badge variant="success">Delivered</Badge>
             </div>
@@ -55,11 +55,11 @@ export function ProjectsWidget(_props: ProjectsWidgetProps = {}) {
           </div>
 
           {/* Project 2 */}
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <div className="flex justify-between items-center text-xs">
               <div>
                 <span className="font-semibold text-slate-900 dark:text-white">POS Core Architecture</span>
-                <span className="text-slate-400 dark:text-slate-400 text-[11px] block">Retail Suite • PRJ-0002</span>
+                <span className="text-slate-400 dark:text-slate-400 text-[10px] sm:text-[11px] block">Retail Suite • PRJ-0002</span>
               </div>
               <Badge variant="default">65% Active</Badge>
             </div>
@@ -69,11 +69,11 @@ export function ProjectsWidget(_props: ProjectsWidgetProps = {}) {
           </div>
 
           {/* Project 3 */}
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <div className="flex justify-between items-center text-xs">
               <div>
                 <span className="font-semibold text-slate-900 dark:text-white">Microservices Cloud Sync</span>
-                <span className="text-slate-400 dark:text-slate-400 text-[11px] block">Core Tech • PRJ-0003</span>
+                <span className="text-slate-400 dark:text-slate-400 text-[10px] sm:text-[11px] block">Core Tech • PRJ-0003</span>
               </div>
               <Badge variant="warning">40% Review</Badge>
             </div>
@@ -83,11 +83,11 @@ export function ProjectsWidget(_props: ProjectsWidgetProps = {}) {
           </div>
 
           {/* Project 4 */}
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <div className="flex justify-between items-center text-xs">
               <div>
                 <span className="font-semibold text-slate-900 dark:text-white">Operations Automation</span>
-                <span className="text-slate-400 dark:text-slate-400 text-[11px] block">Internal Ops • PRJ-0004</span>
+                <span className="text-slate-400 dark:text-slate-400 text-[10px] sm:text-[11px] block">Internal Ops • PRJ-0004</span>
               </div>
               <Badge variant="default">25% Active</Badge>
             </div>
@@ -98,7 +98,7 @@ export function ProjectsWidget(_props: ProjectsWidgetProps = {}) {
         </div>
       </div>
 
-      <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400 mt-4">
+      <div className="pt-2.5 sm:pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400 mt-2.5 sm:mt-3">
         <span>Overall Delivery Health</span>
         <span className="font-semibold text-emerald-600 dark:text-emerald-400">On Track • Zero Critical Blockers</span>
       </div>

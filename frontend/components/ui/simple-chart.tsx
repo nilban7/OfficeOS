@@ -34,7 +34,7 @@ export function SimpleBarChart({
   return (
     <div className={cn("space-y-2", className)}>
       <div
-        className="flex items-end gap-2 sm:gap-3 pt-6 pb-2"
+        className="flex items-end gap-2 sm:gap-3 pt-1 pb-1"
         style={{ height: `${height}px` }}
       >
         {items.map((item, idx) => {

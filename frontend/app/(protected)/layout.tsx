@@ -57,7 +57,7 @@ function ProtectedLayoutContent({ children }: { children: React.ReactNode }) {
         )}
       >
         <AppHeader />
-        <main className="flex-1 p-3.5 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto min-w-0">
+        <main className="flex-1 px-3.5 sm:px-6 lg:px-8 py-3.5 sm:py-4 lg:py-5 max-w-7xl w-full mx-auto min-w-0">
           <PlatformAnnouncementBanner />
           {children}
         </main>
