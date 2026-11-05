@@ -402,7 +402,9 @@ class EngagementChatMessage(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     sender_role: Mapped[str] = mapped_column(String(100), nullable=False)
     sender_type: Mapped[str] = mapped_column(String(32), server_default="member", default="member", nullable=False)
     channel: Mapped[str] = mapped_column(String(50), server_default="general", default="general", nullable=False, index=True)
+    visibility: Mapped[str] = mapped_column(String(20), server_default="client", default="client", nullable=False, index=True)
     message: Mapped[str] = mapped_column(Text, nullable=False)
+    client_msg_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
     attachments: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
     proposal_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("engagement_proposals.id", ondelete="SET NULL"), nullable=True

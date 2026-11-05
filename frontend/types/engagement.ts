@@ -211,7 +211,9 @@ export interface EngagementChatMessage {
   sender_role: string;
   sender_type: "member" | "client";
   channel: ChatChannel;
+  visibility?: "client" | "internal";
   message: string;
+  client_msg_id?: string | null;
   attachments?: any;
   proposal_id?: string | null;
   proposal_title?: string | null;
@@ -237,12 +239,27 @@ export interface ChatParticipantsResponse {
   members: ChatParticipant[];
 }
 
+export type ChatConversation = "client" | "internal";
+
 export interface SendChatMessageInput {
   message: string;
+  client_msg_id?: string | null;
   sender_name?: string;
   sender_role?: string;
   sender_type?: "member" | "client";
   channel?: ChatChannel;
+  visibility?: "client" | "internal";
+  conversation?: ChatConversation;
   proposal_id?: string | null;
   issue_id?: string | null;
 }
+
+
+export interface WsTicketResponse {
+  ticket: string;
+  expires_in: number;
+  engagement_id: string;
+  conversation?: ChatConversation;
+}
+
+export type ChatConnectionState = "connected" | "connecting" | "reconnecting" | "offline";
