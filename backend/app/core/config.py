@@ -22,6 +22,37 @@ class Settings(BaseSettings):
     groq_api_key: str | None = None
     gemini_api_key: str | None = None
 
+    # Gmail SMTP Email Configuration
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    email_from_name: str = "OfficeOS Notifications"
+    email_from_address: str | None = None
+    email_enabled: bool = True
+    frontend_base_url: str = Field("http://localhost:3000", validation_alias="FRONTEND_BASE_URL")
+
+    @property
+    def is_smtp_configured(self) -> bool:
+        """Check whether minimum SMTP credentials are provided for live sending."""
+        return bool(
+            self.email_enabled
+            and self.smtp_host
+            and self.smtp_username
+            and self.smtp_password
+            and self.smtp_username.strip()
+            and self.smtp_password.strip()
+        )
+
+    @property
+    def sender_email(self) -> str:
+        """Resolve the effective sender email address."""
+        if self.email_from_address and self.email_from_address.strip():
+            return self.email_from_address.strip()
+        if self.smtp_username and self.smtp_username.strip():
+            return self.smtp_username.strip()
+        return "notifications@officeos.local" 
+
     @model_validator(mode="after")
     def set_derived_supabase_fields(self) -> "Settings":
         if self.supabase_url:

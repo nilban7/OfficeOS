@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="greeting">Hi {{ employee_name }},</div>
+
+<div style="background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 14px 18px; border-radius: 6px; margin-bottom: 20px;">
+  <span style="font-weight: 600; color: #166534; font-size: 14px;">Good news! Your leave request has been approved.</span>
+</div>
+
+<p class="message-body">
+  Your leave application has been reviewed and granted by your manager.
+</p>
+
+<table class="details-table" role="presentation">
+  <tr>
+    <td class="details-label">Leave Type</td>
+    <td class="details-value">{{ leave_type }}</td>
+  </tr>
+  <tr>
+    <td class="details-label">Approved Period</td>
+    <td class="details-value"><strong>{{ start_date }}</strong> to <strong>{{ end_date }}</strong></td>
+  </tr>
+  <tr>
+    <td class="details-label">Total Duration</td>
+    <td class="details-value">{{ total_days }} day{% if total_days != 1 and total_days != "1.00" %}s{% endif %}</td>
+  </tr>
+  <tr>
+    <td class="details-label">Status</td>
+    <td class="details-value"><span class="badge badge-approved">Approved</span></td>
+  </tr>
+  {% if reviewer_name %}
+  <tr>
+    <td class="details-label">Reviewed By</td>
+    <td class="details-value">{{ reviewer_name }}</td>
+  </tr>
+  {% endif %}
+  {% if reviewer_comment %}
+  <tr>
+    <td class="details-label">Manager Remarks</td>
+    <td class="details-value" style="font-style: italic;">"{{ reviewer_comment }}"</td>
+  </tr>
+  {% endif %}
+  <tr>
+    <td class="details-label">Reference ID</td>
+    <td class="details-value" style="font-family: monospace; font-size: 12px; color: #64748b;">{{ request_id }}</td>
+  </tr>
+</table>
+
+{% if leave_url %}
+<div class="cta-container">
+  <a href="{{ leave_url }}" class="button" target="_blank" rel="noopener noreferrer">View My Leave Balance</a>
+</div>
+{% endif %}
+
+<p style="font-size: 12px; color: #64748b; text-align: center; margin-top: 16px;">
+  Your remaining leave balance and attendance records have been updated accordingly in OfficeOS.
+</p>
+{% endblock %}

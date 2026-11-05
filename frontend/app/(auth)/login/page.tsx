@@ -1,3 +1,4 @@
+import * as React from "react";
 import { LoginForm } from "@/components/auth/login-form";
 import Link from "next/link";
 import { Building2 } from "lucide-react";
@@ -17,7 +18,9 @@ export default function LoginPage() {
         </Link>
       </div>
 
-      <LoginForm />
+      <React.Suspense fallback={null}>
+        <LoginForm />
+      </React.Suspense>
     </div>
   );
 }

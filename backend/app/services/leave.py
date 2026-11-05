@@ -1,10 +1,11 @@
+import logging
 import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from fastapi import HTTPException, status
+from fastapi import BackgroundTasks, HTTPException, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -35,7 +36,11 @@ from app.schemas.leave import (
 )
 from app.services.attendance import resolve_employee_for_user
 from app.services.automation import AutomationService
+from app.services.email_service import EmailService
+from app.services.notification_service import LeaveNotificationService
 from app.services.organization import record_audit_log
+
+logger = logging.getLogger("officeos.leave")
 
 
 def _to_list(result: Any) -> list[Any]:
@@ -545,6 +550,7 @@ async def create_leave_request(
     actor_profile_id: UUID | None,
     is_admin_or_manager: bool,
     ip_address: str | None = None,
+    background_tasks: BackgroundTasks | None = None,
 ) -> LeaveRequestResponse:
     # 1. Resolve target employee
     target_emp: Employee | None = None
@@ -674,6 +680,24 @@ async def create_leave_request(
     except Exception:  # noqa: BLE001, S110
         pass
 
+    # Asynchronously dispatch email notification to reporting manager
+    try:
+        outbox_entry = await LeaveNotificationService.send_leave_requested_notification(
+            session=session,
+            organization_id=organization_id,
+            leave_request=req,
+            employee=target_emp,
+            leave_type=lt,
+        )
+        if outbox_entry:
+            if background_tasks is not None:
+                background_tasks.add_task(EmailService.process_outbox_item, outbox_entry.id)
+            else:
+                import asyncio
+                asyncio.create_task(EmailService.process_outbox_item(outbox_entry.id))
+    except Exception:
+        logger.exception("Failed to dispatch leave requested notification for %s", req.id)
+
     return await get_leave_request(session, organization_id, req.id)
 
 
@@ -791,6 +815,7 @@ async def approve_leave_request(
     data: LeaveRequestApprovalAction,
     actor_profile_id: UUID | None,
     ip_address: str | None = None,
+    background_tasks: BackgroundTasks | None = None,
 ) -> LeaveRequestResponse:
     rec = await session.scalar(
         select(LeaveRequest)
@@ -881,6 +906,28 @@ async def approve_leave_request(
     except Exception:  # noqa: BLE001, S110
         pass
 
+    # Asynchronously dispatch email notification to employee
+    try:
+        rev_name = "Management"
+
+        if emp is not None and rec.leave_type is not None:
+            outbox_entry = await LeaveNotificationService.send_leave_approved_notification(
+                session=session,
+                organization_id=organization_id,
+                leave_request=rec,
+                employee=emp,
+                leave_type=rec.leave_type,
+                reviewer_name=rev_name,
+            )
+            if outbox_entry:
+                if background_tasks is not None:
+                    background_tasks.add_task(EmailService.process_outbox_item, outbox_entry.id)
+                else:
+                    import asyncio
+                    asyncio.create_task(EmailService.process_outbox_item(outbox_entry.id))
+    except Exception:
+        logger.exception("Failed to dispatch leave approved notification for %s", rec.id)
+
     return await get_leave_request(session, organization_id, rec.id)
 
 
@@ -891,6 +938,7 @@ async def reject_leave_request(
     data: LeaveRequestRejectAction,
     actor_profile_id: UUID | None,
     ip_address: str | None = None,
+    background_tasks: BackgroundTasks | None = None,
 ) -> LeaveRequestResponse:
     rec = await session.scalar(
         select(LeaveRequest)
@@ -977,6 +1025,28 @@ async def reject_leave_request(
         )
     except Exception:  # noqa: BLE001, S110
         pass
+
+    # Asynchronously dispatch email notification to employee
+    try:
+        rev_name = "Management"
+
+        if emp is not None and rec.leave_type is not None:
+            outbox_entry = await LeaveNotificationService.send_leave_rejected_notification(
+                session=session,
+                organization_id=organization_id,
+                leave_request=rec,
+                employee=emp,
+                leave_type=rec.leave_type,
+                reviewer_name=rev_name,
+            )
+            if outbox_entry:
+                if background_tasks is not None:
+                    background_tasks.add_task(EmailService.process_outbox_item, outbox_entry.id)
+                else:
+                    import asyncio
+                    asyncio.create_task(EmailService.process_outbox_item(outbox_entry.id))
+    except Exception:
+        logger.exception("Failed to dispatch leave rejected notification for %s", rec.id)
 
     return await get_leave_request(session, organization_id, rec.id)
 

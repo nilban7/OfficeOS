@@ -76,7 +76,11 @@ export default function ProtectedLayout({
 
   React.useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      router.push(ROUTES.LOGIN);
+      const redirectPath =
+        typeof window !== "undefined" && window.location.pathname
+          ? `${ROUTES.LOGIN}?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`
+          : ROUTES.LOGIN;
+      router.push(redirectPath);
     }
   }, [isLoading, isAuthenticated, router]);
 
