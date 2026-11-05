@@ -62,15 +62,18 @@ export function SimpleBarChart({
         })}
       </div>
 
-      {/* Labels Axis */}
-      <div className="flex justify-between gap-1 border-t border-slate-100 pt-1.5 text-[11px] text-slate-500 font-medium">
+      {/* Labels Axis with Sub-metric Values */}
+      <div className="flex justify-between gap-1 border-t border-slate-100 dark:border-slate-800 pt-1.5 text-[11px] text-slate-600 dark:text-slate-400 font-semibold">
         {items.map((item, idx) => (
           <div
             key={`lbl-${item.label}-${idx}`}
             className="flex-1 text-center truncate"
             title={item.label}
           >
-            {item.label}
+            <div>{item.label}</div>
+            <div className="text-[10px] text-slate-400 dark:text-slate-400 font-normal mt-0.5">
+              {item.value}/{calculatedMax}
+            </div>
           </div>
         ))}
       </div>

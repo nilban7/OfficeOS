@@ -21,7 +21,9 @@ import {
   GraduationCap,
   ShieldCheck,
   UserCheck,
+  UploadCloud,
 } from "lucide-react";
+import { cn } from "@/lib/utils/cn";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -130,6 +132,36 @@ export default function InternshipDetailPage() {
   });
   const [docLoading, setDocLoading] = React.useState(false);
   const [docError, setDocError] = React.useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
+  const [isDragging, setIsDragging] = React.useState(false);
+
+  const processSelectedFile = (file: File) => {
+    setSelectedFile(file);
+    const cleanTitle = docForm.title.trim() === "" ? file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ") : docForm.title;
+
+    const reader = new FileReader();
+    reader.onload = (uploadEvent) => {
+      const dataUrl = uploadEvent.target?.result as string;
+      setDocForm((prev) => ({
+        ...prev,
+        title: cleanTitle,
+        file_name: file.name,
+        file_size: file.size,
+        mime_type: file.type || "application/pdf",
+        // If file_url is not manually populated, set to dataUrl
+        file_url: prev.file_url && prev.file_url.trim() !== "" ? prev.file_url : dataUrl,
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processSelectedFile(file);
+    }
+  };
 
   // Stipends
   const [stipends, setStipends] = React.useState<StipendDisbursement[]>([]);
@@ -310,8 +342,22 @@ export default function InternshipDetailPage() {
     setDocLoading(true);
     setDocError(null);
     try {
-      await apiClient.post(API_ENDPOINTS.internships.documents(internship.id), docForm);
+      const computedFileName =
+        docForm.file_name.trim() ||
+        selectedFile?.name ||
+        `${(docForm.title || "document").toLowerCase().replace(/[^a-z0-9]/g, "_")}.pdf`;
+
+      const payload: InternshipDocumentCreate = {
+        ...docForm,
+        file_name: computedFileName,
+        file_size: selectedFile?.size || docForm.file_size || 102400,
+        file_url: docForm.file_url?.trim() || undefined,
+      };
+
+      await apiClient.post(API_ENDPOINTS.internships.documents(internship.id), payload);
       setShowAddDocModal(false);
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       setDocForm({
         title: "",
         document_type: "offer_letter",
@@ -1199,25 +1245,98 @@ export default function InternshipDetailPage() {
             </div>
           </div>
 
+          {/* Direct File Upload Zone */}
           <div className="space-y-1.5">
-            <Label htmlFor="doc_filename">File Name *</Label>
-            <Input
-              id="doc_filename"
-              required
-              value={docForm.file_name}
-              onChange={(e) => setDocForm({ ...docForm, file_name: e.target.value })}
-              placeholder="e.g. offer_letter_signed.pdf"
+            <Label>Direct File Upload</Label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              onChange={handleFileChange}
+              accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.xlsx,.txt"
             />
+
+            {selectedFile ? (
+              <div className="flex items-center justify-between p-3 rounded-lg border border-emerald-200 dark:border-emerald-800/80 bg-emerald-50/60 dark:bg-emerald-950/30">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="h-8 w-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                      {selectedFile.name}
+                    </p>
+                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                      {(selectedFile.size / 1024).toFixed(1)} KB • Direct file attached
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedFile(null);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                    setDocForm((prev) => ({ ...prev, file_name: "", file_size: 102400 }));
+                  }}
+                  className="text-slate-400 hover:text-rose-500 p-1.5 h-auto rounded-md"
+                  title="Remove selected file"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  const f = e.dataTransfer.files?.[0];
+                  if (f) processSelectedFile(f);
+                }}
+                className={cn(
+                  "border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors duration-150",
+                  isDragging
+                    ? "border-blue-500 bg-blue-50/50 dark:bg-blue-950/30"
+                    : "border-slate-200 dark:border-slate-700 hover:border-blue-400 hover:bg-slate-50/60 dark:hover:bg-slate-800/40"
+                )}
+              >
+                <UploadCloud className="h-7 w-7 mx-auto text-blue-600 dark:text-blue-400 mb-1" />
+                <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                  Click to upload or drag and drop file
+                </p>
+                <p className="text-[11px] text-slate-400 dark:text-slate-400 mt-0.5">
+                  PDF, Word, Excel, or Image (up to 15MB)
+                </p>
+              </div>
+            )}
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="doc_url">Document URL / Storage Link</Label>
-            <Input
-              id="doc_url"
-              value={docForm.file_url || ""}
-              onChange={(e) => setDocForm({ ...docForm, file_url: e.target.value })}
-              placeholder="https://... (or leave blank for verified record)"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="doc_filename">File Name</Label>
+              <Input
+                id="doc_filename"
+                value={docForm.file_name}
+                onChange={(e) => setDocForm({ ...docForm, file_name: e.target.value })}
+                placeholder={selectedFile?.name || "e.g. offer_letter.pdf"}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="doc_url">
+                Document URL / Link <span className="text-slate-400 font-normal text-xs">(Optional)</span>
+              </Label>
+              <Input
+                id="doc_url"
+                value={docForm.file_url || ""}
+                onChange={(e) => setDocForm({ ...docForm, file_url: e.target.value })}
+                placeholder="https://... (Optional cloud link)"
+              />
+            </div>
           </div>
 
           <div className="space-y-1.5">

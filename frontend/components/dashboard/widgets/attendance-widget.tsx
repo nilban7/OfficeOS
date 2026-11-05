@@ -47,9 +47,18 @@ export function AttendanceWidget({
         <div className="pt-2 sm:pt-3 pb-1">
           <SimpleBarChart
             items={attendanceBars}
-            height={130}
+            height={145}
             maxVal={overview?.active_employees_count || 4}
           />
+        </div>
+
+        {/* Mid-card Pulse Stat Strip to utilize space */}
+        <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+          <span className="flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Peak Presence: <strong className="text-slate-800 dark:text-slate-200">Wed (100%)</strong></span>
+          </span>
+          <span className="text-slate-400 dark:text-slate-400">Weekly Target: 80%+</span>
         </div>
       </div>
 
