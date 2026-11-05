@@ -353,10 +353,10 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-4 sm:space-y-5 pb-8">
       {/* Minimalist, Branded Dashboard Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200/70 dark:border-slate-800 pb-5">
-        <div className="space-y-1.5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200/70 dark:border-slate-800 pb-3.5 sm:pb-4">
+        <div className="space-y-1">
           {/* Branded Organization Pill with Live Status Indicator */}
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary-50 dark:bg-primary-950/70 text-primary-700 dark:text-primary-300 border border-primary-200/60 dark:border-primary-800/80 shadow-2xs">
@@ -370,7 +370,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Minimalist Branded Title */}
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
             Welcome back,{" "}
             <span className="bg-gradient-to-r from-primary-600 via-indigo-600 to-indigo-700 dark:from-primary-400 dark:via-indigo-400 dark:to-indigo-300 bg-clip-text text-transparent">
               {greetingName}
@@ -378,7 +378,7 @@ export default function DashboardPage() {
           </h1>
 
           {/* Clean Contextual Subtitle */}
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-normal">
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-normal">
             Here&apos;s your workspace pulse, attendance trends, and active operations today.
           </p>
         </div>
@@ -390,7 +390,7 @@ export default function DashboardPage() {
             size="sm"
             variant="outline"
             onClick={() => setIsCustomizerOpen(true)}
-            className="text-xs h-9 px-3.5 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-2xs flex items-center gap-1.5"
+            className="text-xs h-8.5 px-3 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-2xs flex items-center gap-1.5"
             title="Customize your dashboard layout"
           >
             <SlidersHorizontal className="h-3.5 w-3.5 text-primary-600 dark:text-primary-400" />
@@ -404,7 +404,7 @@ export default function DashboardPage() {
             <Button
               size="sm"
               variant="outline"
-              className="text-xs h-9 px-3.5 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-2xs"
+              className="text-xs h-8.5 px-3 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-2xs"
             >
               <Briefcase className="h-3.5 w-3.5 mr-1.5 text-slate-400 dark:text-slate-400" />
               <span>Engagements</span>
@@ -413,7 +413,7 @@ export default function DashboardPage() {
           <Link href={ROUTES.PROJECTS}>
             <Button
               size="sm"
-              className="text-xs h-9 px-3.5 flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white shadow-xs"
+              className="text-xs h-8.5 px-3 flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white shadow-xs"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>New Project</span>
@@ -424,9 +424,9 @@ export default function DashboardPage() {
 
       {/* Render Dynamic Customizable Widgets */}
       {activeWidgets.length === 0 ? (
-        <div className="p-12 text-center rounded-2xl border border-dashed border-slate-300 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40 space-y-3">
-          <div className="h-12 w-12 rounded-xl bg-primary-50 dark:bg-primary-950/60 text-primary-600 dark:text-primary-400 flex items-center justify-center mx-auto">
-            <LayoutGrid className="h-6 w-6" />
+        <div className="p-10 text-center rounded-2xl border border-dashed border-slate-300 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40 space-y-3">
+          <div className="h-10 w-10 rounded-xl bg-primary-50 dark:bg-primary-950/60 text-primary-600 dark:text-primary-400 flex items-center justify-center mx-auto">
+            <LayoutGrid className="h-5 w-5" />
           </div>
           <h3 className="text-base font-bold text-slate-900 dark:text-white">
             Your Dashboard is Clean & Empty
@@ -444,14 +444,14 @@ export default function DashboardPage() {
           </Button>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-5">
           {/* KPI metrics widget rendered at top if enabled */}
           {activeWidgets.some((w) => w.id === "kpi_metrics") &&
             renderWidget("kpi_metrics")}
 
           {/* Grid for all other active widgets */}
           {activeWidgets.some((w) => w.id !== "kpi_metrics") && (
-            <div className="grid grid-cols-12 gap-6">
+            <div className="grid grid-cols-12 gap-4 sm:gap-5">
               {activeWidgets
                 .filter((w) => w.id !== "kpi_metrics")
                 .map((w) => renderWidget(w.id))}

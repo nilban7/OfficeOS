@@ -63,7 +63,7 @@ export function AppHeader() {
 
   return (
     <>
-      <header className="sticky top-0 z-20 flex h-16 w-full items-center justify-between border-b border-slate-200/70 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 px-4 sm:px-6 backdrop-blur-md shadow-subtle transition-all duration-200">
+      <header className="sticky top-0 z-20 flex h-14 w-full items-center justify-between border-b border-slate-200/70 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 px-4 sm:px-6 backdrop-blur-md shadow-subtle transition-all duration-200">
         {/* Left Section: Mobile Menu Trigger + Org Switcher */}
         <div className="flex items-center space-x-2 sm:space-x-3.5">
           <button

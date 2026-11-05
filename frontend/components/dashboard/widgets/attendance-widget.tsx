@@ -19,11 +19,11 @@ export function AttendanceWidget({
   overview,
 }: AttendanceWidgetProps) {
   return (
-    <Card className="p-6 shadow-xs flex flex-col justify-between bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 h-full">
+    <Card className="p-3.5 sm:p-4.5 shadow-xs flex flex-col justify-between bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 h-full">
       <div>
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between pb-2.5 sm:pb-3 border-b border-slate-100 dark:border-slate-800">
           <div>
-            <CardTitle className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <CardTitle className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-primary-600 dark:text-primary-400" />
               <span>Workday Attendance (Mon – Fri)</span>
             </CardTitle>
@@ -44,28 +44,28 @@ export function AttendanceWidget({
         </div>
 
         {/* Clean 5-Workday Bar Chart */}
-        <div className="pt-6 pb-2">
+        <div className="pt-2 sm:pt-3 pb-1">
           <SimpleBarChart
             items={attendanceBars}
-            height={170}
+            height={130}
             maxVal={overview?.active_employees_count || 4}
           />
         </div>
       </div>
 
       {/* Clean Metric Footer */}
-      <div className="grid grid-cols-3 gap-3 pt-4 border-t border-slate-100 dark:border-slate-800 text-xs mt-4">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 pt-2.5 sm:pt-3 border-t border-slate-100 dark:border-slate-800 text-xs mt-2.5 sm:mt-3">
         <div>
-          <span className="text-slate-400 dark:text-slate-400 block text-[11px]">Workweek Average</span>
-          <strong className="text-slate-800 dark:text-slate-200 text-sm">86.4%</strong>
+          <span className="text-slate-400 dark:text-slate-400 block text-[10px] sm:text-[11px]">Workweek Average</span>
+          <strong className="text-slate-800 dark:text-slate-200 text-xs sm:text-sm">86.4%</strong>
         </div>
         <div>
-          <span className="text-slate-400 dark:text-slate-400 block text-[11px]">Punctuality</span>
-          <strong className="text-emerald-600 dark:text-emerald-400 text-sm">97.8%</strong>
+          <span className="text-slate-400 dark:text-slate-400 block text-[10px] sm:text-[11px]">Punctuality</span>
+          <strong className="text-emerald-600 dark:text-emerald-400 text-xs sm:text-sm">97.8%</strong>
         </div>
         <div>
-          <span className="text-slate-400 dark:text-slate-400 block text-[11px]">Work Schedule</span>
-          <strong className="text-slate-800 dark:text-slate-200 text-sm">Mon – Fri Office</strong>
+          <span className="text-slate-400 dark:text-slate-400 block text-[10px] sm:text-[11px]">Work Schedule</span>
+          <strong className="text-slate-800 dark:text-slate-200 text-xs sm:text-sm">Mon – Fri Office</strong>
         </div>
       </div>
     </Card>
