@@ -1,6 +1,7 @@
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import (
     CheckConstraint,
@@ -82,9 +83,17 @@ class AttendanceRecord(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     org_head_rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Kiosk & Multi-modal Biometrics
+    kiosk_device_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("kiosk_devices.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    face_snapshot_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    client_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
     organization: Mapped[Organization] = relationship()
     employee: Mapped[Employee] = relationship()
     branch: Mapped[Branch | None] = relationship()
     hr_approved_by: Mapped[Profile | None] = relationship(foreign_keys=[hr_approved_by_id])
     org_head_approved_by: Mapped[Profile | None] = relationship(foreign_keys=[org_head_approved_by_id])
+    kiosk_device: Mapped[Any] = relationship("KioskDevice", foreign_keys=[kiosk_device_id])
 

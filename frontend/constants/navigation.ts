@@ -29,6 +29,7 @@ import {
   Sparkles,
   Handshake,
   Plane,
+  Tablet,
 } from "lucide-react";
 import { ROUTES } from "./routes";
 import type { NavSection } from "@/types/navigation";
@@ -253,6 +254,12 @@ export const MAIN_NAVIGATION: NavSection[] = [
         href: ROUTES.ADMIN_SETTINGS,
         icon: SlidersHorizontal,
         requiredPermissions: ["saas.manage"],
+      },
+      {
+        title: "Attendance Kiosks",
+        href: ROUTES.ADMIN_KIOSKS,
+        icon: Tablet,
+        requiredPermissions: ["saas.view", "organizations.settings_manage", "settings:read"],
       },
     ],
   },

@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.v1.admin import router as admin_router
+from app.api.v1.admin_kiosks import router as admin_kiosks_router
 from app.api.v1.ai import router as ai_router
 from app.api.v1.announcements import router as announcements_router
 from app.api.v1.assets import router as assets_router
@@ -15,6 +16,7 @@ from app.api.v1.engagements import router as engagements_router
 from app.api.v1.finance import router as finance_router
 from app.api.v1.health import router as health_router
 from app.api.v1.internships import router as internships_router
+from app.api.v1.kiosks import router as kiosks_router
 from app.api.v1.leave import router as leave_router
 from app.api.v1.maintenance_records import router as maintenance_records_router
 from app.api.v1.maintenance_requests import router as maintenance_requests_router
@@ -70,5 +72,7 @@ router.include_router(ai_router)
 router.include_router(simulations_router)
 router.include_router(automations_router)
 router.include_router(admin_router)
+router.include_router(admin_kiosks_router)
+router.include_router(kiosks_router)
 router.include_router(announcements_router)
 router.include_router(engagements_router)
