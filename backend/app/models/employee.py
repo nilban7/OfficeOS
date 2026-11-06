@@ -20,7 +20,10 @@ class Department(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     code: Mapped[str] = mapped_column(String(32))
     description: Mapped[str | None] = mapped_column(Text)
     manager_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("employees.id", ondelete="SET NULL"), nullable=True, index=True
+        UUID(as_uuid=True),
+        ForeignKey("employees.id", ondelete="SET NULL", use_alter=True, name="fk_departments_manager_id"),
+        nullable=True,
+        index=True,
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", index=True)
 
