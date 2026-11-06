@@ -68,6 +68,7 @@ export default function AdminKiosksManagementPage() {
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [generatedCode, setGeneratedCode] = React.useState<KioskActivationCode | null>(null);
   const [copiedCode, setCopiedCode] = React.useState(false);
+  const [generateError, setGenerateError] = React.useState<string | null>(null);
 
   // Edit Kiosk Modal State
   const [editingKiosk, setEditingKiosk] = React.useState<KioskDevice | null>(null);
@@ -120,6 +121,7 @@ export default function AdminKiosksManagementPage() {
   const handleGenerateCode = async () => {
     setIsGenerating(true);
     setCopiedCode(false);
+    setGenerateError(null);
 
     try {
       const res = await apiClient.post<KioskActivationCode>(
@@ -132,7 +134,12 @@ export default function AdminKiosksManagementPage() {
       setGeneratedCode(data);
       fetchData();
     } catch (err: unknown) {
-      alert((err as { message?: string })?.message || "Failed to generate activation code");
+      const msg = (err as { message?: string })?.message || "Failed to generate activation code";
+      if (msg.includes("Unable to connect") || msg.includes("network")) {
+        setGenerateError("The cloud server was sleeping and is spinning up (takes ~30-45s on Render free tier). Please click Generate Code again.");
+      } else {
+        setGenerateError(msg);
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -237,6 +244,7 @@ export default function AdminKiosksManagementPage() {
           <Button
             onClick={() => {
               setGeneratedCode(null);
+              setGenerateError(null);
               setIsGenerateModalOpen(true);
             }}
             size="sm"
@@ -375,6 +383,7 @@ export default function AdminKiosksManagementPage() {
                   actionLabel="Generate Secret Activation Code"
                   onAction={() => {
                     setGeneratedCode(null);
+                    setGenerateError(null);
                     setIsGenerateModalOpen(true);
                   }}
                 />
@@ -502,6 +511,7 @@ export default function AdminKiosksManagementPage() {
                   actionLabel="Generate Secret Activation Code"
                   onAction={() => {
                     setGeneratedCode(null);
+                    setGenerateError(null);
                     setIsGenerateModalOpen(true);
                   }}
                 />
@@ -729,6 +739,12 @@ export default function AdminKiosksManagementPage() {
               <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-xl text-xs text-amber-700 dark:text-amber-300">
                 Activation codes are single-use and can only be redeemed once on one tablet device.
               </div>
+
+              {generateError && (
+                <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 rounded-xl text-xs text-rose-700 dark:text-rose-400">
+                  {generateError}
+                </div>
+              )}
 
               <div className="flex justify-end gap-2 pt-2">
                 <Button
