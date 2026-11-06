@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="greeting">Hi {{ employee_name }},</div>
+
+<div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 14px 18px; border-radius: 6px; margin-bottom: 20px;">
+  <span style="font-weight: 600; color: #991b1b; font-size: 14px;">Update regarding your leave request.</span>
+</div>
+
+<p class="message-body">
+  Your leave application has been reviewed and could not be approved at this time.
+</p>
+
+<table class="details-table" role="presentation">
+  <tr>
+    <td class="details-label">Leave Type</td>
+    <td class="details-value">{{ leave_type }}</td>
+  </tr>
+  <tr>
+    <td class="details-label">Requested Period</td>
+    <td class="details-value">{{ start_date }} to {{ end_date }}</td>
+  </tr>
+  <tr>
+    <td class="details-label">Status</td>
+    <td class="details-value"><span class="badge badge-rejected">Rejected</span></td>
+  </tr>
+  {% if reviewer_name %}
+  <tr>
+    <td class="details-label">Reviewed By</td>
+    <td class="details-value">{{ reviewer_name }}</td>
+  </tr>
+  {% endif %}
+  {% if reviewer_comment %}
+  <tr>
+    <td class="details-label">Decision Remarks</td>
+    <td class="details-value" style="font-style: italic; color: #b91c1c;">"{{ reviewer_comment }}"</td>
+  </tr>
+  {% endif %}
+  <tr>
+    <td class="details-label">Reference ID</td>
+    <td class="details-value" style="font-family: monospace; font-size: 12px; color: #64748b;">{{ request_id }}</td>
+  </tr>
+</table>
+
+{% if leave_url %}
+<div class="cta-container">
+  <a href="{{ leave_url }}" class="button" target="_blank" rel="noopener noreferrer">Open Leave Portal</a>
+</div>
+{% endif %}
+
+<p style="font-size: 12px; color: #64748b; text-align: center; margin-top: 16px;">
+  If you have questions regarding this decision, please reach out to your reporting manager or department lead.
+</p>
+{% endblock %}

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import {
   CalendarDays,
   Clock,
@@ -59,8 +60,20 @@ export default function LeavePage() {
   const canViewHolidays = permissions.includes("holidays.view") || permissions.includes("leave.view");
   const canManageHolidays = permissions.includes("holidays.manage");
 
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const requestIdParam = searchParams.get("request_id");
+
   // Tabs: 'my-leave' | 'approvals' | 'types' | 'holidays'
-  const [activeTab, setActiveTab] = React.useState<"my-leave" | "approvals" | "types" | "holidays">("my-leave");
+  const [activeTab, setActiveTab] = React.useState<"my-leave" | "approvals" | "types" | "holidays">(
+    tabParam === "approvals" || tabParam === "types" || tabParam === "holidays" ? tabParam : "my-leave"
+  );
+
+  React.useEffect(() => {
+    if (tabParam === "approvals" || tabParam === "types" || tabParam === "holidays" || tabParam === "my-leave") {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
 
   // Data States
   const [summary, setSummary] = React.useState<LeaveSummary | null>(null);
@@ -70,6 +83,16 @@ export default function LeavePage() {
   const [holidays, setHolidays] = React.useState<Holiday[]>([]);
   const [branches, setBranches] = React.useState<BranchResponse[]>([]);
   const [employees, setEmployees] = React.useState<Employee[]>([]);
+
+  React.useEffect(() => {
+    if (requestIdParam && orgRequests.length > 0) {
+      const targetReq = orgRequests.find((r) => r.id === requestIdParam);
+      if (targetReq && targetReq.status === "pending") {
+        setSelectedRequest(targetReq);
+        setIsApproveModalOpen(true);
+      }
+    }
+  }, [requestIdParam, orgRequests]);
 
   // Loading & Error States
   const [isLoading, setIsLoading] = React.useState(true);
