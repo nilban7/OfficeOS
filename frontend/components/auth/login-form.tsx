@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,8 @@ import { Mail, Lock, AlertCircle, Shield } from "lucide-react";
 
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTarget = searchParams.get("redirect") || ROUTES.DASHBOARD;
   const { signInWithPassword } = useAuth();
 
   const [email, setEmail] = React.useState("");
@@ -36,7 +38,7 @@ export function LoginForm() {
         setError(signInError.message || "Failed to sign in. Please verify your credentials.");
         return;
       }
-      router.push(ROUTES.DASHBOARD);
+      router.push(redirectTarget);
     } catch {
       setError("An unexpected error occurred during sign in.");
     } finally {
@@ -58,7 +60,7 @@ export function LoginForm() {
         setError(signInError.message || "Failed to sign in.");
         return;
       }
-      router.push(ROUTES.DASHBOARD);
+      router.push(redirectTarget);
     } catch {
       setError("An unexpected error occurred during sign in.");
     } finally {

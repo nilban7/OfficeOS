@@ -5,6 +5,7 @@ from app.models.audit import AuditLog
 from app.models.automation import Automation, AutomationExecution
 from app.models.client import Client, ClientContact
 from app.models.document import Document, DocumentPermission, DocumentVersion
+from app.models.email import EmailOutbox
 from app.models.employee import Department, Employee
 from app.models.engagement import (
     AgreementSignature,
@@ -73,6 +74,7 @@ __all__ = [
     "Document",
     "DocumentPermission",
     "DocumentVersion",
+    "EmailOutbox",
     "Employee",
     "EngagementAgreement",
     "EngagementChangeRequest",

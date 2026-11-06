@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="greeting">Hi {{ manager_name | default("Manager") }},</div>
+
+<p class="message-body">
+  A new leave request has been submitted by <strong>{{ employee_name }}</strong> and is awaiting your review.
+</p>
+
+<table class="details-table" role="presentation">
+  <tr>
+    <td class="details-label">Employee</td>
+    <td class="details-value">
+      {{ employee_name }}
+      {% if employee_code %}<span style="color: #64748b; font-size: 12px;">({{ employee_code }})</span>{% endif %}
+    </td>
+  </tr>
+  {% if department_name %}
+  <tr>
+    <td class="details-label">Department</td>
+    <td class="details-value">{{ department_name }}</td>
+  </tr>
+  {% endif %}
+  <tr>
+    <td class="details-label">Leave Type</td>
+    <td class="details-value">{{ leave_type }}</td>
+  </tr>
+  <tr>
+    <td class="details-label">Period</td>
+    <td class="details-value"><strong>{{ start_date }}</strong> to <strong>{{ end_date }}</strong></td>
+  </tr>
+  <tr>
+    <td class="details-label">Duration</td>
+    <td class="details-value">{{ total_days }} day{% if total_days != 1 and total_days != "1.00" %}s{% endif %}</td>
+  </tr>
+  {% if reason %}
+  <tr>
+    <td class="details-label">Reason</td>
+    <td class="details-value" style="font-style: italic;">"{{ reason }}"</td>
+  </tr>
+  {% endif %}
+  <tr>
+    <td class="details-label">Request ID</td>
+    <td class="details-value" style="font-family: monospace; font-size: 12px; color: #64748b;">{{ request_id }}</td>
+  </tr>
+  <tr>
+    <td class="details-label">Status</td>
+    <td class="details-value"><span class="badge badge-pending">Pending Review</span></td>
+  </tr>
+</table>
+
+<div class="cta-container">
+  <a href="{{ approval_url }}" class="button" target="_blank" rel="noopener noreferrer">Review Leave Request</a>
+</div>
+
+<p style="font-size: 12px; color: #64748b; text-align: center; margin-top: 16px;">
+  Security notice: To protect company data, you will be prompted to authenticate into your secure OfficeOS workspace before reviewing this request.
+</p>
+{% endblock %}

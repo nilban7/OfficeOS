@@ -3,7 +3,16 @@ from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    status,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import AuthenticatedUser
@@ -302,6 +311,7 @@ async def get_org_leave_request(
 async def create_org_leave_request(
     data: LeaveRequestCreate,
     request: Request,
+    background_tasks: BackgroundTasks,
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(require_permission("leave.request"))],
     organization_header: Annotated[str, Header(alias="X-Organization-Id")],
@@ -319,6 +329,7 @@ async def create_org_leave_request(
         actor_profile_id=actor_id,
         is_admin_or_manager=is_admin_or_mgr,
         ip_address=ip,
+        background_tasks=background_tasks,
     )
     return ApiSuccess(data=rec, message="Leave request submitted successfully")
 
@@ -363,6 +374,7 @@ async def approve_org_leave_request(
     request_id: UUID,
     data: LeaveRequestApprovalAction,
     request: Request,
+    background_tasks: BackgroundTasks,
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(require_permission("leave.approve"))],
     organization_header: Annotated[str, Header(alias="X-Organization-Id")],
@@ -378,6 +390,7 @@ async def approve_org_leave_request(
         data=data,
         actor_profile_id=actor_id,
         ip_address=ip,
+        background_tasks=background_tasks,
     )
     return ApiSuccess(data=rec, message="Leave request approved successfully")
 
@@ -391,6 +404,7 @@ async def reject_org_leave_request(
     request_id: UUID,
     data: LeaveRequestRejectAction,
     request: Request,
+    background_tasks: BackgroundTasks,
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(require_permission("leave.approve"))],
     organization_header: Annotated[str, Header(alias="X-Organization-Id")],
@@ -406,6 +420,7 @@ async def reject_org_leave_request(
         data=data,
         actor_profile_id=actor_id,
         ip_address=ip,
+        background_tasks=background_tasks,
     )
     return ApiSuccess(data=rec, message="Leave request rejected successfully")
 
