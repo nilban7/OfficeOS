@@ -76,4 +76,27 @@ describe("KioskPage Component", () => {
       expect(screen.getByRole("button", { name: /Check Out/i })).toBeDefined();
     });
   });
+
+  it("instantly pairs tablet with hardcoded test code DEMO-2026 without backend network call", async () => {
+    const user = userEvent.setup();
+    render(<KioskPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("DEMO-2026")).toBeDefined();
+    });
+
+    const codeInput = screen.getByPlaceholderText("e.g. OS-7241-98");
+    await user.type(codeInput, "DEMO-2026");
+
+    const pairBtn = screen.getByRole("button", { name: /Pair.*Activate Tablet/i });
+    await user.click(pairBtn);
+
+    await waitFor(() => {
+      expect(localStorage.getItem("officeos_kiosk_token")).toBe("kiosk_demo_token_master_2026");
+      expect(screen.getByText("OfficeOS Demo Workspace")).toBeDefined();
+      expect(screen.getByRole("button", { name: /Check In/i })).toBeDefined();
+      expect(screen.getByRole("button", { name: /Check Out/i })).toBeDefined();
+    });
+  });
 });
+

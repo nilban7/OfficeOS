@@ -286,9 +286,10 @@ export default function KioskPage() {
   }, [punchSuccess]);
 
   // Activate Tablet Handler
-  const handleActivateDevice = async (e?: React.FormEvent) => {
+  const handleActivateDevice = async (e?: React.FormEvent, overrideCode?: string) => {
     if (e) e.preventDefault();
-    if (!activationCode.trim()) {
+    const codeToVerify = (overrideCode || activationCode).trim().toUpperCase();
+    if (!codeToVerify) {
       setActivationError("Please enter the Secret Activation Code.");
       return;
     }
@@ -296,9 +297,41 @@ export default function KioskPage() {
     setIsActivating(true);
     setActivationError(null);
 
+    // Hardcoded Instant Mobile Test Bypass Codes (No Cloud or Network Required)
+    const isHardcodedTestCode =
+      codeToVerify === "DEMO-2026" ||
+      codeToVerify === "TEST-2026" ||
+      codeToVerify === "OFFICE-2026" ||
+      codeToVerify === "888888" ||
+      codeToVerify === "999999";
+
+    if (isHardcodedTestCode) {
+      const demoToken = "kiosk_demo_token_master_2026";
+      const devName = customDeviceName.trim() || "Samsung Galaxy Kiosk Tab";
+      const org = "OfficeOS Demo Workspace";
+      const pin = "9999";
+      const modes = ["pin", "face", "qr", "fingerprint"];
+
+      localStorage.setItem("officeos_kiosk_token", demoToken);
+      localStorage.setItem("officeos_kiosk_device_name", devName);
+      localStorage.setItem("officeos_kiosk_org_name", org);
+      localStorage.setItem("officeos_kiosk_exit_pin", pin);
+      localStorage.setItem("officeos_kiosk_modes", JSON.stringify(modes));
+
+      setKioskToken(demoToken);
+      setOrgName(org);
+      setDeviceName(devName);
+      setExitPin(pin);
+      setAllowedModes(modes);
+
+      playChime(true);
+      setIsActivating(false);
+      return;
+    }
+
     try {
       const payload: KioskActivateRequest = {
-        code: activationCode.trim().toUpperCase(),
+        code: codeToVerify,
         device_name: customDeviceName.trim() || "Main Reception Kiosk",
         device_model: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 80) : "Tablet",
         app_version: "1.2.0",
@@ -373,6 +406,27 @@ export default function KioskPage() {
 
     setIsPunching(true);
     setPunchError(null);
+
+    // Hardcoded Instant Mobile Test Mode Punch Simulation
+    if (kioskToken.startsWith("kiosk_demo_token")) {
+      await new Promise((r) => setTimeout(r, 400));
+      const mockPunchResponse: KioskPunchResponse = {
+        success: true,
+        message: `${selectedPunchType === "in" ? "Check-in" : "Check-out"} verified successfully!`,
+        punch_type: selectedPunchType,
+        punched_at: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
+        employee_id: "demo-emp-1",
+        employee_name: "Niladri Banerjee",
+        employee_code: employeeInput.trim() || "EMP-001",
+        department: "Executive Management",
+        avatar_url: null,
+        work_duration_hours: selectedPunchType === "out" ? 8.2 : null,
+      };
+      setPunchSuccess(mockPunchResponse);
+      playChime(true);
+      setIsPunching(false);
+      return;
+    }
 
     try {
       let faceSnapshot: string | undefined = undefined;
@@ -605,10 +659,29 @@ export default function KioskPage() {
               </Button>
             </form>
 
-            <div className="text-center pt-2">
+            <div className="pt-2 text-center space-y-2.5">
               <p className="text-[11px] text-slate-400">
                 Single-use owner code binds this terminal securely to your organization.
               </p>
+
+              {/* Hardcoded Mobile Test Bypass */}
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col items-center space-y-2">
+                <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40 text-xs font-medium">
+                  <span>📱 Instant Mobile Test Code:</span>
+                  <span className="font-mono font-bold tracking-wider">DEMO-2026</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActivationCode("DEMO-2026");
+                    handleActivateDevice(undefined, "DEMO-2026");
+                  }}
+                  className="inline-flex items-center text-xs font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400 hover:underline underline-offset-4 transition-all"
+                >
+                  <Sparkles className="h-3.5 w-3.5 mr-1" />
+                  Tap here to instantly pair with DEMO-2026
+                </button>
+              </div>
             </div>
           </CardContent>
         </Card>
