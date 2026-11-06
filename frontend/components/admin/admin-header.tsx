@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Megaphone,
   SlidersHorizontal,
+  Tablet,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +24,7 @@ const navItems = [
   { label: "Platform Audit", href: "/admin/audit-logs", icon: ShieldCheck },
   { label: "Announcements", href: "/admin/announcements", icon: Megaphone },
   { label: "Settings", href: "/admin/settings", icon: SlidersHorizontal },
+  { label: "Attendance Kiosks", href: "/admin/kiosks", icon: Tablet },
 ];
 
 interface AdminHeaderProps {

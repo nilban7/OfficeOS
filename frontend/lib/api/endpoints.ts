@@ -321,6 +321,18 @@ export const API_ENDPOINTS = {
     config: "/admin/config",
     announcements: "/admin/announcements",
     announcementDetail: (id: string) => `/admin/announcements/${id}`,
+    kiosks: "/admin/kiosks",
+    kioskDetail: (id: string) => `/admin/kiosks/${id}`,
+    generateKioskCode: "/admin/kiosks/generate-code",
+    kioskActivationCodes: "/admin/kiosks/activation-codes",
+    kioskPunches: "/admin/kiosks/punches",
+  },
+  kiosks: {
+    activate: "/kiosks/activate",
+    config: "/kiosks/config",
+    heartbeat: "/kiosks/heartbeat",
+    verifyExitPin: "/kiosks/verify-exit-pin",
+    punch: "/kiosks/attendance/punch",
   },
   announcements: {
     active: "/announcements/active",

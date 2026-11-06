@@ -50,4 +50,8 @@ export const ROUTES = {
   ADMIN_AUDIT_LOGS: "/admin/audit-logs",
   ADMIN_SETTINGS: "/admin/settings",
   ADMIN_ANNOUNCEMENTS: "/admin/announcements",
+  ADMIN_KIOSKS: "/admin/kiosks",
+
+  // Kiosk Standalone Terminal PWA
+  KIOSK: "/kiosk",
 };
