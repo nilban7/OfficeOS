@@ -18,6 +18,7 @@ export const metadata: Metadata = {
     icon: "/icon.svg",
     shortcut: "/icon.svg",
   },
+  manifest: "/kiosk-manifest.json",
 };
 
 export default function RootLayout({
