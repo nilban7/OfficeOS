@@ -87,8 +87,12 @@ async def activate_kiosk_device(
         data=KioskActivateResponse(
             device=device_resp,
             device_token=token,
+            kiosk_token=token,
             organization_name=org_name,
             branch_name=branch_name,
+            kiosk_id=device.id,
+            organization_id=device.organization_id,
+            device_name=device.device_name,
         ),
         message=f"Kiosk terminal successfully paired and locked to {org_name}.",
     )

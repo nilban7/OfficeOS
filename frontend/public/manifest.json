@@ -4,7 +4,7 @@
   "description": "Standalone attendance terminal for OfficeOS with Face Capture, PIN, QR and Biometrics.",
   "start_url": "/kiosk",
   "display": "fullscreen",
-  "orientation": "landscape",
+  "orientation": "any",
   "background_color": "#020617",
   "theme_color": "#0f172a",
   "icons": [

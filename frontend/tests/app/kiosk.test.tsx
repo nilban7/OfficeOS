@@ -77,8 +77,12 @@ describe("KioskPage Component", () => {
     });
   });
 
-  it("instantly pairs tablet with hardcoded test code DEMO-2026 without backend network call", async () => {
+  it("pairs tablet with DEMO-2026 falling back locally when network fails", async () => {
     const user = userEvent.setup();
+    (apiClient.post as unknown as { mockRejectedValueOnce: (err: unknown) => void }).mockRejectedValueOnce(
+      new Error("Network Error")
+    );
+
     render(<KioskPage />);
 
     await waitFor(() => {

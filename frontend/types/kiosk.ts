@@ -32,15 +32,19 @@ export interface KioskActivationCode {
 
 export interface KioskActivateRequest {
   code: string;
+  secret_code?: string;
   device_name: string;
+  device_identifier?: string;
   device_model?: string;
   app_version?: string;
+  battery_level?: number;
 }
 
 export interface KioskActivateResponse {
   kiosk_token: string;
-  kiosk_id: string;
-  organization_id: string;
+  device_token?: string;
+  kiosk_id?: string;
+  organization_id?: string;
   organization_name: string;
   branch_id?: string | null;
   device_name: string;
@@ -49,10 +53,13 @@ export interface KioskActivateResponse {
 }
 
 export interface KioskPunchRequest {
-  employee_identifier: string;
-  verification_method: KioskVerificationMethod;
-  punch_type: "in" | "out";
+  employee_code?: string;
+  employee_identifier?: string;
+  verification_method: string;
+  punch_type: string;
+  employee_pin?: string;
   pin_code?: string;
+  face_snapshot_data?: string;
   face_snapshot_base64?: string;
   fingerprint_credential_id?: string;
   latitude?: number;

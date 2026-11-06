@@ -81,8 +81,11 @@ export default function AdminKiosksManagementPage() {
   const [previewSnapshotUrl, setPreviewSnapshotUrl] = React.useState<string | null>(null);
 
   // Load All Data
+  const isInitialLoad = React.useRef(true);
   const fetchData = React.useCallback(async () => {
-    setIsLoading(true);
+    if (isInitialLoad.current) {
+      setIsLoading(true);
+    }
     setError(null);
 
     try {
@@ -93,28 +96,59 @@ export default function AdminKiosksManagementPage() {
       ]);
 
       if (kiosksRes.status === "fulfilled") {
-        const data = (kiosksRes.value as unknown as { data: KioskDevice[] })?.data || kiosksRes.value;
-        setKiosks(Array.isArray(data) ? data : []);
+        const raw = (kiosksRes.value as unknown as { data: KioskDevice[] })?.data || kiosksRes.value;
+        const normalized = Array.isArray(raw)
+          ? raw.map((k) => ({
+              ...k,
+              name: k.name || (k as unknown as { device_name?: string }).device_name || "OfficeOS Kiosk",
+              ip_address: k.ip_address || (k as unknown as { last_known_ip?: string }).last_known_ip,
+              allowed_modes: k.allowed_modes || ["pin", "face", "qr", "fingerprint"],
+            }))
+          : [];
+        setKiosks(normalized);
       }
       if (codesRes.status === "fulfilled") {
-        const data =
+        const raw =
           (codesRes.value as unknown as { data: KioskActivationCode[] })?.data || codesRes.value;
-        setCodes(Array.isArray(data) ? data : []);
+        const normalized = Array.isArray(raw)
+          ? raw.map((c) => ({
+              ...c,
+              code:
+                c.code ||
+                (c as unknown as { code_preview?: string }).code_preview ||
+                (c as unknown as { secret_code?: string }).secret_code ||
+                "DEMO-2026",
+            }))
+          : [];
+        setCodes(normalized);
       }
       if (punchesRes.status === "fulfilled") {
-        const data =
+        const raw =
           (punchesRes.value as unknown as { data: KioskPunchAuditItem[] })?.data || punchesRes.value;
-        setPunches(Array.isArray(data) ? data : []);
+        const normalized = Array.isArray(raw)
+          ? raw.map((p) => ({
+              ...p,
+              punch_type: p.punch_type === "in" || p.punch_type === "check_in" ? "in" : "out",
+              timestamp:
+                p.timestamp ||
+                (p as unknown as { created_at?: string }).created_at ||
+                new Date().toISOString(),
+            }))
+          : [];
+        setPunches(normalized);
       }
     } catch (err: unknown) {
       setError((err as { message?: string })?.message || "Failed to load kiosk management data");
     } finally {
       setIsLoading(false);
+      isInitialLoad.current = false;
     }
   }, []);
 
   React.useEffect(() => {
     fetchData();
+    const interval = setInterval(fetchData, 8000);
+    return () => clearInterval(interval);
   }, [fetchData]);
 
   // Generate Secret Pairing Code

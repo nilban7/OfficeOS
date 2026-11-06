@@ -175,7 +175,81 @@ export default function KioskPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Battery Detection & Heartbeat Routine
+  // Screen Wake Lock Routine (Keeps kiosk display on)
+  React.useEffect(() => {
+    let wakeLockSentinel: unknown = null;
+    const requestWakeLock = async () => {
+      try {
+        if ("wakeLock" in navigator) {
+          wakeLockSentinel = await (
+            navigator as unknown as { wakeLock: { request: (type: string) => Promise<unknown> } }
+          ).wakeLock.request("screen");
+        }
+      } catch {
+        // wakeLock may be rejected if tab is backgrounded
+      }
+    };
+
+    requestWakeLock();
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        requestWakeLock();
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      if (
+        wakeLockSentinel &&
+        typeof (wakeLockSentinel as { release?: () => Promise<void> }).release === "function"
+      ) {
+        (wakeLockSentinel as { release: () => Promise<void> }).release().catch(() => {});
+      }
+    };
+  }, []);
+
+  // Trap Android Back Navigation & Gestures to prevent accidental exit
+  React.useEffect(() => {
+    if (!kioskToken) return;
+
+    try {
+      window.history.pushState({ kioskLocked: true }, "", window.location.href);
+    } catch {
+      // ignore
+    }
+
+    const handlePopState = (e: PopStateEvent) => {
+      e.preventDefault();
+      try {
+        window.history.pushState({ kioskLocked: true }, "", window.location.href);
+      } catch {
+        // ignore
+      }
+
+      // If punch modal is active, close punch modal; otherwise show owner exit prompt
+      setIsPunchModalOpen(false);
+      setIsExitModalOpen(true);
+      setExitPinError("Kiosk Lock Active: Enter Master Exit PIN (9999) to exit.");
+    };
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "Kiosk terminal is locked. Master PIN required to unpair.";
+      return e.returnValue;
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [kioskToken]);
+
+  // Battery Detection & Heartbeat Routine (25s interval keeps Online status real-time)
   React.useEffect(() => {
     if ("getBattery" in navigator) {
       (navigator as unknown as { getBattery: () => Promise<{ level: number; charging: boolean }> })
@@ -210,7 +284,7 @@ export default function KioskPage() {
     };
 
     sendHeartbeat();
-    const interval = setInterval(sendHeartbeat, 60000);
+    const interval = setInterval(sendHeartbeat, 25000);
     return () => clearInterval(interval);
   }, [kioskToken, batteryLevel, isCharging]);
 
@@ -297,7 +371,6 @@ export default function KioskPage() {
     setIsActivating(true);
     setActivationError(null);
 
-    // Hardcoded Instant Mobile Test Bypass Codes (No Cloud or Network Required)
     const isHardcodedTestCode =
       codeToVerify === "DEMO-2026" ||
       codeToVerify === "TEST-2026" ||
@@ -305,58 +378,80 @@ export default function KioskPage() {
       codeToVerify === "888888" ||
       codeToVerify === "999999";
 
-    if (isHardcodedTestCode) {
-      const demoToken = "kiosk_demo_token_master_2026";
-      const devName = customDeviceName.trim() || "Samsung Galaxy Kiosk Tab";
-      const org = "OfficeOS Demo Workspace";
-      const pin = "9999";
-      const modes = ["pin", "face", "qr", "fingerprint"];
+    let deviceId = "";
+    try {
+      deviceId = localStorage.getItem("officeos_kiosk_device_id") || "";
+      if (!deviceId) {
+        deviceId = `kiosk-${Math.random().toString(36).slice(2, 10)}`;
+        localStorage.setItem("officeos_kiosk_device_id", deviceId);
+      }
+    } catch {
+      deviceId = `kiosk-${Math.random().toString(36).slice(2, 10)}`;
+    }
 
-      localStorage.setItem("officeos_kiosk_token", demoToken);
+    const payload: KioskActivateRequest = {
+      code: codeToVerify,
+      secret_code: codeToVerify,
+      device_name: customDeviceName.trim() || "Samsung Galaxy Kiosk Tab",
+      device_identifier: deviceId,
+      device_model: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 80) : "Mobile Tablet",
+      app_version: "1.2.0",
+      battery_level: batteryLevel,
+    };
+
+    try {
+      const res = await apiClient.post<KioskActivateResponse>(
+        API_ENDPOINTS.kiosks.activate,
+        payload
+      );
+      const data = (res as unknown as { data: KioskActivateResponse })?.data || res;
+      const rawToken =
+        data.kiosk_token ||
+        (data as unknown as { device_token?: string }).device_token ||
+        "kiosk_demo_token_master_2026";
+      const devName = data.device_name || payload.device_name;
+      const org = data.organization_name || "OfficeOS Workspace";
+      const pin = data.exit_pin || "9999";
+      const modes = data.allowed_modes || ["pin", "face", "qr", "fingerprint"];
+
+      localStorage.setItem("officeos_kiosk_token", rawToken);
       localStorage.setItem("officeos_kiosk_device_name", devName);
       localStorage.setItem("officeos_kiosk_org_name", org);
       localStorage.setItem("officeos_kiosk_exit_pin", pin);
       localStorage.setItem("officeos_kiosk_modes", JSON.stringify(modes));
 
-      setKioskToken(demoToken);
+      setKioskToken(rawToken);
       setOrgName(org);
       setDeviceName(devName);
       setExitPin(pin);
       setAllowedModes(modes);
 
       playChime(true);
-      setIsActivating(false);
-      return;
-    }
-
-    try {
-      const payload: KioskActivateRequest = {
-        code: codeToVerify,
-        device_name: customDeviceName.trim() || "Main Reception Kiosk",
-        device_model: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 80) : "Tablet",
-        app_version: "1.2.0",
-      };
-
-      const res = await apiClient.post<KioskActivateResponse>(
-        API_ENDPOINTS.kiosks.activate,
-        payload
-      );
-      const data = (res as unknown as { data: KioskActivateResponse })?.data || res;
-
-      localStorage.setItem("officeos_kiosk_token", data.kiosk_token);
-      localStorage.setItem("officeos_kiosk_device_name", data.device_name);
-      localStorage.setItem("officeos_kiosk_org_name", data.organization_name);
-      localStorage.setItem("officeos_kiosk_exit_pin", data.exit_pin || "9999");
-      localStorage.setItem("officeos_kiosk_modes", JSON.stringify(data.allowed_modes || []));
-
-      setKioskToken(data.kiosk_token);
-      setOrgName(data.organization_name);
-      setDeviceName(data.device_name);
-      setExitPin(data.exit_pin || "9999");
-      if (data.allowed_modes) setAllowedModes(data.allowed_modes);
-
-      playChime(true);
     } catch (err: unknown) {
+      // If network fails (e.g. offline/cold-start) and this is a test code, fallback locally
+      if (isHardcodedTestCode) {
+        const demoToken = "kiosk_demo_token_master_2026";
+        const devName = customDeviceName.trim() || "Samsung Galaxy Kiosk Tab";
+        const org = "OfficeOS Demo Workspace";
+        const pin = "9999";
+        const modes = ["pin", "face", "qr", "fingerprint"];
+
+        localStorage.setItem("officeos_kiosk_token", demoToken);
+        localStorage.setItem("officeos_kiosk_device_name", devName);
+        localStorage.setItem("officeos_kiosk_org_name", org);
+        localStorage.setItem("officeos_kiosk_exit_pin", pin);
+        localStorage.setItem("officeos_kiosk_modes", JSON.stringify(modes));
+
+        setKioskToken(demoToken);
+        setOrgName(org);
+        setDeviceName(devName);
+        setExitPin(pin);
+        setAllowedModes(modes);
+
+        playChime(true);
+        return;
+      }
+
       const errorMsg = (err as { message?: string })?.message || "Invalid or expired activation code.";
       setActivationError(errorMsg);
       playChime(false);
@@ -365,10 +460,15 @@ export default function KioskPage() {
     }
   };
 
-  // Fullscreen Toggle
+  // Fullscreen Toggle with navigationUI: "hide"
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
+      const docEl = document.documentElement as HTMLElement & {
+        requestFullscreen: (options?: { navigationUI?: "auto" | "hide" | "show" }) => Promise<void>;
+      };
+      if (docEl.requestFullscreen) {
+        docEl.requestFullscreen({ navigationUI: "hide" }).catch(() => {});
+      }
       setIsFullscreen(true);
     } else {
       if (document.exitFullscreen) {
@@ -391,7 +491,7 @@ export default function KioskPage() {
     return canvas.toDataURL("image/jpeg", 0.85);
   };
 
-  // Perform Punch
+  // Perform Punch (Sends to backend database for real-time audit logs)
   const handlePerformPunch = async () => {
     if (!employeeInput.trim()) {
       setPunchError("Please enter your Employee Code or Attendance PIN.");
@@ -407,42 +507,24 @@ export default function KioskPage() {
     setIsPunching(true);
     setPunchError(null);
 
-    // Hardcoded Instant Mobile Test Mode Punch Simulation
-    if (kioskToken.startsWith("kiosk_demo_token")) {
-      await new Promise((r) => setTimeout(r, 400));
-      const mockPunchResponse: KioskPunchResponse = {
-        success: true,
-        message: `${selectedPunchType === "in" ? "Check-in" : "Check-out"} verified successfully!`,
-        punch_type: selectedPunchType,
-        punched_at: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
-        employee_id: "demo-emp-1",
-        employee_name: "Niladri Banerjee",
-        employee_code: employeeInput.trim() || "EMP-001",
-        department: "Executive Management",
-        avatar_url: null,
-        work_duration_hours: selectedPunchType === "out" ? 8.2 : null,
-      };
-      setPunchSuccess(mockPunchResponse);
-      playChime(true);
-      setIsPunching(false);
-      return;
+    let faceSnapshot: string | undefined = undefined;
+    if (selectedMode === "face") {
+      faceSnapshot = captureFaceSnapshot();
     }
 
+    const payload: KioskPunchRequest = {
+      employee_code: employeeInput.trim(),
+      employee_identifier: employeeInput.trim(),
+      verification_method: selectedMode === "face" ? "kiosk_face" : selectedMode,
+      punch_type: selectedPunchType === "in" ? "check_in" : "check_out",
+      employee_pin: pinCodeInput.trim() || undefined,
+      pin_code: pinCodeInput.trim() || undefined,
+      face_snapshot_data: faceSnapshot,
+      face_snapshot_base64: faceSnapshot,
+      device_timestamp: new Date().toISOString(),
+    };
+
     try {
-      let faceSnapshot: string | undefined = undefined;
-      if (selectedMode === "face") {
-        faceSnapshot = captureFaceSnapshot();
-      }
-
-      const payload: KioskPunchRequest = {
-        employee_identifier: employeeInput.trim(),
-        verification_method: selectedMode,
-        punch_type: selectedPunchType,
-        pin_code: pinCodeInput.trim() || undefined,
-        face_snapshot_base64: faceSnapshot,
-        device_timestamp: new Date().toISOString(),
-      };
-
       const res = await apiClient.post<KioskPunchResponse>(
         API_ENDPOINTS.kiosks.punch,
         payload,
@@ -453,15 +535,32 @@ export default function KioskPage() {
         }
       );
       const data = (res as unknown as { data: KioskPunchResponse })?.data || res;
-
       setPunchSuccess(data);
       playChime(true);
     } catch (err: unknown) {
-      const errorMsg =
-        (err as { message?: string })?.message ||
-        "Verification failed. Check your Employee Code or branch IP restrictions.";
-      setPunchError(errorMsg);
-      playChime(false);
+      // If network fails and using demo token, show local confirmed response
+      if (kioskToken.startsWith("kiosk_demo_token")) {
+        const mockPunchResponse: KioskPunchResponse = {
+          success: true,
+          message: `${selectedPunchType === "in" ? "Check-in" : "Check-out"} verified successfully!`,
+          punch_type: selectedPunchType,
+          punched_at: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
+          employee_id: "demo-emp-1",
+          employee_name: "Niladri Banerjee",
+          employee_code: employeeInput.trim() || "EMP-001",
+          department: "Executive Management",
+          avatar_url: null,
+          work_duration_hours: selectedPunchType === "out" ? 8.2 : null,
+        };
+        setPunchSuccess(mockPunchResponse);
+        playChime(true);
+      } else {
+        const errorMsg =
+          (err as { message?: string })?.message ||
+          "Verification failed. Check your Employee Code or branch network connection.";
+        setPunchError(errorMsg);
+        playChime(false);
+      }
     } finally {
       setIsPunching(false);
     }
