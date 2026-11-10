@@ -19,6 +19,17 @@ import {
   CheckCircle2,
   ShieldAlert,
   ExternalLink,
+  Briefcase,
+  Calendar,
+  ChevronDown,
+  Hash,
+  MapPin,
+  Phone,
+  PhoneCall,
+  User,
+  UserPlus,
+  Check,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1124,305 +1135,423 @@ export default function EmployeesPage() {
         }
         size="xl"
       >
-        <form onSubmit={isEditEmployeeOpen ? handleUpdateEmployee : handleCreateEmployee} className="space-y-3.5">
+        <form onSubmit={isEditEmployeeOpen ? handleUpdateEmployee : handleCreateEmployee} className="space-y-4">
           {employeeFormError && (
-            <div role="alert" className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-start gap-2">
+            <div role="alert" className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-xs text-rose-700 dark:text-rose-300 flex items-start gap-2.5 shadow-sm">
               <AlertCircle className="h-4 w-4 text-rose-500 mt-0.5 flex-shrink-0" />
-              <span>{employeeFormError}</span>
+              <span className="font-medium leading-relaxed">{employeeFormError}</span>
             </div>
           )}
 
-          {/* Section 1: Basic Information */}
-          <div className="space-y-2">
-            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Basic Information
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              <div>
-                <Label htmlFor="emp_code" className="text-xs font-medium text-slate-700">
-                  Employee Code <span className="text-rose-500">*</span>
-                </Label>
-                <Input
-                  id="emp_code"
-                  placeholder="e.g. EMP-001"
-                  value={empCode}
-                  onChange={(e) => setEmpCode(e.target.value.toUpperCase())}
-                  className="h-8.5 text-xs mt-1"
-                  required
-                />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+            {/* LEFT COLUMN: Identity & Organization */}
+            <div className="space-y-4">
+              {/* Card 1: Profile & Identity */}
+              <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-4 shadow-subtle space-y-3.5">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-200/60 dark:border-slate-800">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary-100/70 dark:bg-primary-950/70 text-primary-600 dark:text-primary-400">
+                    <User className="h-3.5 w-3.5" />
+                  </div>
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Profile & Identity
+                  </h4>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <Label htmlFor="emp_code" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Employee Code <span className="text-rose-500">*</span>
+                    </Label>
+                    <Input
+                      id="emp_code"
+                      placeholder="e.g. EMP-001"
+                      value={empCode}
+                      onChange={(e) => setEmpCode(e.target.value.toUpperCase())}
+                      className="h-9 text-xs mt-1.5"
+                      leftIcon={<Hash className="h-3.5 w-3.5" />}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="emp_first_name" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      First Name <span className="text-rose-500">*</span>
+                    </Label>
+                    <Input
+                      id="emp_first_name"
+                      placeholder="First name"
+                      value={empFirstName}
+                      onChange={(e) => setEmpFirstName(e.target.value)}
+                      className="h-9 text-xs mt-1.5"
+                      leftIcon={<User className="h-3.5 w-3.5" />}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="emp_last_name" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Last Name <span className="text-rose-500">*</span>
+                    </Label>
+                    <Input
+                      id="emp_last_name"
+                      placeholder="Last name"
+                      value={empLastName}
+                      onChange={(e) => setEmpLastName(e.target.value)}
+                      className="h-9 text-xs mt-1.5"
+                      leftIcon={<User className="h-3.5 w-3.5" />}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="emp_designation" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Designation <span className="text-rose-500">*</span>
+                  </Label>
+                  <Input
+                    id="emp_designation"
+                    placeholder="e.g. Senior Software Engineer"
+                    value={empDesignation}
+                    onChange={(e) => setEmpDesignation(e.target.value)}
+                    className="h-9 text-xs mt-1.5"
+                    leftIcon={<Briefcase className="h-3.5 w-3.5" />}
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="emp_type" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Employment Type
+                    </Label>
+                    <div className="relative mt-1.5">
+                      <select
+                        id="emp_type"
+                        value={empType}
+                        onChange={(e) => setEmpType(e.target.value)}
+                        className="w-full appearance-none rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 pr-8 text-xs font-medium text-slate-900 dark:text-slate-100 shadow-sm transition-all hover:border-slate-400 dark:hover:border-slate-600 focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-500/10 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="full_time">Full-Time</option>
+                        <option value="part_time">Part-Time</option>
+                        <option value="contract">Contract</option>
+                        <option value="intern">Intern</option>
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="emp_status" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Status
+                    </Label>
+                    <div className="relative mt-1.5">
+                      <select
+                        id="emp_status"
+                        value={empStatus}
+                        onChange={(e) => setEmpStatus(e.target.value)}
+                        className="w-full appearance-none rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 pr-8 text-xs font-medium text-slate-900 dark:text-slate-100 shadow-sm transition-all hover:border-slate-400 dark:hover:border-slate-600 focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-500/10 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="active">Active</option>
+                        <option value="probation">Probation</option>
+                        <option value="notice_period">Notice Period</option>
+                        <option value="on_leave">On Leave</option>
+                        <option value="suspended">Suspended</option>
+                        <option value="terminated">Terminated</option>
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div>
-                <Label htmlFor="emp_first_name" className="text-xs font-medium text-slate-700">
-                  First Name <span className="text-rose-500">*</span>
-                </Label>
-                <Input
-                  id="emp_first_name"
-                  placeholder="First name"
-                  value={empFirstName}
-                  onChange={(e) => setEmpFirstName(e.target.value)}
-                  className="h-8.5 text-xs mt-1"
-                  required
-                />
+
+              {/* Card 2: Organizational Placement */}
+              <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-4 shadow-subtle space-y-3.5">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-200/60 dark:border-slate-800">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-emerald-100/70 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400">
+                    <Building2 className="h-3.5 w-3.5" />
+                  </div>
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Placement & Hierarchy
+                  </h4>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="emp_department" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Department
+                    </Label>
+                    <div className="relative mt-1.5">
+                      <select
+                        id="emp_department"
+                        value={empDepartmentId}
+                        onChange={(e) => setEmpDepartmentId(e.target.value)}
+                        className="w-full appearance-none rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 pr-8 text-xs font-medium text-slate-900 dark:text-slate-100 shadow-sm transition-all hover:border-slate-400 dark:hover:border-slate-600 focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-500/10 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="">None / Unassigned</option>
+                        {departments.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name} ({d.code})
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="emp_branch" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Branch
+                    </Label>
+                    <div className="relative mt-1.5">
+                      <select
+                        id="emp_branch"
+                        value={empBranchId}
+                        onChange={(e) => setEmpBranchId(e.target.value)}
+                        className="w-full appearance-none rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 pr-8 text-xs font-medium text-slate-900 dark:text-slate-100 shadow-sm transition-all hover:border-slate-400 dark:hover:border-slate-600 focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-500/10 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="">None / Unassigned</option>
+                        {branches.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name} ({b.code})
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="emp_manager" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Reporting Manager
+                  </Label>
+                  <div className="relative mt-1.5">
+                    <select
+                      id="emp_manager"
+                      value={empManagerId}
+                      onChange={(e) => setEmpManagerId(e.target.value)}
+                      className="w-full appearance-none rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 pr-8 text-xs font-medium text-slate-900 dark:text-slate-100 shadow-sm transition-all hover:border-slate-400 dark:hover:border-slate-600 focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-500/10 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="">None (Top Level)</option>
+                      {managers
+                        .filter((m) => !editingEmployee || m.id !== editingEmployee.id)
+                        .map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.first_name} {m.last_name} ({m.designation})
+                          </option>
+                        ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                  </div>
+                </div>
               </div>
-              <div>
-                <Label htmlFor="emp_last_name" className="text-xs font-medium text-slate-700">
-                  Last Name <span className="text-rose-500">*</span>
-                </Label>
-                <Input
-                  id="emp_last_name"
-                  placeholder="Last name"
-                  value={empLastName}
-                  onChange={(e) => setEmpLastName(e.target.value)}
-                  className="h-8.5 text-xs mt-1"
-                  required
-                />
+            </div>
+
+            {/* RIGHT COLUMN: Dates, Contact & Emergency */}
+            <div className="space-y-4">
+              {/* Card 3: Timeline & Dates */}
+              <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-4 shadow-subtle space-y-3.5">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-200/60 dark:border-slate-800">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-100/70 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400">
+                    <Calendar className="h-3.5 w-3.5" />
+                  </div>
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Employment Timeline
+                  </h4>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="emp_joining_date" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Date of Joining <span className="text-rose-500">*</span>
+                    </Label>
+                    <Input
+                      id="emp_joining_date"
+                      type="date"
+                      value={empJoiningDate}
+                      onChange={(e) => setEmpJoiningDate(e.target.value)}
+                      className="h-9 text-xs mt-1.5"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="emp_exit_date" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Date of Exit
+                    </Label>
+                    <Input
+                      id="emp_exit_date"
+                      type="date"
+                      value={empExitDate}
+                      onChange={(e) => setEmpExitDate(e.target.value)}
+                      className="h-9 text-xs mt-1.5"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 4: Contact Information */}
+              <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-4 shadow-subtle space-y-3.5">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-200/60 dark:border-slate-800">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-indigo-100/70 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400">
+                    <Mail className="h-3.5 w-3.5" />
+                  </div>
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Contact Information
+                  </h4>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="emp_work_email" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Work Email
+                    </Label>
+                    <Input
+                      id="emp_work_email"
+                      type="email"
+                      placeholder="name@company.com"
+                      value={empWorkEmail}
+                      onChange={(e) => setEmpWorkEmail(e.target.value)}
+                      className="h-9 text-xs mt-1.5"
+                      leftIcon={<Mail className="h-3.5 w-3.5" />}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="emp_personal_email" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Personal Email
+                    </Label>
+                    <Input
+                      id="emp_personal_email"
+                      type="email"
+                      placeholder="personal@email.com"
+                      value={empPersonalEmail}
+                      onChange={(e) => setEmpPersonalEmail(e.target.value)}
+                      className="h-9 text-xs mt-1.5"
+                      leftIcon={<Mail className="h-3.5 w-3.5" />}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="emp_phone" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Phone Number
+                    </Label>
+                    <Input
+                      id="emp_phone"
+                      placeholder="+1 (555) 000-0000"
+                      value={empPhone}
+                      onChange={(e) => setEmpPhone(e.target.value)}
+                      className="h-9 text-xs mt-1.5"
+                      leftIcon={<Phone className="h-3.5 w-3.5" />}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="emp_address" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Current Address
+                    </Label>
+                    <Input
+                      id="emp_address"
+                      placeholder="Street, City, State, ZIP"
+                      value={empAddress}
+                      onChange={(e) => setEmpAddress(e.target.value)}
+                      className="h-9 text-xs mt-1.5"
+                      leftIcon={<MapPin className="h-3.5 w-3.5" />}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 5: Emergency Contact */}
+              <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-4 shadow-subtle space-y-3.5">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-200/60 dark:border-slate-800">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-rose-100/70 dark:bg-rose-950/70 text-rose-600 dark:text-rose-400">
+                    <ShieldAlert className="h-3.5 w-3.5" />
+                  </div>
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Emergency Contact
+                  </h4>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <Label htmlFor="emp_em_name" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Contact Name
+                    </Label>
+                    <Input
+                      id="emp_em_name"
+                      placeholder="Full name"
+                      value={empEmergencyName}
+                      onChange={(e) => setEmpEmergencyName(e.target.value)}
+                      className="h-9 text-xs mt-1.5"
+                      leftIcon={<UserCheck className="h-3.5 w-3.5" />}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="emp_em_rel" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Relationship
+                    </Label>
+                    <Input
+                      id="emp_em_rel"
+                      placeholder="e.g. Spouse, Parent"
+                      value={empEmergencyRel}
+                      onChange={(e) => setEmpEmergencyRel(e.target.value)}
+                      className="h-9 text-xs mt-1.5"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="emp_em_phone" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Emergency Phone
+                    </Label>
+                    <Input
+                      id="emp_em_phone"
+                      placeholder="+1 (555) 000-0000"
+                      value={empEmergencyPhone}
+                      onChange={(e) => setEmpEmergencyPhone(e.target.value)}
+                      className="h-9 text-xs mt-1.5"
+                      leftIcon={<PhoneCall className="h-3.5 w-3.5" />}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Section 2: Employment & Assignment */}
-          <div className="space-y-2 pt-2 border-t border-slate-100">
-            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Employment Details
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              <div>
-                <Label htmlFor="emp_designation" className="text-xs font-medium text-slate-700">
-                  Designation <span className="text-rose-500">*</span>
-                </Label>
-                <Input
-                  id="emp_designation"
-                  placeholder="e.g. Senior Software Engineer"
-                  value={empDesignation}
-                  onChange={(e) => setEmpDesignation(e.target.value)}
-                  className="h-8.5 text-xs mt-1"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="emp_type" className="text-xs font-medium text-slate-700">Employment Type</Label>
-                <select
-                  id="emp_type"
-                  value={empType}
-                  onChange={(e) => setEmpType(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 bg-white px-2.5 h-8.5 text-xs text-slate-900 mt-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="full_time">Full-Time</option>
-                  <option value="part_time">Part-Time</option>
-                  <option value="contract">Contract</option>
-                  <option value="intern">Intern</option>
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="emp_status" className="text-xs font-medium text-slate-700">Status</Label>
-                <select
-                  id="emp_status"
-                  value={empStatus}
-                  onChange={(e) => setEmpStatus(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 bg-white px-2.5 h-8.5 text-xs text-slate-900 mt-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="active">Active</option>
-                  <option value="probation">Probation</option>
-                  <option value="notice_period">Notice Period</option>
-                  <option value="on_leave">On Leave</option>
-                  <option value="suspended">Suspended</option>
-                  <option value="terminated">Terminated</option>
-                </select>
-              </div>
+          {/* Form Actions Footer */}
+          <div className="flex items-center justify-between pt-3.5 border-t border-slate-200/80 dark:border-slate-800">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+              <span className="text-rose-500 font-bold">*</span>
+              <span>Required fields</span>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-              <div>
-                <Label htmlFor="emp_joining_date" className="text-xs font-medium text-slate-700">
-                  Date of Joining <span className="text-rose-500">*</span>
-                </Label>
-                <Input
-                  id="emp_joining_date"
-                  type="date"
-                  value={empJoiningDate}
-                  onChange={(e) => setEmpJoiningDate(e.target.value)}
-                  className="h-8.5 text-xs mt-1"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="emp_exit_date" className="text-xs font-medium text-slate-700">Date of Exit</Label>
-                <Input
-                  id="emp_exit_date"
-                  type="date"
-                  value={empExitDate}
-                  onChange={(e) => setEmpExitDate(e.target.value)}
-                  className="h-8.5 text-xs mt-1"
-                />
-              </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsAddEmployeeOpen(false);
+                  setIsEditEmployeeOpen(false);
+                  resetEmployeeForm();
+                }}
+                disabled={isSubmittingEmployee}
+                className="h-9 px-4 text-xs font-medium rounded-lg"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={isSubmittingEmployee}
+                className="h-9 px-5 text-xs font-medium rounded-lg shadow-sm shadow-primary-500/20 bg-primary-600 hover:bg-primary-700 text-white flex items-center gap-1.5 transition-all"
+              >
+                {isSubmittingEmployee ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    {isEditEmployeeOpen ? <Check className="h-3.5 w-3.5" /> : <UserPlus className="h-3.5 w-3.5" />}
+                    <span>{isEditEmployeeOpen ? "Save Changes" : "Create Employee"}</span>
+                  </>
+                )}
+              </Button>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
-              <div>
-                <Label htmlFor="emp_department" className="text-xs font-medium text-slate-700">Department</Label>
-                <select
-                  id="emp_department"
-                  value={empDepartmentId}
-                  onChange={(e) => setEmpDepartmentId(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 bg-white px-2.5 h-8.5 text-xs text-slate-900 mt-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="">None / Unassigned</option>
-                  {departments.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name} ({d.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="emp_branch" className="text-xs font-medium text-slate-700">Branch</Label>
-                <select
-                  id="emp_branch"
-                  value={empBranchId}
-                  onChange={(e) => setEmpBranchId(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 bg-white px-2.5 h-8.5 text-xs text-slate-900 mt-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="">None / Unassigned</option>
-                  {branches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name} ({b.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="emp_manager" className="text-xs font-medium text-slate-700">Reporting Manager</Label>
-                <select
-                  id="emp_manager"
-                  value={empManagerId}
-                  onChange={(e) => setEmpManagerId(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 bg-white px-2.5 h-8.5 text-xs text-slate-900 mt-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="">None (Top Level)</option>
-                  {managers
-                    .filter((m) => !editingEmployee || m.id !== editingEmployee.id)
-                    .map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.first_name} {m.last_name} ({m.designation})
-                      </option>
-                    ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Section 3: Contact Details */}
-          <div className="space-y-2 pt-2 border-t border-slate-100">
-            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Contact Information
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              <div>
-                <Label htmlFor="emp_work_email" className="text-xs font-medium text-slate-700">Work Email</Label>
-                <Input
-                  id="emp_work_email"
-                  type="email"
-                  placeholder="name@company.com"
-                  value={empWorkEmail}
-                  onChange={(e) => setEmpWorkEmail(e.target.value)}
-                  className="h-8.5 text-xs mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="emp_personal_email" className="text-xs font-medium text-slate-700">Personal Email</Label>
-                <Input
-                  id="emp_personal_email"
-                  type="email"
-                  placeholder="personal@email.com"
-                  value={empPersonalEmail}
-                  onChange={(e) => setEmpPersonalEmail(e.target.value)}
-                  className="h-8.5 text-xs mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="emp_phone" className="text-xs font-medium text-slate-700">Phone Number</Label>
-                <Input
-                  id="emp_phone"
-                  placeholder="+1 (555) 000-0000"
-                  value={empPhone}
-                  onChange={(e) => setEmpPhone(e.target.value)}
-                  className="h-8.5 text-xs mt-1"
-                />
-              </div>
-            </div>
-            <div className="pt-1">
-              <Label htmlFor="emp_address" className="text-xs font-medium text-slate-700">Current Address</Label>
-              <Input
-                id="emp_address"
-                placeholder="Street, City, State, ZIP"
-                value={empAddress}
-                onChange={(e) => setEmpAddress(e.target.value)}
-                className="h-8.5 text-xs mt-1"
-              />
-            </div>
-          </div>
-
-          {/* Section 4: Emergency Contact */}
-          <div className="space-y-2 pt-2 border-t border-slate-100">
-            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Emergency Contact
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              <div>
-                <Label htmlFor="emp_em_name" className="text-xs font-medium text-slate-700">Contact Name</Label>
-                <Input
-                  id="emp_em_name"
-                  placeholder="Full name"
-                  value={empEmergencyName}
-                  onChange={(e) => setEmpEmergencyName(e.target.value)}
-                  className="h-8.5 text-xs mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="emp_em_rel" className="text-xs font-medium text-slate-700">Relationship</Label>
-                <Input
-                  id="emp_em_rel"
-                  placeholder="e.g. Spouse, Parent"
-                  value={empEmergencyRel}
-                  onChange={(e) => setEmpEmergencyRel(e.target.value)}
-                  className="h-8.5 text-xs mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="emp_em_phone" className="text-xs font-medium text-slate-700">Emergency Phone</Label>
-                <Input
-                  id="emp_em_phone"
-                  placeholder="+1 (555) 000-0000"
-                  value={empEmergencyPhone}
-                  onChange={(e) => setEmpEmergencyPhone(e.target.value)}
-                  className="h-8.5 text-xs mt-1"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setIsAddEmployeeOpen(false);
-                setIsEditEmployeeOpen(false);
-                resetEmployeeForm();
-              }}
-              disabled={isSubmittingEmployee}
-              className="h-8.5 text-xs"
-            >
-              Cancel
-            </Button>
-            <Button type="submit" size="sm" disabled={isSubmittingEmployee} className="h-8.5 text-xs px-4">
-              {isSubmittingEmployee
-                ? "Saving..."
-                : isEditEmployeeOpen
-                ? "Save Changes"
-                : "Create Employee"}
-            </Button>
           </div>
         </form>
       </Modal>
@@ -1543,20 +1672,25 @@ export default function EmployeesPage() {
           </div>
 
           <div>
-            <Label htmlFor="dept_mgr">Department Head / Manager</Label>
-            <select
-              id="dept_mgr"
-              value={deptManagerId}
-              onChange={(e) => setDeptManagerId(e.target.value)}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              <option value="">None (Unassigned)</option>
-              {managers.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.first_name} {m.last_name} ({m.designation})
-                </option>
-              ))}
-            </select>
+            <Label htmlFor="dept_mgr" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+              Department Head / Manager
+            </Label>
+            <div className="relative mt-1.5">
+              <select
+                id="dept_mgr"
+                value={deptManagerId}
+                onChange={(e) => setDeptManagerId(e.target.value)}
+                className="w-full appearance-none rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 pr-8 text-xs font-medium text-slate-900 dark:text-slate-100 shadow-sm transition-all hover:border-slate-400 dark:hover:border-slate-600 focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-500/10 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="">None (Unassigned)</option>
+                {managers.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.first_name} {m.last_name} ({m.designation})
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
