@@ -102,5 +102,68 @@ describe("KioskPage Component", () => {
       expect(screen.getByRole("button", { name: /Check Out/i })).toBeDefined();
     });
   });
+
+  it("renders the 4 organization employees on standby terminal", async () => {
+    localStorage.setItem("officeos_kiosk_token", "kiosk-token-active");
+    localStorage.setItem("officeos_kiosk_org_name", "Niladri Organization Workflow");
+    localStorage.setItem("officeos_kiosk_device_name", "Reception Mobile PWA");
+
+    render(<KioskPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Niladri Banerjee")).toBeDefined();
+      expect(screen.getByText("EMP-NIL-001")).toBeDefined();
+      expect(screen.getByText("Aritra Das")).toBeDefined();
+      expect(screen.getByText("EMP-NIL-002")).toBeDefined();
+      expect(screen.getByText("Sarah Connor")).toBeDefined();
+      expect(screen.getByText("EMP-NIL-003")).toBeDefined();
+      expect(screen.getByText("Rudranil Das")).toBeDefined();
+      expect(screen.getByText("EMP-NIL-004")).toBeDefined();
+    });
+  });
+
+  it("handles first-time biometric enrollment and subsequent fingerprint punch", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("officeos_kiosk_token", "kiosk-token-active");
+    localStorage.setItem("officeos_kiosk_org_name", "Niladri Organization Workflow");
+
+    (apiClient.post as unknown as { mockResolvedValue: (val: unknown) => void }).mockResolvedValue({
+      data: {
+        success: true,
+        message: "Check-in verified successfully for Niladri Banerjee.",
+        punch_type: "check_in",
+        employee_id: "00000000-0000-0000-0000-000000000041",
+        employee_name: "Niladri Banerjee",
+        employee_code: "EMP-NIL-001",
+        punched_at: "09:00 AM",
+        verification_method: "fingerprint",
+      },
+    });
+
+    render(<KioskPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Niladri Banerjee")).toBeDefined();
+    });
+
+    // 1. Click on Niladri Banerjee card (un-enrolled) -> opens First-time Enrollment modal
+    await user.click(screen.getByText("Niladri Banerjee"));
+
+    await waitFor(() => {
+      expect(screen.getByText("First-Time Fingerprint Setup")).toBeDefined();
+      expect(screen.getAllByText("Finger 1 (Thumb)").length).toBeGreaterThan(0);
+    });
+
+    // 2. Click Enroll Finger
+    const enrollBtn = screen.getByRole("button", { name: /Enroll Finger/i });
+    await user.click(enrollBtn);
+
+    // 3. Confirm biometric record was stored in localStorage
+    await waitFor(() => {
+      const bios = JSON.parse(localStorage.getItem("officeos_kiosk_biometrics") || "{}");
+      expect(bios["EMP-NIL-001"]).toBeDefined();
+      expect(bios["EMP-NIL-001"].employeeCode).toBe("EMP-NIL-001");
+    });
+  });
 });
 
