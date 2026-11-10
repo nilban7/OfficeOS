@@ -21,6 +21,7 @@ import {
   Download,
   RotateCcw,
   Check,
+  Search,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -205,7 +206,24 @@ export default function KioskPage() {
   const [isPunching, setIsPunching] = React.useState(false);
   const [punchError, setPunchError] = React.useState<string | null>(null);
   const [punchSuccess, setPunchSuccess] = React.useState<KioskPunchResponse | null>(null);
+  const [searchQuery, setSearchQuery] = React.useState("");
   const [countdown, setCountdown] = React.useState(4);
+
+  // Filtered employees based on search query
+  const filteredEmployees = React.useMemo(() => {
+    const q = searchQuery.trim().toUpperCase();
+    if (!q) return ACTIVE_EMPLOYEES;
+    return ACTIVE_EMPLOYEES.filter((emp) => {
+      const codeClean = emp.code.toUpperCase();
+      const codeNum = emp.code.replace(/\D/g, "");
+      const nameClean = emp.name.toUpperCase();
+      return (
+        codeClean.includes(q) ||
+        codeNum.includes(q) ||
+        nameClean.includes(q)
+      );
+    });
+  }, [searchQuery]);
 
   // Biometric Enrolled Store: { [employeeCode: string]: StoredBiometric }
   const [enrolledBiometrics, setEnrolledBiometrics] = React.useState<Record<string, StoredBiometric>>({});
@@ -554,43 +572,6 @@ export default function KioskPage() {
     }
   };
 
-  // Resolve employee by code, suffix, number, or name
-  const resolveEmployee = React.useCallback((input: string): KioskEmployee | undefined => {
-    const clean = input.trim().toUpperCase();
-    if (!clean) return undefined;
-
-    // 1. Exact employee code match
-    const direct = ACTIVE_EMPLOYEES.find((e) => e.code.toUpperCase() === clean);
-    if (direct) return direct;
-
-    // 2. Numeric suffix match: "001", "1" -> EMP-NIL-001; "002", "2" -> EMP-NIL-002
-    const numeric = clean.replace(/\D/g, "");
-    if (numeric) {
-      const byNum = ACTIVE_EMPLOYEES.find((e) => {
-        const empNum = e.code.replace(/\D/g, "");
-        return (
-          empNum.endsWith(numeric) ||
-          numeric.endsWith(empNum) ||
-          parseInt(empNum, 10) === parseInt(numeric, 10)
-        );
-      });
-      if (byNum) return byNum;
-    }
-
-    // 3. Partial code match: "EMP-001" -> matches "001" in "EMP-NIL-001"
-    const byCodePartial = ACTIVE_EMPLOYEES.find((e) => {
-      const cleanCode = e.code.replace(/[^A-Z0-9]/g, "");
-      const cleanQuery = clean.replace(/[^A-Z0-9]/g, "");
-      return cleanCode.includes(cleanQuery) || cleanQuery.includes(cleanCode);
-    });
-    if (byCodePartial) return byCodePartial;
-
-    // 4. Name match: "Niladri", "Aritra", etc.
-    const byName = ACTIVE_EMPLOYEES.find((e) => e.name.toUpperCase().includes(clean));
-    if (byName) return byName;
-
-    return undefined;
-  }, []);
 
   // Perform Punch to backend with genuine database persistence
   const handlePerformPunch = async (
@@ -905,27 +886,6 @@ export default function KioskPage() {
     }
   };
 
-  // Code entry verification — ALWAYS requires fingerprint scan!
-  const handleVerifyCode = (codeQuery?: string) => {
-    const query = (codeQuery || employeeInput).trim();
-    if (!query) {
-      setPunchError("Please enter your Employee Code (e.g. 001, 002, 003, 004).");
-      setIsPunchModalOpen(true);
-      playChime(false);
-      return;
-    }
-
-    const matched = resolveEmployee(query);
-    if (!matched) {
-      setPunchError(`Employee code "${query}" not recognized. Please use 001, 002, 003, or 004.`);
-      setIsPunchModalOpen(true);
-      playChime(false);
-      return;
-    }
-
-    // ALWAYS prompt for fingerprint verification!
-    handleVerifyFingerprintAndPunch(matched);
-  };
 
   // Fingerprint Scan with Mismatch Protection
   const handleScanFinger = async (fingerTouched: string) => {
@@ -1359,163 +1319,115 @@ export default function KioskPage() {
             </div>
           </div>
 
-          {/* 4 Cards Grid */}
-          <div className="grid grid-cols-1 gap-2 w-full">
-            {ACTIVE_EMPLOYEES.map((emp) => {
-              const enrollment = enrolledBiometrics[emp.code];
-              const isEnrolled = !!enrollment;
-
-              return (
-                <div
-                  key={emp.code}
-                  onClick={() => handleVerifyFingerprintAndPunch(emp)}
-                  className={`group relative p-3 sm:p-3.5 rounded-2xl border transition-all duration-200 flex items-center justify-between cursor-pointer active:scale-[0.98] ${
-                    isEnrolled
-                      ? "bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 hover:border-primary-500/80 shadow-xs"
-                      : "bg-primary-50/40 dark:bg-primary-950/20 border-primary-200/80 dark:border-primary-800/40 hover:border-primary-400"
-                  }`}
-                >
-                  {/* Left: Avatar + Details */}
-                  <div className="flex items-center space-x-3 min-w-0">
-                    <div
-                      className={`h-11 w-11 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 border ${
-                        isEnrolled
-                          ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60"
-                          : "bg-primary-100 dark:bg-primary-900/60 text-primary-700 dark:text-primary-300 border-primary-300 dark:border-primary-700/60"
-                      }`}
-                    >
-                      {emp.initials}
-                    </div>
-
-                    <div className="min-w-0">
-                      <div className="flex items-center space-x-1.5">
-                        <span className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                          {emp.name}
-                        </span>
-                      </div>
-                      <div className="flex items-center space-x-2 text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                        <span className="font-mono font-semibold text-primary-600 dark:text-primary-400">
-                          {emp.code}
-                        </span>
-                        <span>•</span>
-                        <span className="truncate">{emp.role}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right: Biometric Status Badge & Finger Trigger */}
-                  <div className="flex items-center space-x-2 shrink-0">
-                    {isEnrolled ? (
-                      <div className="flex flex-col items-end">
-                        <Badge
-                          variant="secondary"
-                          className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300 border-emerald-200 text-[10px] font-semibold flex items-center space-x-1"
-                        >
-                          <Check className="h-3 w-3" />
-                          <span>Registered</span>
-                        </Badge>
-                        <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
-                          Tap to Mark
-                        </span>
-                      </div>
-                    ) : (
-                      <Badge
-                        variant="outline"
-                        className="border-primary-500 text-primary-700 dark:text-primary-300 bg-primary-50/50 dark:bg-primary-950/40 text-[10px] font-semibold flex items-center space-x-1"
-                      >
-                        <Fingerprint className="h-3 w-3" />
-                        <span>Register</span>
-                      </Badge>
-                    )}
-
-                    <div
-                      className={`h-9 w-9 rounded-xl flex items-center justify-center transition-colors ${
-                        isEnrolled
-                          ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white"
-                          : "bg-primary-100 text-primary-600 dark:bg-primary-900/60 dark:text-primary-300 group-hover:bg-primary-600 group-hover:text-white"
-                      }`}
-                    >
-                      <Fingerprint className="h-5 w-5" />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* MANUAL CODE INPUT WITH FINGERPRINT VERIFICATION & TOUCH KEYPAD */}
-        <div className="w-full pt-1 space-y-2">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleVerifyCode();
-            }}
-            className="flex items-center space-x-2"
-          >
+          {/* SEARCH BY EMPLOYEE CODE OR NAME */}
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
             <Input
               type="text"
-              inputMode="numeric"
-              value={employeeInput}
-              onChange={(e) => setEmployeeInput(e.target.value.toUpperCase())}
-              placeholder="Enter Code (001, 002, 003, 004)"
-              className="h-11 text-center text-[16px] font-mono font-bold uppercase tracking-wider bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 touch-manipulation"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by code (e.g. 001, 002) or name..."
+              className="h-9 pl-8 pr-7 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl touch-manipulation"
             />
-            {employeeInput && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setEmployeeInput("")}
-                className="h-11 w-11 p-0 shrink-0 text-slate-400 hover:text-slate-600 touch-manipulation"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
-            <Button
-              type="submit"
-              size="sm"
-              disabled={isPunching}
-              className="h-11 px-4 bg-primary-600 hover:bg-primary-700 text-white shrink-0 text-xs font-semibold rounded-xl shadow-xs touch-manipulation"
-            >
-              <Fingerprint className="h-4 w-4 mr-1.5" />
-              <span>Verify</span>
-            </Button>
-          </form>
-
-          {/* Quick-Touch Keypad for Mobile Phones */}
-          <div className="grid grid-cols-3 gap-1.5 w-full">
-            {["1", "2", "3", "4", "5", "6", "7", "8", "9", "⌫", "0", "Verify"].map((key) => (
+            {searchQuery && (
               <button
-                key={key}
                 type="button"
-                onClick={() => {
-                  if (key === "⌫") {
-                    setEmployeeInput((prev) => prev.slice(0, -1));
-                  } else if (key === "Verify") {
-                    handleVerifyCode();
-                  } else {
-                    setEmployeeInput((prev) => prev + key);
-                  }
-                }}
-                className={`h-10 rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center select-none touch-manipulation ${
-                  key === "Verify"
-                    ? "bg-primary-600 text-white hover:bg-primary-700 text-xs shadow-xs font-semibold"
-                    : key === "⌫"
-                    ? "bg-slate-100 dark:bg-slate-800/90 text-slate-700 dark:text-slate-300 hover:bg-slate-200 text-sm"
-                    : "bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 text-[16px] font-mono shadow-xs"
-                }`}
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 touch-manipulation"
               >
-                {key === "Verify" ? (
-                  <span className="flex items-center space-x-1">
-                    <Fingerprint className="h-3.5 w-3.5 mr-1" />
-                    <span>Verify</span>
-                  </span>
-                ) : (
-                  key
-                )}
+                <X className="h-3 w-3" />
               </button>
-            ))}
+            )}
+          </div>
+
+          {/* Employees List — Pure Fingerprint Scan Verification */}
+          <div className="grid grid-cols-1 gap-2 w-full">
+            {filteredEmployees.length === 0 ? (
+              <div className="p-4 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
+                No employee found for &quot;{searchQuery}&quot;. Try 001, 002, 003, or 004.
+              </div>
+            ) : (
+              filteredEmployees.map((emp) => {
+                const enrollment = enrolledBiometrics[emp.code];
+                const isEnrolled = !!enrollment;
+
+                return (
+                  <div
+                    key={emp.code}
+                    onClick={() => handleVerifyFingerprintAndPunch(emp)}
+                    className={`group relative p-3 sm:p-3.5 rounded-2xl border transition-all duration-200 flex items-center justify-between cursor-pointer active:scale-[0.98] ${
+                      isEnrolled
+                        ? "bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 hover:border-primary-500/80 shadow-xs"
+                        : "bg-primary-50/40 dark:bg-primary-950/20 border-primary-200/80 dark:border-primary-800/40 hover:border-primary-400"
+                    }`}
+                  >
+                    {/* Left: Avatar + Details */}
+                    <div className="flex items-center space-x-3 min-w-0">
+                      <div
+                        className={`h-11 w-11 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 border ${
+                          isEnrolled
+                            ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60"
+                            : "bg-primary-100 dark:bg-primary-900/60 text-primary-700 dark:text-primary-300 border-primary-300 dark:border-primary-700/60"
+                        }`}
+                      >
+                        {emp.initials}
+                      </div>
+
+                      <div className="min-w-0">
+                        <div className="flex items-center space-x-1.5">
+                          <span className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                            {emp.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-2 text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                          <span className="font-mono font-semibold text-primary-600 dark:text-primary-400">
+                            {emp.code}
+                          </span>
+                          <span>•</span>
+                          <span className="truncate">{emp.role}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: Biometric Status Badge & Finger Trigger */}
+                    <div className="flex items-center space-x-2 shrink-0">
+                      {isEnrolled ? (
+                        <div className="flex flex-col items-end">
+                          <Badge
+                            variant="secondary"
+                            className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300 border-emerald-200 text-[10px] font-semibold flex items-center space-x-1"
+                          >
+                            <Check className="h-3 w-3" />
+                            <span>Registered</span>
+                          </Badge>
+                          <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
+                            Tap to Mark
+                          </span>
+                        </div>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="border-primary-500 text-primary-700 dark:text-primary-300 bg-primary-50/50 dark:bg-primary-950/40 text-[10px] font-semibold flex items-center space-x-1"
+                        >
+                          <Fingerprint className="h-3 w-3" />
+                          <span>Register</span>
+                        </Badge>
+                      )}
+
+                      <div
+                        className={`h-9 w-9 rounded-xl flex items-center justify-center transition-colors ${
+                          isEnrolled
+                            ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white"
+                            : "bg-primary-100 text-primary-600 dark:bg-primary-900/60 dark:text-primary-300 group-hover:bg-primary-600 group-hover:text-white"
+                        }`}
+                      >
+                        <Fingerprint className="h-5 w-5" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </main>

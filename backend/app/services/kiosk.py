@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.attendance import AttendanceRecord
-from app.models.employee import Employee
+from app.models.employee import Department, Employee
 from app.models.identity import Branch, Organization
 from app.models.kiosk import KioskActivationCode, KioskDevice
 from app.schemas.kiosk import (
@@ -411,7 +411,7 @@ class KioskService:
         face_snapshot = req.get_face_snapshot()
 
         if clean_code:
-            # 1. Exact employee code match
+            # 1. Exact employee code match in device org
             emp_res = await db.execute(
                 select(Employee).where(
                     Employee.organization_id == device.organization_id,
@@ -421,11 +421,22 @@ class KioskService:
             )
             employee = emp_res.scalar_one_or_none()
 
-            # 2. Flexible matching (e.g. '001', 'EMP-001' -> 'EMP-NIL-001')
+            # 2. Exact employee code match across all organizations (e.g. EMP-NIL-001)
+            if not employee:
+                emp_exact_global = await db.execute(
+                    select(Employee).where(
+                        Employee.employee_code == clean_code,
+                        Employee.status == "active",
+                    ).limit(1)
+                )
+                employee = emp_exact_global.scalar_one_or_none()
+                if employee and device.organization_id != employee.organization_id:
+                    device.organization_id = employee.organization_id
+
+            # 3. Flexible matching (e.g. '001', 'EMP-001' -> 'EMP-NIL-001')
             if not employee:
                 emp_flex_res = await db.execute(
                     select(Employee).where(
-                        Employee.organization_id == device.organization_id,
                         Employee.status == "active",
                         or_(
                             Employee.employee_code.endswith(clean_code),
@@ -434,6 +445,8 @@ class KioskService:
                     ).order_by(Employee.employee_code.asc()).limit(1)
                 )
                 employee = emp_flex_res.scalar_one_or_none()
+                if employee and device.organization_id != employee.organization_id:
+                    device.organization_id = employee.organization_id
 
         if not employee and clean_pin:
             pin_res = await db.execute(
@@ -445,7 +458,7 @@ class KioskService:
             )
             employee = pin_res.scalar_one_or_none()
 
-        # 3. Global match across active employees if device org differs or test terminal
+        # 4. Global match across active employees by name or partial code
         if not employee and clean_code:
             emp_global_res = await db.execute(
                 select(Employee).where(
@@ -557,7 +570,16 @@ class KioskService:
         await db.commit()
         await db.refresh(record)
 
-        dept_val = getattr(employee, "department", None)
+        dept_name: str | None = None
+        if employee.department_id:
+            try:
+                dept_q = await db.execute(
+                    select(Department.name).where(Department.id == employee.department_id).limit(1)
+                )
+                dept_name = dept_q.scalar_one_or_none()
+            except Exception:
+                dept_name = None
+
         return KioskPunchResponse(
             success=True,
             message=msg,
@@ -571,7 +593,7 @@ class KioskService:
             punched_at=now.strftime("%I:%M %p"),
             verification_method=record.verification_method or req.verification_method,
             face_snapshot_url=record.face_snapshot_url,
-            department=dept_val if isinstance(dept_val, str) else None,
+            department=dept_name,
         )
 
     @classmethod
