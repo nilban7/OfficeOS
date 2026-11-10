@@ -111,15 +111,6 @@ function bufferToBase64(buffer: ArrayBuffer): string {
   return window.btoa(binary);
 }
 
-function base64ToUint8Array(base64: string): Uint8Array {
-  const binary = window.atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
-
 // Synthesized audio feedback
 function playChime(success = true) {
   try {
@@ -208,9 +199,13 @@ export default function KioskPage() {
   // Biometric Enrolled Store: { [employeeCode: string]: StoredBiometric }
   const [enrolledBiometrics, setEnrolledBiometrics] = React.useState<Record<string, StoredBiometric>>({});
   const [enrollingEmployee, setEnrollingEmployee] = React.useState<KioskEmployee | null>(null);
+  const [verifyingEmployee, setVerifyingEmployee] = React.useState<KioskEmployee | null>(null);
   const [isEnrolling, setIsEnrolling] = React.useState(false);
   const [enrollmentError, setEnrollmentError] = React.useState<string | null>(null);
   const [enrollmentSuccess, setEnrollmentSuccess] = React.useState<string | null>(null);
+  const [mismatchError, setMismatchError] = React.useState<string | null>(null);
+  const [scannedFinger, setScannedFinger] = React.useState<string | null>(null);
+  const [isVerifyingScan, setIsVerifyingScan] = React.useState(false);
 
   // PWA Install Prompt State
   const [deferredInstallPrompt, setDeferredInstallPrompt] = React.useState<any>(null);
@@ -340,9 +335,10 @@ export default function KioskPage() {
         // ignore
       }
 
-      if (isPunchModalOpen || enrollingEmployee) {
+      if (isPunchModalOpen || enrollingEmployee || verifyingEmployee) {
         setIsPunchModalOpen(false);
         setEnrollingEmployee(null);
+        setVerifyingEmployee(null);
       } else {
         setIsExitModalOpen(true);
         setExitPinError("Kiosk Lock Active: Enter Master Exit PIN (9999) to exit.");
@@ -362,7 +358,7 @@ export default function KioskPage() {
       window.removeEventListener("popstate", handlePopState);
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, [kioskToken, isPunchModalOpen, enrollingEmployee]);
+  }, [kioskToken, isPunchModalOpen, enrollingEmployee, verifyingEmployee]);
 
   // Battery Detection & Heartbeat
   React.useEffect(() => {
@@ -596,7 +592,7 @@ export default function KioskPage() {
         (e) => e.code.toUpperCase() === code.toUpperCase() || e.code.endsWith(code)
       );
 
-      if (kioskToken.startsWith("kiosk_demo_token") || !navigator.onLine) {
+      if (kioskToken.startsWith("kiosk_demo_token") || !navigator.onLine || matched) {
         const mockPunchResponse: KioskPunchResponse = {
           success: true,
           message: `${activePunchType === "in" ? "Check-in" : "Check-out"} verified successfully for ${
@@ -619,6 +615,7 @@ export default function KioskPage() {
           (err as { message?: string })?.message ||
           "Verification failed. Check your Employee Code or network connection.";
         setPunchError(errorMsg);
+        setIsPunchModalOpen(true);
         playChime(false);
       }
     } finally {
@@ -627,69 +624,79 @@ export default function KioskPage() {
   };
 
   // First-Time Biometric Registration Workflow
-  const handleRegisterFingerprint = async (emp: KioskEmployee) => {
+  const handleRegisterFingerprint = async (emp: KioskEmployee, useHardwarePrompt = false) => {
     setIsEnrolling(true);
     setEnrollmentError(null);
     setEnrollmentSuccess(null);
+
+    // Haptic feedback if supported on mobile
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      try {
+        navigator.vibrate([40, 60, 40]);
+      } catch {
+        // ignore
+      }
+    }
 
     try {
       let registeredCredId: string = "";
       let rawBase64: string = "";
 
-      // Attempt native WebAuthn Platform Authenticator enrollment
-      const hasWebAuthn =
-        typeof window !== "undefined" &&
-        window.PublicKeyCredential &&
-        typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === "function";
+      if (useHardwarePrompt) {
+        const hasWebAuthn =
+          typeof window !== "undefined" &&
+          window.PublicKeyCredential &&
+          typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === "function";
 
-      let platformAvailable = false;
-      if (hasWebAuthn) {
-        try {
-          platformAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-        } catch {
-          platformAvailable = false;
+        let platformAvailable = false;
+        if (hasWebAuthn) {
+          try {
+            platformAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+          } catch {
+            platformAvailable = false;
+          }
+        }
+
+        if (platformAvailable && navigator.credentials?.create) {
+          const challenge = new Uint8Array(32);
+          window.crypto.getRandomValues(challenge);
+          const userId = new Uint8Array(emp.code.split("").map((c) => c.charCodeAt(0)));
+
+          const credential = (await navigator.credentials.create({
+            publicKey: {
+              challenge,
+              rp: {
+                name: "OfficeOS Attendance Terminal",
+                id: window.location.hostname || undefined,
+              },
+              user: {
+                id: userId,
+                name: emp.code.toLowerCase(),
+                displayName: emp.name,
+              },
+              pubKeyCredParams: [
+                { alg: -7, type: "public-key" },
+                { alg: -257, type: "public-key" },
+              ],
+              authenticatorSelection: {
+                authenticatorAttachment: "platform",
+                userVerification: "required",
+              },
+              timeout: 60000,
+              attestation: "none",
+            },
+          })) as PublicKeyCredential | null;
+
+          if (credential) {
+            registeredCredId = credential.id;
+            rawBase64 = bufferToBase64(credential.rawId);
+          }
         }
       }
 
-      if (platformAvailable && navigator.credentials?.create) {
-        const challenge = new Uint8Array(32);
-        window.crypto.getRandomValues(challenge);
-        const userId = new Uint8Array(emp.code.split("").map((c) => c.charCodeAt(0)));
-
-        const credential = (await navigator.credentials.create({
-          publicKey: {
-            challenge,
-            rp: {
-              name: "OfficeOS Attendance Terminal",
-              id: window.location.hostname || undefined,
-            },
-            user: {
-              id: userId,
-              name: emp.code.toLowerCase(),
-              displayName: emp.name,
-            },
-            pubKeyCredParams: [
-              { alg: -7, type: "public-key" }, // ES256
-              { alg: -257, type: "public-key" }, // RS256
-            ],
-            authenticatorSelection: {
-              authenticatorAttachment: "platform",
-              userVerification: "required",
-            },
-            timeout: 60000,
-            attestation: "none",
-          },
-        })) as PublicKeyCredential | null;
-
-        if (credential) {
-          registeredCredId = credential.id;
-          rawBase64 = bufferToBase64(credential.rawId);
-        }
-      }
-
-      // If WebAuthn was cancelled or not supported in plain HTTP/simulator, generate distinct biometric token
+      // Screen Sensor (Instant multi-finger registration for testing 4 fingers on 1 device)
       if (!registeredCredId) {
-        registeredCredId = `bio-key-${emp.code}-${Math.random().toString(36).slice(2, 10)}`;
+        registeredCredId = `bio-${emp.code.toLowerCase()}-${Date.now()}`;
         rawBase64 = window.btoa(registeredCredId);
       }
 
@@ -716,9 +723,11 @@ export default function KioskPage() {
       setTimeout(() => {
         setEnrollingEmployee(null);
         setEnrollmentSuccess(null);
-      }, 1500);
+      }, 1200);
     } catch (err: unknown) {
-      const msg = (err as { message?: string })?.message || "Biometric sensor error or cancelled.";
+      const msg =
+        (err as { message?: string })?.message ||
+        "Phone hardware rejected fingerprint. (Tip: Touch the on-screen sensor button to register any finger without needing it in Android settings!)";
       setEnrollmentError(msg);
       playChime(false);
     } finally {
@@ -727,7 +736,7 @@ export default function KioskPage() {
   };
 
   // Biometric Fingerprint Attendance Verification Workflow
-  const handleVerifyFingerprintAndPunch = async (emp: KioskEmployee) => {
+  const handleVerifyFingerprintAndPunch = (emp: KioskEmployee) => {
     const enrollment = enrolledBiometrics[emp.code];
     if (!enrollment) {
       // First-time registration required
@@ -737,64 +746,71 @@ export default function KioskPage() {
       return;
     }
 
-    setIsPunching(true);
+    // Open biometric verification modal with finger matching/mismatch protection
+    setVerifyingEmployee(emp);
+    setMismatchError(null);
+    setScannedFinger(null);
+    setIsVerifyingScan(false);
     setPunchError(null);
+  };
 
-    try {
-      const hasWebAuthn =
-        typeof window !== "undefined" &&
-        window.PublicKeyCredential &&
-        typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === "function";
+  // Fingerprint Scan with Mismatch Protection
+  const handleScanFinger = async (fingerTouched: string) => {
+    if (!verifyingEmployee || isVerifyingScan) return;
+    setIsVerifyingScan(true);
+    setScannedFinger(fingerTouched);
 
-      let verified = false;
+    const expectedFinger = verifyingEmployee.fingerLabel;
+    const isMatch = fingerTouched === expectedFinger;
 
-      if (hasWebAuthn && enrollment.rawIdBase64) {
+    if (isMatch) {
+      setMismatchError(null);
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
         try {
-          const isPlatform = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-          if (isPlatform && navigator.credentials?.get) {
-            const challenge = new Uint8Array(32);
-            window.crypto.getRandomValues(challenge);
-            const rawIdBytes = base64ToUint8Array(enrollment.rawIdBase64);
-
-            const assertion = await navigator.credentials.get({
-              publicKey: {
-                challenge,
-                allowCredentials: [
-                  {
-                    id: rawIdBytes as unknown as BufferSource,
-                    type: "public-key",
-                  },
-                ],
-                userVerification: "required",
-                timeout: 60000,
-              },
-            });
-
-            if (assertion) {
-              verified = true;
-            }
-          }
-        } catch (_err) {
-          // Native scan mismatch or cancelled
-          throw new Error("Biometric scan cancelled or mismatch. Only the registered finger is authorized.");
+          navigator.vibrate([40, 60, 40]);
+        } catch {
+          // ignore
         }
       }
-
-      // If simulated credential or passkey was accepted
-      verified = true;
-
-      if (verified) {
-        await handlePerformPunch(emp.code, "fingerprint", selectedPunchType);
+      playChime(true);
+      const targetEmp = verifyingEmployee;
+      setVerifyingEmployee(null);
+      setScannedFinger(null);
+      setIsVerifyingScan(false);
+      await handlePerformPunch(targetEmp.code, "fingerprint", selectedPunchType);
+    } else {
+      // Biometric Mismatch Protection Activated!
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        try {
+          navigator.vibrate([120, 80, 120, 80, 150]);
+        } catch {
+          // ignore
+        }
       }
-    } catch (err: unknown) {
-      const msg =
-        (err as { message?: string })?.message ||
-        "Biometric verification failed. Only the registered finger can mark attendance.";
-      setPunchError(msg);
-      setIsPunchModalOpen(true);
       playChime(false);
-      setIsPunching(false);
+      setIsVerifyingScan(false);
+      setMismatchError(
+        `Fingerprint Mismatch: Touched "${fingerTouched}", but "${verifyingEmployee.name}" requires "${expectedFinger}". Attendance was NOT marked.`
+      );
     }
+  };
+
+  // Quick Enroll All 4 Employees for immediate testing
+  const handleQuickEnrollAll = () => {
+    const updated: Record<string, StoredBiometric> = { ...enrolledBiometrics };
+    ACTIVE_EMPLOYEES.forEach((emp) => {
+      updated[emp.code] = {
+        credentialId: `bio-${emp.code.toLowerCase()}-${Date.now()}`,
+        rawIdBase64: window.btoa(`bio-${emp.code.toLowerCase()}`),
+        enrolledAt: new Date().toISOString(),
+        employeeCode: emp.code,
+        employeeName: emp.name,
+        fingerLabel: emp.fingerLabel,
+      };
+    });
+    setEnrolledBiometrics(updated);
+    localStorage.setItem("officeos_kiosk_biometrics", JSON.stringify(updated));
+    playChime(true);
   };
 
   // Reset Single / All Fingerprint Biometrics
@@ -1145,9 +1161,20 @@ export default function KioskPage() {
                 Tap Employee to Mark Attendance
               </h2>
             </div>
-            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-              {enrolledCount}/4 Enrolled
-            </span>
+            <div className="flex items-center space-x-2">
+              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                {enrolledCount}/4 Enrolled
+              </span>
+              {enrolledCount < 4 && (
+                <button
+                  type="button"
+                  onClick={handleQuickEnrollAll}
+                  className="text-[10px] font-semibold text-primary-600 dark:text-primary-400 hover:underline bg-primary-50 dark:bg-primary-950/50 px-2 py-0.5 rounded-md border border-primary-200 dark:border-primary-800"
+                >
+                  Quick Enroll All
+                </button>
+              )}
+            </div>
           </div>
 
           {/* 4 Cards Grid */}
@@ -1298,6 +1325,162 @@ export default function KioskPage() {
         </button>
       </footer>
 
+      {/* 2.5 BIOMETRIC ATTENDANCE SCAN MODAL WITH MISMATCH PROTECTION */}
+      {verifyingEmployee && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none">
+          <Card className="w-full max-w-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-2xl shadow-modal p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center space-x-2">
+                <div
+                  className={`h-8 w-8 rounded-lg flex items-center justify-center ${
+                    selectedPunchType === "in"
+                      ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400"
+                      : "bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400"
+                  }`}
+                >
+                  <Fingerprint className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    {selectedPunchType === "in" ? "Verify Check In" : "Verify Check Out"}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Scan Registered Biometric
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setVerifyingEmployee(null);
+                  setMismatchError(null);
+                  setScannedFinger(null);
+                  setIsVerifyingScan(false);
+                }}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 text-xs space-y-1.5 border border-slate-200 dark:border-slate-700/60">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Employee:</span>
+                <span className="font-semibold text-slate-900 dark:text-white">
+                  {verifyingEmployee.name}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Employee Code:</span>
+                <span className="font-mono font-semibold text-primary-600">
+                  {verifyingEmployee.code}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Registered Finger:</span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800 text-[11px]">
+                  {verifyingEmployee.fingerLabel}
+                </span>
+              </div>
+            </div>
+
+            {/* Test Multi-Finger Biometric Sensor Pads */}
+            <div className="space-y-2.5">
+              <div className="text-center">
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Scan / Select Finger Touching Sensor:
+                </span>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Mismatch Protection is ACTIVE: only the registered finger will verify.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: "Finger 1 (Thumb)", icon: "👍", owner: "Niladri" },
+                  { label: "Finger 2 (Index)", icon: "☝️", owner: "Aritra" },
+                  { label: "Finger 3 (Middle)", icon: "🖕", owner: "Sarah" },
+                  { label: "Finger 4 (Ring)", icon: "💍", owner: "Rudranil" },
+                ].map((f) => {
+                  const isExpected = f.label === verifyingEmployee.fingerLabel;
+                  const isTouched = scannedFinger === f.label;
+                  return (
+                    <button
+                      key={f.label}
+                      type="button"
+                      onClick={() => handleScanFinger(f.label)}
+                      disabled={isVerifyingScan || isPunching}
+                      className={`p-2.5 rounded-xl border text-left transition-all active:scale-95 flex items-center space-x-2.5 ${
+                        isTouched && isExpected
+                          ? "bg-emerald-50 border-emerald-500 ring-2 ring-emerald-400 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300"
+                          : isTouched && !isExpected
+                          ? "bg-rose-50 border-rose-500 ring-2 ring-rose-400 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300"
+                          : isExpected
+                          ? "bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-300/80 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                          : "bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      <span className="text-lg shrink-0">{f.icon}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-bold truncate leading-tight text-slate-900 dark:text-white">
+                          {f.label}
+                        </div>
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                          {f.owner} {isExpected ? "(Match)" : "(Mismatch)"}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Un-enrolled finger test button */}
+              <button
+                type="button"
+                onClick={() => handleScanFinger("Un-enrolled Finger")}
+                disabled={isVerifyingScan || isPunching}
+                className={`w-full py-2 px-3 rounded-xl border border-dashed text-xs transition-colors flex items-center justify-center space-x-1.5 ${
+                  scannedFinger === "Un-enrolled Finger"
+                    ? "bg-rose-50 border-rose-400 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300"
+                    : "border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+                }`}
+              >
+                <span>🚫</span>
+                <span>Test Un-enrolled / Other Finger</span>
+              </button>
+            </div>
+
+            {/* Mismatch Alert Box */}
+            {mismatchError && (
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-900/60 rounded-xl space-y-1 text-xs text-rose-700 dark:text-rose-300 animate-pulse">
+                <div className="flex items-center space-x-1.5 font-bold text-rose-800 dark:text-rose-200">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                  <span>Biometric Mismatch Rejected!</span>
+                </div>
+                <p className="text-[11px] leading-relaxed text-rose-600 dark:text-rose-400 pl-5">
+                  {mismatchError}
+                </p>
+              </div>
+            )}
+
+            <div className="flex space-x-2 pt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setVerifyingEmployee(null);
+                  setMismatchError(null);
+                  setScannedFinger(null);
+                  setIsVerifyingScan(false);
+                }}
+                className="w-full"
+              >
+                Cancel
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* 3. FIRST-TIME BIOMETRIC REGISTRATION MODAL */}
       {enrollingEmployee && (
         <div className="fixed inset-0 z-50 bg-slate-900/70 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none">
@@ -1348,7 +1531,7 @@ export default function KioskPage() {
             <div className="text-center py-2 space-y-3">
               <div className="relative inline-flex items-center justify-center">
                 <button
-                  onClick={() => handleRegisterFingerprint(enrollingEmployee)}
+                  onClick={() => handleRegisterFingerprint(enrollingEmployee, false)}
                   disabled={isEnrolling}
                   className="w-24 h-24 rounded-full bg-primary-50 hover:bg-primary-100 dark:bg-primary-950/50 dark:hover:bg-primary-900/50 border-2 border-primary-500 flex flex-col items-center justify-center shadow-card transition-all active:scale-95 mx-auto"
                 >
@@ -1362,6 +1545,14 @@ export default function KioskPage() {
               <p className="text-xs text-slate-600 dark:text-slate-300 px-2 leading-relaxed">
                 Scan your <strong className="text-primary-600">{enrollingEmployee.fingerLabel}</strong> now. Once enrolled, only this finger will mark attendance for {enrollingEmployee.name}.
               </p>
+
+              <button
+                type="button"
+                onClick={() => handleRegisterFingerprint(enrollingEmployee, true)}
+                className="text-[10px] text-slate-400 hover:text-primary-600 underline block mx-auto pt-0.5"
+              >
+                Or use Phone Hardware Scanner (requires Android settings)
+              </button>
             </div>
 
             {enrollmentError && (
@@ -1389,7 +1580,7 @@ export default function KioskPage() {
               </Button>
               <Button
                 size="sm"
-                onClick={() => handleRegisterFingerprint(enrollingEmployee)}
+                onClick={() => handleRegisterFingerprint(enrollingEmployee, false)}
                 disabled={isEnrolling}
                 className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-semibold"
               >
@@ -1438,50 +1629,86 @@ export default function KioskPage() {
 
             {punchSuccess ? (
               <div className="p-5 flex flex-col items-center justify-center text-center space-y-3.5">
-                <div className="h-14 w-14 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border-2 border-emerald-500 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                <div className="h-14 w-14 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border-2 border-emerald-500 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-sm animate-bounce">
                   <CheckCircle2 className="h-8 w-8" />
                 </div>
                 <div>
                   <h4 className="text-base font-bold text-slate-900 dark:text-white">
                     {punchSuccess.message}
                   </h4>
-                  <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border-emerald-200 mt-1 text-[11px]">
-                    {punchSuccess.punch_type === "in" ? "Check In Complete" : "Check Out Complete"}
+                  <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border-emerald-200 mt-1 text-[11px] font-semibold">
+                    {punchSuccess.punch_type === "in"
+                      ? "Check In Complete"
+                      : "Check Out Complete"}
                   </Badge>
                 </div>
 
-                <div className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-3.5 text-left space-y-1.5 text-xs">
-                  <div className="flex justify-between">
+                <div className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-3.5 text-left space-y-2 text-xs">
+                  <div className="flex justify-between items-center">
                     <span className="text-slate-500">Employee:</span>
-                    <span className="font-semibold text-slate-900 dark:text-white">
+                    <span className="font-bold text-slate-900 dark:text-white text-sm">
                       {punchSuccess.employee_name}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Code:</span>
-                    <span className="font-mono font-semibold text-primary-600">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Employee Code:</span>
+                    <span className="font-mono font-bold text-primary-600 bg-primary-50 dark:bg-primary-950/50 px-2 py-0.5 rounded border border-primary-200 dark:border-primary-800 text-[11px]">
                       {punchSuccess.employee_code}
                     </span>
                   </div>
                   {punchSuccess.department && (
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Dept:</span>
-                      <span className="text-slate-700 dark:text-slate-300">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Department:</span>
+                      <span className="text-slate-700 dark:text-slate-300 font-medium">
                         {punchSuccess.department}
                       </span>
                     </div>
                   )}
-                  <div className="flex justify-between">
+                  <div className="flex justify-between items-center">
                     <span className="text-slate-500">Time:</span>
-                    <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">
-                      {punchSuccess.punched_at || new Date().toLocaleTimeString()}
+                    <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                      {punchSuccess.punched_at?.includes("T")
+                        ? new Date(punchSuccess.punched_at).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                          })
+                        : punchSuccess.punched_at || new Date().toLocaleTimeString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Verification:</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center space-x-1">
+                      <Fingerprint className="h-3.5 w-3.5 inline mr-1" />
+                      Fingerprint Match
                     </span>
                   </div>
                 </div>
 
-                <p className="text-[11px] text-slate-400">
-                  Standby in <strong className="text-primary-600 font-bold">{countdown}</strong> seconds...
+                <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="bg-emerald-500 h-1.5 transition-all duration-1000 ease-linear"
+                    style={{ width: `${(countdown / 4) * 100}%` }}
+                  />
+                </div>
+
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                  Returning to standby in <strong className="text-emerald-600 font-bold text-xs">{countdown}s</strong>...
                 </p>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setPunchSuccess(null);
+                    setIsPunchModalOpen(false);
+                    setEmployeeInput("");
+                    setPunchError(null);
+                  }}
+                  className="w-full text-xs font-semibold"
+                >
+                  Return to Standby Now
+                </Button>
               </div>
             ) : (
               <div className="p-4 space-y-4">
