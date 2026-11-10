@@ -229,7 +229,10 @@ export default function KioskPage() {
         }
       }
 
-      if (storedBios) {
+      if (typeof window !== "undefined" && window.location.search.includes("reset=true")) {
+        localStorage.removeItem("officeos_kiosk_biometrics");
+        setEnrolledBiometrics({});
+      } else if (storedBios) {
         try {
           setEnrolledBiometrics(JSON.parse(storedBios));
         } catch {
@@ -994,9 +997,9 @@ export default function KioskPage() {
   const enrolledCount = Object.keys(enrolledBiometrics).length;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col justify-between select-none">
+    <div className="h-[100dvh] max-h-[100dvh] w-full flex flex-col justify-between overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 select-none">
       {/* MOBILE COMPACT APP HEADER */}
-      <header className="sticky top-0 z-20 flex h-14 w-full items-center justify-between border-b border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 px-3 sm:px-6 backdrop-blur-md shadow-subtle">
+      <header className="sticky top-0 z-20 flex h-13 shrink-0 w-full items-center justify-between border-b border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 px-3 sm:px-4 backdrop-blur-md shadow-subtle">
         {/* Brand */}
         <div className="flex items-center space-x-2.5">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary-600 to-indigo-700 text-white shadow-sm shrink-0">
@@ -1089,8 +1092,8 @@ export default function KioskPage() {
         </div>
       </header>
 
-      {/* MAIN MOBILE PORTRAIT CONTENT */}
-      <main className="flex-1 flex flex-col justify-start items-center p-3 sm:p-5 max-w-md mx-auto w-full space-y-3.5">
+      {/* MAIN MOBILE PORTRAIT CONTENT — Native Scrollable App Shell */}
+      <main className="flex-1 overflow-y-auto overscroll-contain px-3 py-2.5 sm:px-4 max-w-md mx-auto w-full space-y-3">
         {/* PUNCH MODE TOGGLE BUTTONS (Check In / Check Out) */}
         <div className="grid grid-cols-2 gap-2 w-full">
           <button
@@ -1098,7 +1101,7 @@ export default function KioskPage() {
               setSelectedPunchType("in");
               playChime(true);
             }}
-            className={`py-2.5 px-3 rounded-2xl border transition-all duration-150 flex items-center justify-center space-x-2 shadow-xs ${
+            className={`py-2.5 px-3 rounded-2xl border transition-all duration-150 flex items-center justify-center space-x-2 shadow-xs touch-manipulation ${
               selectedPunchType === "in"
                 ? "bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-500/30 font-bold"
                 : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-emerald-400"
@@ -1113,7 +1116,7 @@ export default function KioskPage() {
               setSelectedPunchType("out");
               playChime(true);
             }}
-            className={`py-2.5 px-3 rounded-2xl border transition-all duration-150 flex items-center justify-center space-x-2 shadow-xs ${
+            className={`py-2.5 px-3 rounded-2xl border transition-all duration-150 flex items-center justify-center space-x-2 shadow-xs touch-manipulation ${
               selectedPunchType === "out"
                 ? "bg-amber-600 text-white border-amber-600 ring-2 ring-amber-500/30 font-bold"
                 : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-amber-400"
@@ -1125,7 +1128,7 @@ export default function KioskPage() {
         </div>
 
         {/* COMPACT DIGITAL CLOCK CARD */}
-        <Card className="w-full bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 shadow-card rounded-2xl p-4 text-center">
+        <Card className="w-full bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 shadow-card rounded-2xl p-3.5 text-center">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-semibold mb-1">
             <Wifi className="h-3 w-3 text-primary-600 dark:text-primary-400" />
             <span>Biometric Standby Ready</span>
@@ -1146,18 +1149,27 @@ export default function KioskPage() {
             <div className="flex items-center space-x-1.5">
               <Fingerprint className="h-4 w-4 text-primary-600 dark:text-primary-400" />
               <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Tap Employee to Mark Attendance
+                Employees
               </h2>
             </div>
             <div className="flex items-center space-x-2">
               <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                 {enrolledCount}/4 Enrolled
               </span>
-              {enrolledCount < 4 && (
+              {enrolledCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={handleResetAllBiometrics}
+                  className="text-[10px] font-semibold text-rose-600 dark:text-rose-400 hover:underline bg-rose-50 dark:bg-rose-950/50 px-2 py-0.5 rounded-md border border-rose-200 dark:border-rose-900/60 inline-flex items-center space-x-0.5 touch-manipulation"
+                >
+                  <RotateCcw className="h-2.5 w-2.5 mr-0.5" />
+                  <span>Reset All</span>
+                </button>
+              ) : (
                 <button
                   type="button"
                   onClick={handleQuickEnrollAll}
-                  className="text-[10px] font-semibold text-primary-600 dark:text-primary-400 hover:underline bg-primary-50 dark:bg-primary-950/50 px-2 py-0.5 rounded-md border border-primary-200 dark:border-primary-800"
+                  className="text-[10px] font-semibold text-primary-600 dark:text-primary-400 hover:underline bg-primary-50 dark:bg-primary-950/50 px-2 py-0.5 rounded-md border border-primary-200 dark:border-primary-800 touch-manipulation"
                 >
                   Quick Enroll All
                 </button>
@@ -1258,10 +1270,11 @@ export default function KioskPage() {
           >
             <Input
               type="text"
+              inputMode="numeric"
               value={employeeInput}
               onChange={(e) => setEmployeeInput(e.target.value.toUpperCase())}
               placeholder="Enter Code (001, 002, 003, 004)"
-              className="h-11 text-center text-sm font-mono font-bold uppercase tracking-wider bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+              className="h-11 text-center text-[16px] font-mono font-bold uppercase tracking-wider bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 touch-manipulation"
             />
             {employeeInput && (
               <Button
@@ -1269,7 +1282,7 @@ export default function KioskPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setEmployeeInput("")}
-                className="h-11 w-11 p-0 shrink-0 text-slate-400 hover:text-slate-600"
+                className="h-11 w-11 p-0 shrink-0 text-slate-400 hover:text-slate-600 touch-manipulation"
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -1278,7 +1291,7 @@ export default function KioskPage() {
               type="submit"
               size="sm"
               disabled={isPunching}
-              className="h-11 px-4 bg-primary-600 hover:bg-primary-700 text-white shrink-0 text-xs font-semibold rounded-xl shadow-xs"
+              className="h-11 px-4 bg-primary-600 hover:bg-primary-700 text-white shrink-0 text-xs font-semibold rounded-xl shadow-xs touch-manipulation"
             >
               <Fingerprint className="h-4 w-4 mr-1.5" />
               <span>Verify</span>
@@ -1300,12 +1313,12 @@ export default function KioskPage() {
                     setEmployeeInput((prev) => prev + key);
                   }
                 }}
-                className={`h-10 rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center ${
+                className={`h-10 rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center select-none touch-manipulation ${
                   key === "Verify"
                     ? "bg-primary-600 text-white hover:bg-primary-700 text-xs shadow-xs font-semibold"
                     : key === "⌫"
                     ? "bg-slate-100 dark:bg-slate-800/90 text-slate-700 dark:text-slate-300 hover:bg-slate-200 text-sm"
-                    : "bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 text-base font-mono shadow-xs"
+                    : "bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 text-[16px] font-mono shadow-xs"
                 }`}
               >
                 {key === "Verify" ? (
@@ -1323,10 +1336,10 @@ export default function KioskPage() {
       </main>
 
       {/* FOOTER */}
-      <footer className="h-10 border-t border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 px-4 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+      <footer className="shrink-0 h-9 border-t border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 px-3 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
         <div className="flex items-center space-x-1.5 truncate">
           <ShieldCheck className="h-3.5 w-3.5 text-primary-600 dark:text-primary-400 shrink-0" />
-          <span className="truncate">WebAuthn Multi-Fingerprint Isolation Active</span>
+          <span className="truncate">Multi-Finger Biometric Active</span>
         </div>
         <button
           onClick={() => {
