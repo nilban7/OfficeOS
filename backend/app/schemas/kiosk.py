@@ -178,8 +178,13 @@ class KioskEmployeeStatusItem(BaseModel):
     raw_id_base64: str | None = None
     finger_label: str | None = None
     enrolled_at: str | None = None
-    today_status: str | None = None  # "in" | "out" | None
+    today_status: str | None = None  # "in" | "out" | "completed" | None
     punched_at: str | None = None
+    check_in_time: str | None = None
+    check_out_time: str | None = None
+    shift_completed: bool = False
+    duration_hours: float | None = None
+    attendance_status: str | None = None  # "present" | "half_day" | "late"
 
 
 class KioskBiometricRegisterRequest(BaseModel):

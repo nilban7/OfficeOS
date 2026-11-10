@@ -4,6 +4,7 @@ Tests activation code generation, device pairing, multi-modal punches,
 IP restrictions, heartbeat, and exit PIN verification.
 """
 
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -200,3 +201,209 @@ async def test_kiosk_punch_employee_not_found_raises():
 
     assert exc_info.value.status_code == 404
     assert "Employee identification failed" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_kiosk_punch_double_check_in_rejected():
+    mock_session = AsyncMock()
+    device = MagicMock()
+    device.organization_id = uuid4()
+    device.branch_id = uuid4()
+    device.id = uuid4()
+    device.ip_tracking_enabled = False
+
+    emp = MagicMock()
+    emp.id = uuid4()
+    emp.first_name = "Jane"
+    emp.last_name = "Doe"
+    emp.employee_code = "EMP-042"
+
+    record = MagicMock()
+    record.check_in_at = datetime.now(timezone.utc) - timedelta(hours=2)
+    record.check_out_at = None
+
+    emp_res = MagicMock()
+    emp_res.scalar_one_or_none.return_value = emp
+
+    att_res = MagicMock()
+    att_res.scalar_one_or_none.return_value = record
+
+    mock_session.execute = AsyncMock(side_effect=[emp_res, att_res])
+
+    req = KioskPunchRequest(
+        employee_code="EMP-042",
+        punch_type="check_in",
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await KioskService.process_kiosk_punch(mock_session, device, req)
+
+    assert exc_info.value.status_code == 400
+    assert "already checked in for today" in exc_info.value.detail
+    assert "Next action must be Check Out" in exc_info.value.detail or "must be Check Out" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_kiosk_punch_check_out_without_check_in_rejected():
+    mock_session = AsyncMock()
+    device = MagicMock()
+    device.organization_id = uuid4()
+    device.branch_id = uuid4()
+    device.id = uuid4()
+    device.ip_tracking_enabled = False
+
+    emp = MagicMock()
+    emp.id = uuid4()
+    emp.first_name = "Jane"
+    emp.last_name = "Doe"
+    emp.employee_code = "EMP-042"
+
+    emp_res = MagicMock()
+    emp_res.scalar_one_or_none.return_value = emp
+
+    att_res = MagicMock()
+    att_res.scalar_one_or_none.return_value = None  # No check-in record
+
+    mock_session.execute = AsyncMock(side_effect=[emp_res, att_res])
+
+    req = KioskPunchRequest(
+        employee_code="EMP-042",
+        punch_type="check_out",
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await KioskService.process_kiosk_punch(mock_session, device, req)
+
+    assert exc_info.value.status_code == 400
+    assert "has not checked in today yet" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_kiosk_punch_shift_completed_lock():
+    mock_session = AsyncMock()
+    device = MagicMock()
+    device.organization_id = uuid4()
+    device.branch_id = uuid4()
+    device.id = uuid4()
+    device.ip_tracking_enabled = False
+
+    emp = MagicMock()
+    emp.id = uuid4()
+    emp.first_name = "Jane"
+    emp.last_name = "Doe"
+    emp.employee_code = "EMP-042"
+
+    record = MagicMock()
+    record.check_in_at = datetime.now(timezone.utc) - timedelta(hours=9)
+    record.check_out_at = datetime.now(timezone.utc) - timedelta(hours=1)
+
+    emp_res = MagicMock()
+    emp_res.scalar_one_or_none.return_value = emp
+
+    att_res = MagicMock()
+    att_res.scalar_one_or_none.return_value = record
+
+    mock_session.execute = AsyncMock(side_effect=[emp_res, att_res])
+
+    # Trying to punch again after shift completed
+    req = KioskPunchRequest(
+        employee_code="EMP-042",
+        punch_type="check_in",
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await KioskService.process_kiosk_punch(mock_session, device, req)
+
+    assert exc_info.value.status_code == 400
+    assert "already completed today's shift" in exc_info.value.detail
+    assert "locked unless reset by an administrator" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_kiosk_punch_half_day_classification():
+    mock_session = AsyncMock()
+    device = MagicMock()
+    device.organization_id = uuid4()
+    device.branch_id = uuid4()
+    device.id = uuid4()
+    device.ip_tracking_enabled = False
+
+    emp = MagicMock()
+    emp.id = uuid4()
+    emp.first_name = "Jane"
+    emp.last_name = "Doe"
+    emp.employee_code = "EMP-042"
+
+    # Shift duration: 3.5 hours (< 4.5 hours threshold)
+    record = MagicMock()
+    record.check_in_at = datetime.now(timezone.utc) - timedelta(hours=3, minutes=30)
+    record.check_out_at = None
+    record.status = "present"
+    record.verification_method = "fingerprint"
+    record.latitude = None
+    record.longitude = None
+    record.face_snapshot_url = None
+
+    emp_res = MagicMock()
+    emp_res.scalar_one_or_none.return_value = emp
+
+    att_res = MagicMock()
+    att_res.scalar_one_or_none.return_value = record
+
+    mock_session.execute = AsyncMock(side_effect=[emp_res, att_res])
+
+    req = KioskPunchRequest(
+        employee_code="EMP-042",
+        punch_type="check_out",
+    )
+
+    res = await KioskService.process_kiosk_punch(mock_session, device, req)
+
+    assert res.success is True
+    assert record.status == "half_day"
+    assert "Half Day" in res.message
+
+
+@pytest.mark.asyncio
+async def test_kiosk_punch_full_day_classification():
+    mock_session = AsyncMock()
+    device = MagicMock()
+    device.organization_id = uuid4()
+    device.branch_id = uuid4()
+    device.id = uuid4()
+    device.ip_tracking_enabled = False
+
+    emp = MagicMock()
+    emp.id = uuid4()
+    emp.first_name = "Jane"
+    emp.last_name = "Doe"
+    emp.employee_code = "EMP-042"
+
+    # Shift duration: 8.5 hours (>= 4.5 hours threshold)
+    record = MagicMock()
+    record.check_in_at = datetime.now(timezone.utc) - timedelta(hours=8, minutes=30)
+    record.check_out_at = None
+    record.status = "present"
+    record.verification_method = "fingerprint"
+    record.latitude = None
+    record.longitude = None
+    record.face_snapshot_url = None
+
+    emp_res = MagicMock()
+    emp_res.scalar_one_or_none.return_value = emp
+
+    att_res = MagicMock()
+    att_res.scalar_one_or_none.return_value = record
+
+    mock_session.execute = AsyncMock(side_effect=[emp_res, att_res])
+
+    req = KioskPunchRequest(
+        employee_code="EMP-042",
+        punch_type="check_out",
+    )
+
+    res = await KioskService.process_kiosk_punch(mock_session, device, req)
+
+    assert res.success is True
+    assert record.status == "present"
+    assert "Shift completed" in res.message

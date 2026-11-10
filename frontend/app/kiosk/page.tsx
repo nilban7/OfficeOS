@@ -103,6 +103,15 @@ interface StoredBiometric {
   fingerLabel?: string;
 }
 
+interface EmployeeClockInfo {
+  status: "in" | "out" | "completed";
+  punchedAt: string;
+  checkInTime?: string | null;
+  checkOutTime?: string | null;
+  durationHours?: number | null;
+  attendanceStatus?: string | null;
+}
+
 // Base64 helpers for WebAuthn buffers
 function bufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -123,6 +132,27 @@ function base64ToUint8Array(base64: string): Uint8Array {
     bytes[i] = binary.charCodeAt(i);
   }
   return bytes;
+}
+
+// Format ISO timestamp or time string into the user's local device clock (matches the big widget clock)
+function formatKioskTime(value?: string | Date | null): string {
+  if (!value) return "";
+  if (value instanceof Date) {
+    return value.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  const str = String(value).trim();
+  if (!str) return "";
+
+  // If it's an ISO timestamp or date-parseable string containing 'T', '-', or 'Z':
+  if (str.includes("T") || str.includes("-") || str.endsWith("Z")) {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+  }
+
+  // If already formatted like "09:30 AM" or "3:05 PM"
+  return str;
 }
 
 // Synthesized audio feedback
@@ -206,7 +236,7 @@ export default function KioskPage() {
 
   // Server-Synchronized Employees & Clock Status
   const [serverEmployees, setServerEmployees] = React.useState<KioskEmployeeStatusItem[]>([]);
-  const [clockStatus, setClockStatus] = React.useState<Record<string, { status: "in" | "out"; punchedAt: string }>>({});
+  const [clockStatus, setClockStatus] = React.useState<Record<string, EmployeeClockInfo>>({});
   const [searchQuery, setSearchQuery] = React.useState("");
 
   // Punch Flow State
@@ -321,7 +351,7 @@ export default function KioskPage() {
 
         // Update enrolled biometrics from backend
         const newBios: Record<string, StoredBiometric> = {};
-        const newClock: Record<string, { status: "in" | "out"; punchedAt: string }> = {};
+        const newClock: Record<string, EmployeeClockInfo> = {};
 
         data.forEach((item) => {
           if (item.is_enrolled) {
@@ -337,7 +367,11 @@ export default function KioskPage() {
           if (item.today_status) {
             newClock[item.code] = {
               status: item.today_status,
-              punchedAt: item.punched_at || "",
+              punchedAt: formatKioskTime(item.punched_at) || "",
+              checkInTime: formatKioskTime(item.check_in_time),
+              checkOutTime: formatKioskTime(item.check_out_time),
+              durationHours: item.duration_hours,
+              attendanceStatus: item.attendance_status,
             };
           }
         });
@@ -753,13 +787,39 @@ export default function KioskPage() {
       playChime(true);
 
       // Immediately update local clockStatus and trigger backend refresh
-      const punchTimeStr = data.punched_at || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const localNowStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const punchTimeStr = formatKioskTime(data.punched_at) || localNowStr;
       setClockStatus((prev) => {
-        const updated = {
+        const prevItem = prev[code];
+        let newStatus: "in" | "out" | "completed" = activePunchType;
+        let cIn = prevItem?.checkInTime;
+        let cOut = prevItem?.checkOutTime;
+        let dur = prevItem?.durationHours;
+        let attStatus = prevItem?.attendanceStatus;
+
+        if (activePunchType === "in") {
+          newStatus = "in";
+          cIn = punchTimeStr;
+        } else if (activePunchType === "out") {
+          newStatus = "completed";
+          cOut = punchTimeStr;
+          dur = data.work_duration_hours ?? dur;
+          if (data.message?.toLowerCase().includes("half day") || (dur !== null && dur !== undefined && dur < 4.5)) {
+            attStatus = "half_day";
+          } else {
+            attStatus = "present";
+          }
+        }
+
+        const updated: Record<string, EmployeeClockInfo> = {
           ...prev,
           [code]: {
-            status: activePunchType,
+            status: newStatus,
             punchedAt: punchTimeStr,
+            checkInTime: cIn,
+            checkOutTime: cOut,
+            durationHours: dur,
+            attendanceStatus: attStatus,
           },
         };
         try {
@@ -797,9 +857,33 @@ export default function KioskPage() {
 
         const punchTimeStr = mockPunchResponse.punched_at;
         setClockStatus((prev) => {
-          const updated = {
+          const prevItem = prev[code];
+          let newStatus: "in" | "out" | "completed" = activePunchType;
+          let cIn = prevItem?.checkInTime;
+          let cOut = prevItem?.checkOutTime;
+          let dur = prevItem?.durationHours;
+          let attStatus = prevItem?.attendanceStatus;
+
+          if (activePunchType === "in") {
+            newStatus = "in";
+            cIn = punchTimeStr;
+          } else if (activePunchType === "out") {
+            newStatus = "completed";
+            cOut = punchTimeStr;
+            dur = mockPunchResponse.work_duration_hours || 8.2;
+            attStatus = dur < 4.5 ? "half_day" : "present";
+          }
+
+          const updated: Record<string, EmployeeClockInfo> = {
             ...prev,
-            [code]: { status: activePunchType, punchedAt: punchTimeStr },
+            [code]: {
+              status: newStatus,
+              punchedAt: punchTimeStr,
+              checkInTime: cIn,
+              checkOutTime: cOut,
+              durationHours: dur,
+              attendanceStatus: attStatus,
+            },
           };
           try {
             localStorage.setItem("officeos_kiosk_clock_status", JSON.stringify(updated));
@@ -1057,6 +1141,26 @@ export default function KioskPage() {
 
   // Biometric Fingerprint Attendance Verification Workflow
   const handleVerifyFingerprintAndPunch = (emp: KioskEmployee) => {
+    // 1. Shift completion lock check: Only 1 check-in and 1 check-out per day
+    const empClock = clockStatus[emp.code];
+    if (empClock?.status === "completed") {
+      const inTime = empClock.checkInTime || "--";
+      const outTime = empClock.checkOutTime || empClock.punchedAt || "--";
+      const dur = empClock.durationHours ? ` (${empClock.durationHours} hrs)` : "";
+      const statusLabel = empClock.attendanceStatus === "half_day" ? "Half Day" : "Present";
+      setPunchError(`Shift Completed: ${emp.name} has already checked in (${inTime}) and checked out (${outTime})${dur} for today [${statusLabel}]. Further punches are locked. If this is a mistake, an administrator can reset today's record in the Master Admin panel.`);
+      setIsPunchModalOpen(true);
+      playChime(false);
+      return;
+    }
+
+    // Auto-detect punch type based on current status
+    if (empClock?.status === "in") {
+      setSelectedPunchType("out");
+    } else {
+      setSelectedPunchType("in");
+    }
+
     const enrollment = enrolledBiometrics[emp.code];
     if (!enrollment) {
       // First-time registration required
@@ -1632,15 +1736,27 @@ export default function KioskPage() {
 
                         {/* LIVE CLOCKED IN / CLOCKED OUT STATUS BADGE */}
                         <div className="pt-0.5">
-                          {empClock?.status === "in" ? (
+                          {empClock?.status === "completed" ? (
+                            empClock.attendanceStatus === "half_day" ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800/60">
+                                <span>🌓</span>
+                                <span>Half Day Done • {empClock.durationHours ? `${empClock.durationHours}h` : "Completed"} ({formatKioskTime(empClock.checkInTime) || "--"} - {formatKioskTime(empClock.checkOutTime) || "--"})</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-300 dark:border-slate-700">
+                                <span>🏁</span>
+                                <span>Shift Completed • {empClock.durationHours ? `${empClock.durationHours}h` : "Done"} ({formatKioskTime(empClock.checkInTime) || "--"} - {formatKioskTime(empClock.checkOutTime) || "--"})</span>
+                              </span>
+                            )
+                          ) : empClock?.status === "in" ? (
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/60">
                               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                              Clocked In • {empClock.punchedAt || "Today"}
+                              Clocked In • {formatKioskTime(empClock.checkInTime || empClock.punchedAt) || "Today"}
                             </span>
                           ) : empClock?.status === "out" ? (
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-800/60">
                               <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                              Clocked Out • {empClock.punchedAt || "Today"}
+                              Clocked Out • {formatKioskTime(empClock.checkOutTime || empClock.punchedAt) || "Today"}
                             </span>
                           ) : (
                             <span className="text-[10px] text-slate-400 font-medium">
@@ -1653,7 +1769,20 @@ export default function KioskPage() {
 
                     {/* Right: Biometric Registration Status & Action Trigger */}
                     <div className="flex items-center space-x-2 shrink-0">
-                      {isEnrolled ? (
+                      {empClock?.status === "completed" ? (
+                        <div className="flex flex-col items-end">
+                          <Badge
+                            variant="secondary"
+                            className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300 dark:border-slate-700 text-[10px] font-bold flex items-center space-x-1 rounded-full"
+                          >
+                            <Lock className="h-3 w-3 text-slate-500" />
+                            <span>Shift Done</span>
+                          </Badge>
+                          <span className="text-[9px] text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
+                            Locked Today
+                          </span>
+                        </div>
+                      ) : isEnrolled ? (
                         <div className="flex flex-col items-end">
                           <Badge
                             variant="secondary"
@@ -1663,7 +1792,7 @@ export default function KioskPage() {
                             <span>Registered</span>
                           </Badge>
                           <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">
-                            Tap to Mark
+                            {empClock?.status === "in" ? "Tap to Check Out" : "Tap to Mark"}
                           </span>
                         </div>
                       ) : (
@@ -1678,12 +1807,18 @@ export default function KioskPage() {
 
                       <div
                         className={`h-10 w-10 rounded-2xl flex items-center justify-center transition-colors shadow-xs ${
-                          isEnrolled
+                          empClock?.status === "completed"
+                            ? "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                            : isEnrolled
                             ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white"
                             : "bg-primary-100 text-primary-600 dark:bg-primary-900/60 dark:text-primary-300 group-hover:bg-primary-600 group-hover:text-white"
                         }`}
                       >
-                        <Fingerprint className="h-5 w-5" />
+                        {empClock?.status === "completed" ? (
+                          <Lock className="h-5 w-5" />
+                        ) : (
+                          <Fingerprint className="h-5 w-5" />
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1938,7 +2073,9 @@ export default function KioskPage() {
                   <h3 className="text-xl font-bold text-slate-900 dark:text-white">
                     {String(punchSuccess.punch_type).includes("in")
                       ? "Check-In Verified!"
-                      : "Check-Out Verified!"}
+                      : punchSuccess.message?.toLowerCase().includes("half day")
+                      ? "Check-Out: Half Day Done! 🌓"
+                      : "Check-Out: Shift Completed! 🏁"}
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     {punchSuccess.message}
@@ -1966,16 +2103,18 @@ export default function KioskPage() {
                       </span>
                     </div>
                   )}
+                  {punchSuccess.work_duration_hours !== null && punchSuccess.work_duration_hours !== undefined && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Shift Duration:</span>
+                      <span className="font-bold text-primary-600 dark:text-primary-400">
+                        {punchSuccess.work_duration_hours} hrs
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center">
                     <span className="text-slate-500">Time:</span>
                     <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
-                      {punchSuccess.punched_at?.includes("T")
-                        ? new Date(punchSuccess.punched_at).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            second: "2-digit",
-                          })
-                        : punchSuccess.punched_at || new Date().toLocaleTimeString()}
+                      {formatKioskTime(punchSuccess.punched_at) || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
