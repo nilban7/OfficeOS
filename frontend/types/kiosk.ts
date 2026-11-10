@@ -106,7 +106,12 @@ export interface KioskEmployeeStatusItem {
   raw_id_base64?: string | null;
   finger_label?: string | null;
   enrolled_at?: string | null;
-  today_status?: "in" | "out" | null;
+  today_status?: "in" | "out" | "completed" | null;
   punched_at?: string | null;
+  check_in_time?: string | null;
+  check_out_time?: string | null;
+  shift_completed?: boolean;
+  duration_hours?: number | null;
+  attendance_status?: string | null;
 }
 

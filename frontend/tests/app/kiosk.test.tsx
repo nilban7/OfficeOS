@@ -279,5 +279,53 @@ describe("KioskPage Component", () => {
       expect(screen.getByText(/Clocked In • 09:30 AM/i)).toBeDefined();
     });
   });
+
+  it("locks attendance and displays Shift Completed when employee has already clocked out", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("officeos_kiosk_token", "kiosk-token-active");
+    localStorage.setItem("officeos_kiosk_org_name", "Acme Global");
+    localStorage.setItem(
+      "officeos_kiosk_clock_status",
+      JSON.stringify({
+        "EMP-NIL-001": {
+          status: "completed",
+          punchedAt: "06:30 PM",
+          checkInTime: "09:30 AM",
+          checkOutTime: "06:30 PM",
+          durationHours: 9.0,
+          attendanceStatus: "present",
+        },
+      })
+    );
+    localStorage.setItem(
+      "officeos_kiosk_biometrics",
+      JSON.stringify({
+        "EMP-NIL-001": {
+          credentialId: "bio-niladri",
+          enrolledAt: new Date().toISOString(),
+          employeeCode: "EMP-NIL-001",
+          employeeName: "Niladri Banerjee",
+          fingerLabel: "Fingerprint",
+        },
+      })
+    );
+
+    render(<KioskPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Niladri Banerjee")).toBeDefined();
+      expect(screen.getByText(/Shift Done/i)).toBeDefined();
+      expect(screen.getByText(/Locked Today/i)).toBeDefined();
+      expect(screen.getByText(/Shift Completed • 9h/i)).toBeDefined();
+    });
+
+    // Clicking locked employee card should trigger locked warning modal
+    await user.click(screen.getByText("Niladri Banerjee"));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Shift Completed: Niladri Banerjee has already checked in/i)).toBeDefined();
+      expect(screen.getByText(/Further punches are locked/i)).toBeDefined();
+    });
+  });
 });
 

@@ -515,7 +515,20 @@ class KioskService:
         )
         record = att_res.scalar_one_or_none()
 
+        # Check shift completion rule: only 1 check-in and 1 check-out per day
+        if record and record.check_in_at is not None and record.check_out_at is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{emp_name} has already completed today's shift. Further punches are locked unless reset by an administrator in the Master Admin panel.",
+            )
+
         if normalized_punch == "check_in":
+            if record and record.check_in_at is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"{emp_name} is already checked in for today. Your next action must be Check Out.",
+                )
+
             if not record:
                 record = AttendanceRecord(
                     organization_id=target_org_id,
@@ -548,35 +561,35 @@ class KioskService:
             msg = f"Check-in verified successfully for {emp_name}."
 
         else:  # check_out
-            if not record:
-                record = AttendanceRecord(
-                    organization_id=target_org_id,
-                    employee_id=employee.id,
-                    branch_id=device.branch_id,
-                    work_date=today,
-                    check_in_at=now - timedelta(hours=8),  # auto fallback
-                    check_out_at=now,
-                    status="present",
-                    verification_method=req.verification_method,
-                    latitude=req.latitude,
-                    longitude=req.longitude,
-                    kiosk_device_id=device.id,
-                    face_snapshot_url=face_snapshot,
-                    client_ip=client_ip,
+            if not record or not record.check_in_at:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"{emp_name} has not checked in today yet. Please check in first before checking out.",
                 )
-                db.add(record)
-            else:
-                record.check_out_at = now
-                record.kiosk_device_id = device.id
-                if req.latitude is not None:
-                    record.latitude = req.latitude
-                if req.longitude is not None:
-                    record.longitude = req.longitude
-                if face_snapshot and not record.face_snapshot_url:
-                    record.face_snapshot_url = face_snapshot
-                record.client_ip = client_ip
 
-            msg = f"Check-out verified successfully for {emp_name}. Have a great evening!"
+            record.check_out_at = now
+            record.kiosk_device_id = device.id
+            if req.latitude is not None:
+                record.check_out_latitude = req.latitude
+                record.latitude = record.latitude or req.latitude
+            if req.longitude is not None:
+                record.check_out_longitude = req.longitude
+                record.longitude = record.longitude or req.longitude
+            if face_snapshot and not record.face_snapshot_url:
+                record.face_snapshot_url = face_snapshot
+            record.client_ip = client_ip
+
+            # Calculate total shift duration in hours
+            duration_hours = round((now - record.check_in_at).total_seconds() / 3600.0, 1)
+
+            # Half-Day threshold:
+            # If total shift duration is less than 4.5 hours, classify as half_day; otherwise present!
+            if duration_hours < 4.5:
+                record.status = "half_day"
+                msg = f"Check-out verified for {emp_name}. Shift duration: {duration_hours} hrs (Recorded as Half Day)."
+            else:
+                record.status = "present"
+                msg = f"Check-out verified for {emp_name}. Shift completed! Duration: {duration_hours} hrs."
 
         await db.commit()
         await db.refresh(record)
@@ -601,10 +614,11 @@ class KioskService:
             work_date=today,
             check_in_at=record.check_in_at,
             check_out_at=record.check_out_at,
-            punched_at=now.strftime("%I:%M %p"),
+            punched_at=now.isoformat(),
             verification_method=record.verification_method or req.verification_method,
             face_snapshot_url=record.face_snapshot_url,
             department=dept_name,
+            work_duration_hours=duration_hours if normalized_punch == "check_out" else None,
         )
 
     @classmethod
@@ -825,13 +839,32 @@ class KioskService:
 
             today_status: str | None = None
             punched_at: str | None = None
+            check_in_time: str | None = None
+            check_out_time: str | None = None
+            shift_completed: bool = False
+            duration_hours: float | None = None
+            attendance_status: str | None = None
+
             if att:
+                attendance_status = att.status
+                if att.check_in_at:
+                    c_in = att.check_in_at if att.check_in_at.tzinfo else att.check_in_at.replace(tzinfo=UTC)
+                    check_in_time = c_in.isoformat()
                 if att.check_out_at:
-                    today_status = "out"
-                    punched_at = att.check_out_at.strftime("%I:%M %p")
+                    c_out = att.check_out_at if att.check_out_at.tzinfo else att.check_out_at.replace(tzinfo=UTC)
+                    check_out_time = c_out.isoformat()
+
+                if att.check_in_at and att.check_out_at:
+                    today_status = "completed"
+                    shift_completed = True
+                    punched_at = check_out_time
+                    duration_hours = round((att.check_out_at - att.check_in_at).total_seconds() / 3600.0, 1)
                 elif att.check_in_at:
                     today_status = "in"
-                    punched_at = att.check_in_at.strftime("%I:%M %p")
+                    punched_at = check_in_time
+                elif att.check_out_at:
+                    today_status = "out"
+                    punched_at = check_out_time
 
             f_initial = emp.first_name[0].upper() if emp.first_name else ""
             l_initial = emp.last_name[0].upper() if emp.last_name else ""
@@ -860,6 +893,11 @@ class KioskService:
                     enrolled_at=bio.enrolled_at.isoformat() if bio and bio.enrolled_at else None,
                     today_status=today_status,
                     punched_at=punched_at,
+                    check_in_time=check_in_time,
+                    check_out_time=check_out_time,
+                    shift_completed=shift_completed,
+                    duration_hours=duration_hours,
+                    attendance_status=attendance_status,
                 )
             )
 
