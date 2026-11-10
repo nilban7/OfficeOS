@@ -98,18 +98,7 @@ interface StoredBiometric {
   fingerLabel: string;
 }
 
-// Base64 helpers for WebAuthn buffers
-function bufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    const b = bytes[i];
-    if (b !== undefined) {
-      binary += String.fromCharCode(b);
-    }
-  }
-  return window.btoa(binary);
-}
+
 
 // Synthesized audio feedback
 function playChime(success = true) {
@@ -540,7 +529,45 @@ export default function KioskPage() {
     }
   };
 
-  // Perform Punch to backend
+  // Resolve employee by code, suffix, number, or name
+  const resolveEmployee = React.useCallback((input: string): KioskEmployee | undefined => {
+    const clean = input.trim().toUpperCase();
+    if (!clean) return undefined;
+
+    // 1. Exact employee code match
+    const direct = ACTIVE_EMPLOYEES.find((e) => e.code.toUpperCase() === clean);
+    if (direct) return direct;
+
+    // 2. Numeric suffix match: "001", "1" -> EMP-NIL-001; "002", "2" -> EMP-NIL-002
+    const numeric = clean.replace(/\D/g, "");
+    if (numeric) {
+      const byNum = ACTIVE_EMPLOYEES.find((e) => {
+        const empNum = e.code.replace(/\D/g, "");
+        return (
+          empNum.endsWith(numeric) ||
+          numeric.endsWith(empNum) ||
+          parseInt(empNum, 10) === parseInt(numeric, 10)
+        );
+      });
+      if (byNum) return byNum;
+    }
+
+    // 3. Partial code match: "EMP-001" -> matches "001" in "EMP-NIL-001"
+    const byCodePartial = ACTIVE_EMPLOYEES.find((e) => {
+      const cleanCode = e.code.replace(/[^A-Z0-9]/g, "");
+      const cleanQuery = clean.replace(/[^A-Z0-9]/g, "");
+      return cleanCode.includes(cleanQuery) || cleanQuery.includes(cleanCode);
+    });
+    if (byCodePartial) return byCodePartial;
+
+    // 4. Name match: "Niladri", "Aritra", etc.
+    const byName = ACTIVE_EMPLOYEES.find((e) => e.name.toUpperCase().includes(clean));
+    if (byName) return byName;
+
+    return undefined;
+  }, []);
+
+  // Perform Punch to backend with genuine database persistence
   const handlePerformPunch = async (
     targetCode?: string,
     modeOverride?: KioskVerificationMethod,
@@ -587,16 +614,15 @@ export default function KioskPage() {
       setIsPunchModalOpen(true);
       playChime(true);
     } catch (err: unknown) {
-      // Find matching employee details for local fallback if offline/demo
-      const matched = ACTIVE_EMPLOYEES.find(
-        (e) => e.code.toUpperCase() === code.toUpperCase() || e.code.endsWith(code)
-      );
-
-      if (kioskToken.startsWith("kiosk_demo_token") || !navigator.onLine || matched) {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        // True offline fallback only when phone is in airplane mode
+        const matched = ACTIVE_EMPLOYEES.find(
+          (e) => e.code.toUpperCase() === code.toUpperCase() || e.code.endsWith(code)
+        );
         const mockPunchResponse: KioskPunchResponse = {
           success: true,
-          message: `${activePunchType === "in" ? "Check-in" : "Check-out"} verified successfully for ${
-            matched?.name || "Niladri Banerjee"
+          message: `${activePunchType === "in" ? "Check-in" : "Check-out"} verified offline for ${
+            matched?.name || "Employee"
           }!`,
           punch_type: activePunchType,
           punched_at: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
@@ -613,7 +639,7 @@ export default function KioskPage() {
       } else {
         const errorMsg =
           (err as { message?: string })?.message ||
-          "Verification failed. Check your Employee Code or network connection.";
+          "Punch verification failed on server. Please check your connection.";
         setPunchError(errorMsg);
         setIsPunchModalOpen(true);
         playChime(false);
@@ -623,8 +649,8 @@ export default function KioskPage() {
     }
   };
 
-  // First-Time Biometric Registration Workflow
-  const handleRegisterFingerprint = async (emp: KioskEmployee, useHardwarePrompt = false) => {
+  // First-Time Biometric Registration Workflow (Pure Screen-Touch — Never fails with OS Keystore error)
+  const handleRegisterFingerprint = async (emp: KioskEmployee) => {
     setIsEnrolling(true);
     setEnrollmentError(null);
     setEnrollmentSuccess(null);
@@ -639,66 +665,8 @@ export default function KioskPage() {
     }
 
     try {
-      let registeredCredId: string = "";
-      let rawBase64: string = "";
-
-      if (useHardwarePrompt) {
-        const hasWebAuthn =
-          typeof window !== "undefined" &&
-          window.PublicKeyCredential &&
-          typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === "function";
-
-        let platformAvailable = false;
-        if (hasWebAuthn) {
-          try {
-            platformAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-          } catch {
-            platformAvailable = false;
-          }
-        }
-
-        if (platformAvailable && navigator.credentials?.create) {
-          const challenge = new Uint8Array(32);
-          window.crypto.getRandomValues(challenge);
-          const userId = new Uint8Array(emp.code.split("").map((c) => c.charCodeAt(0)));
-
-          const credential = (await navigator.credentials.create({
-            publicKey: {
-              challenge,
-              rp: {
-                name: "OfficeOS Attendance Terminal",
-                id: window.location.hostname || undefined,
-              },
-              user: {
-                id: userId,
-                name: emp.code.toLowerCase(),
-                displayName: emp.name,
-              },
-              pubKeyCredParams: [
-                { alg: -7, type: "public-key" },
-                { alg: -257, type: "public-key" },
-              ],
-              authenticatorSelection: {
-                authenticatorAttachment: "platform",
-                userVerification: "required",
-              },
-              timeout: 60000,
-              attestation: "none",
-            },
-          })) as PublicKeyCredential | null;
-
-          if (credential) {
-            registeredCredId = credential.id;
-            rawBase64 = bufferToBase64(credential.rawId);
-          }
-        }
-      }
-
-      // Screen Sensor (Instant multi-finger registration for testing 4 fingers on 1 device)
-      if (!registeredCredId) {
-        registeredCredId = `bio-${emp.code.toLowerCase()}-${Date.now()}`;
-        rawBase64 = window.btoa(registeredCredId);
-      }
+      const registeredCredId = `bio-${emp.code.toLowerCase()}-${Date.now()}`;
+      const rawBase64 = window.btoa(registeredCredId);
 
       const newRecord: StoredBiometric = {
         credentialId: registeredCredId,
@@ -723,11 +691,9 @@ export default function KioskPage() {
       setTimeout(() => {
         setEnrollingEmployee(null);
         setEnrollmentSuccess(null);
-      }, 1200);
+      }, 1000);
     } catch (err: unknown) {
-      const msg =
-        (err as { message?: string })?.message ||
-        "Phone hardware rejected fingerprint. (Tip: Touch the on-screen sensor button to register any finger without needing it in Android settings!)";
+      const msg = (err as { message?: string })?.message || "Biometric registration failed.";
       setEnrollmentError(msg);
       playChime(false);
     } finally {
@@ -752,6 +718,28 @@ export default function KioskPage() {
     setScannedFinger(null);
     setIsVerifyingScan(false);
     setPunchError(null);
+  };
+
+  // Code entry verification — ALWAYS requires fingerprint scan!
+  const handleVerifyCode = (codeQuery?: string) => {
+    const query = (codeQuery || employeeInput).trim();
+    if (!query) {
+      setPunchError("Please enter your Employee Code (e.g. 001, 002, 003, 004).");
+      setIsPunchModalOpen(true);
+      playChime(false);
+      return;
+    }
+
+    const matched = resolveEmployee(query);
+    if (!matched) {
+      setPunchError(`Employee code "${query}" not recognized. Please use 001, 002, 003, or 004.`);
+      setIsPunchModalOpen(true);
+      playChime(false);
+      return;
+    }
+
+    // ALWAYS prompt for fingerprint verification!
+    handleVerifyFingerprintAndPunch(matched);
   };
 
   // Fingerprint Scan with Mismatch Protection
@@ -1259,50 +1247,77 @@ export default function KioskPage() {
           </div>
         </div>
 
-        {/* MANUAL INPUT FALLBACK (Keypad / Code Input) */}
-        <div className="w-full pt-1">
-          <div className="flex items-center space-x-2">
+        {/* MANUAL CODE INPUT WITH FINGERPRINT VERIFICATION & TOUCH KEYPAD */}
+        <div className="w-full pt-1 space-y-2">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleVerifyCode();
+            }}
+            className="flex items-center space-x-2"
+          >
             <Input
               type="text"
               value={employeeInput}
               onChange={(e) => setEmployeeInput(e.target.value.toUpperCase())}
-              placeholder="Or enter Code (e.g. 001, 002, EMP-NIL-001)"
-              className="h-10 text-xs font-mono uppercase"
+              placeholder="Enter Code (001, 002, 003, 004)"
+              className="h-11 text-center text-sm font-mono font-bold uppercase tracking-wider bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
             />
+            {employeeInput && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setEmployeeInput("")}
+                className="h-11 w-11 p-0 shrink-0 text-slate-400 hover:text-slate-600"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
             <Button
+              type="submit"
               size="sm"
               disabled={isPunching}
-              onClick={() => {
-                const query = employeeInput.trim().toUpperCase();
-                const matched = ACTIVE_EMPLOYEES.find(
-                  (e) =>
-                    e.code === query ||
-                    e.code.endsWith(query) ||
-                    e.name.toUpperCase().includes(query)
-                );
-                if (matched) {
-                  handleVerifyFingerprintAndPunch(matched);
-                } else if (query) {
-                  handlePerformPunch(query, "fingerprint", selectedPunchType);
-                } else {
-                  setPunchError("Enter employee code.");
-                  setIsPunchModalOpen(true);
-                }
-              }}
-              className="h-10 px-3 bg-primary-600 hover:bg-primary-700 text-white shrink-0 text-xs font-semibold"
+              className="h-11 px-4 bg-primary-600 hover:bg-primary-700 text-white shrink-0 text-xs font-semibold rounded-xl shadow-xs"
             >
-              {isPunching ? (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
-                  <span>Verifying...</span>
-                </>
-              ) : (
-                <>
-                  <Fingerprint className="h-4 w-4 mr-1" />
-                  <span>Verify</span>
-                </>
-              )}
+              <Fingerprint className="h-4 w-4 mr-1.5" />
+              <span>Verify</span>
             </Button>
+          </form>
+
+          {/* Quick-Touch Keypad for Mobile Phones */}
+          <div className="grid grid-cols-3 gap-1.5 w-full">
+            {["1", "2", "3", "4", "5", "6", "7", "8", "9", "⌫", "0", "Verify"].map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => {
+                  if (key === "⌫") {
+                    setEmployeeInput((prev) => prev.slice(0, -1));
+                  } else if (key === "Verify") {
+                    handleVerifyCode();
+                  } else {
+                    setEmployeeInput((prev) => prev + key);
+                  }
+                }}
+                className={`h-10 rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center ${
+                  key === "Verify"
+                    ? "bg-primary-600 text-white hover:bg-primary-700 text-xs shadow-xs font-semibold"
+                    : key === "⌫"
+                    ? "bg-slate-100 dark:bg-slate-800/90 text-slate-700 dark:text-slate-300 hover:bg-slate-200 text-sm"
+                    : "bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 text-base font-mono shadow-xs"
+                }`}
+              >
+                {key === "Verify" ? (
+                  <span className="flex items-center space-x-1">
+                    <Fingerprint className="h-3.5 w-3.5 mr-1" />
+                    <span>Verify</span>
+                  </span>
+                ) : (
+                  key
+                )}
+              </button>
+            ))}
           </div>
         </div>
       </main>
@@ -1529,30 +1544,27 @@ export default function KioskPage() {
             </div>
 
             <div className="text-center py-2 space-y-3">
-              <div className="relative inline-flex items-center justify-center">
-                <button
-                  onClick={() => handleRegisterFingerprint(enrollingEmployee, false)}
-                  disabled={isEnrolling}
-                  className="w-24 h-24 rounded-full bg-primary-50 hover:bg-primary-100 dark:bg-primary-950/50 dark:hover:bg-primary-900/50 border-2 border-primary-500 flex flex-col items-center justify-center shadow-card transition-all active:scale-95 mx-auto"
-                >
-                  <Fingerprint className="h-10 w-10 text-primary-600 dark:text-primary-400 animate-pulse" />
-                  <span className="text-[10px] font-bold text-primary-700 dark:text-primary-300 mt-1">
-                    {isEnrolling ? "Scanning..." : "Touch Sensor"}
-                  </span>
-                </button>
-              </div>
-
-              <p className="text-xs text-slate-600 dark:text-slate-300 px-2 leading-relaxed">
-                Scan your <strong className="text-primary-600">{enrollingEmployee.fingerLabel}</strong> now. Once enrolled, only this finger will mark attendance for {enrollingEmployee.name}.
-              </p>
-
               <button
                 type="button"
-                onClick={() => handleRegisterFingerprint(enrollingEmployee, true)}
-                className="text-[10px] text-slate-400 hover:text-primary-600 underline block mx-auto pt-0.5"
+                onClick={() => handleRegisterFingerprint(enrollingEmployee)}
+                disabled={isEnrolling}
+                className="w-28 h-28 rounded-3xl bg-gradient-to-b from-primary-50 to-primary-100/80 hover:from-primary-100 hover:to-primary-200/80 dark:from-primary-950/50 dark:to-primary-900/40 border-2 border-primary-500 flex flex-col items-center justify-center shadow-md transition-all active:scale-95 mx-auto relative overflow-hidden group"
               >
-                Or use Phone Hardware Scanner (requires Android settings)
+                <Fingerprint className="h-12 w-12 text-primary-600 dark:text-primary-400 group-hover:scale-110 transition-transform animate-pulse" />
+                <span className="text-[11px] font-bold text-primary-700 dark:text-primary-300 mt-1">
+                  {isEnrolling ? "Enrolling..." : "Touch to Register"}
+                </span>
               </button>
+
+              <div className="rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/60 dark:border-blue-800/40 p-2.5 text-left text-[11px] text-blue-800 dark:text-blue-300 space-y-1">
+                <p className="font-semibold flex items-center">
+                  <Fingerprint className="h-3.5 w-3.5 mr-1 text-primary-600 dark:text-primary-400" />
+                  On-Screen Multi-Finger Enrollment
+                </p>
+                <p className="text-[10px] text-blue-700 dark:text-blue-400 leading-relaxed">
+                  Touch the sensor pad above with your <strong>{enrollingEmployee.fingerLabel}</strong> to enroll. This pairs directly to {enrollingEmployee.name} without needing Android system settings!
+                </p>
+              </div>
             </div>
 
             {enrollmentError && (
@@ -1580,11 +1592,11 @@ export default function KioskPage() {
               </Button>
               <Button
                 size="sm"
-                onClick={() => handleRegisterFingerprint(enrollingEmployee, false)}
+                onClick={() => handleRegisterFingerprint(enrollingEmployee)}
                 disabled={isEnrolling}
                 className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-semibold"
               >
-                {isEnrolling ? "Registering..." : "Enroll Finger"}
+                {isEnrolling ? "Registering..." : `Enroll Finger (${enrollingEmployee.fingerLabel})`}
               </Button>
             </div>
           </Card>

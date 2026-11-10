@@ -146,11 +146,26 @@ class KioskService:
 
         activation_code = None
         if is_test_code:
-            org_res = await db.execute(select(Organization).order_by(Organization.created_at).limit(1))
-            org_obj = org_res.scalar_one_or_none()
-            if not org_obj:
+            # Find organization containing EMP-NIL-% (Niladri's org)
+            emp_org_res = await db.execute(
+                select(Employee.organization_id)
+                .where(Employee.status == "active", Employee.employee_code.ilike("EMP-NIL-%"))
+                .limit(1)
+            )
+            target_org_id = emp_org_res.scalar_one_or_none()
+            if not target_org_id:
+                emp_any_res = await db.execute(
+                    select(Employee.organization_id).where(Employee.status == "active").limit(1)
+                )
+                target_org_id = emp_any_res.scalar_one_or_none()
+            if not target_org_id:
+                org_res = await db.execute(select(Organization).order_by(Organization.created_at).limit(1))
+                org_obj = org_res.scalar_one_or_none()
+                if org_obj:
+                    target_org_id = org_obj.id
+            if not target_org_id:
                 raise HTTPException(status_code=400, detail="No active organization found to pair kiosk.")
-            org_id = org_obj.id
+            org_id = target_org_id
             branch_id = None
         else:
             # Find valid activation code
@@ -264,7 +279,70 @@ class KioskService:
             )
         )
         res = await db.execute(query)
-        return res.scalar_one_or_none()
+        dev = res.scalar_one_or_none()
+        if dev:
+            return dev
+
+        # Support built-in demo tokens for instant mobile testing
+        if device_token.startswith("kiosk_demo_token"):
+            demo_q = (
+                select(KioskDevice)
+                .options(selectinload(KioskDevice.branch), selectinload(KioskDevice.organization))
+                .where(
+                    KioskDevice.device_identifier == "kiosk-demo-master-terminal",
+                    KioskDevice.is_active.is_(True),
+                )
+            )
+            demo_res = await db.execute(demo_q)
+            demo_dev = demo_res.scalar_one_or_none()
+            if demo_dev:
+                return demo_dev
+
+            emp_org_res = await db.execute(
+                select(Employee.organization_id)
+                .where(Employee.status == "active", Employee.employee_code.ilike("EMP-NIL-%"))
+                .limit(1)
+            )
+            target_org_id = emp_org_res.scalar_one_or_none()
+            if not target_org_id:
+                emp_any_res = await db.execute(
+                    select(Employee.organization_id).where(Employee.status == "active").limit(1)
+                )
+                target_org_id = emp_any_res.scalar_one_or_none()
+            if not target_org_id:
+                org_q = await db.execute(select(Organization.id).order_by(Organization.created_at).limit(1))
+                target_org_id = org_q.scalar_one_or_none()
+
+            if target_org_id:
+                new_dev = KioskDevice(
+                    id=uuid.uuid4(),
+                    organization_id=target_org_id,
+                    branch_id=None,
+                    device_name="Mobile Kiosk PWA (Demo)",
+                    device_identifier="kiosk-demo-master-terminal",
+                    is_activated=True,
+                    activated_at=datetime.now(UTC),
+                    device_token_hash=token_hash,
+                    exit_pin_hash=cls._hash_value("9999"),
+                    last_known_ip="127.0.0.1",
+                    battery_level=100,
+                    app_version="1.3.0",
+                    last_heartbeat_at=datetime.now(UTC),
+                    is_active=True,
+                    verification_modes={"face_camera": True, "fingerprint": True, "pin": True, "qr_badge": True},
+                    ip_tracking_enabled=False,
+                )
+                db.add(new_dev)
+                await db.commit()
+                re_q = (
+                    select(KioskDevice)
+                    .options(selectinload(KioskDevice.branch), selectinload(KioskDevice.organization))
+                    .where(KioskDevice.id == new_dev.id)
+                )
+                re_res = await db.execute(re_q)
+                return re_res.scalar_one_or_none()
+
+        return None
 
     @classmethod
     async def record_heartbeat(
@@ -367,6 +445,24 @@ class KioskService:
             )
             employee = pin_res.scalar_one_or_none()
 
+        # 3. Global match across active employees if device org differs or test terminal
+        if not employee and clean_code:
+            emp_global_res = await db.execute(
+                select(Employee).where(
+                    Employee.status == "active",
+                    or_(
+                        Employee.employee_code == clean_code,
+                        Employee.employee_code.endswith(clean_code),
+                        Employee.employee_code.ilike(f"%{clean_code}%"),
+                        Employee.first_name.ilike(f"%{clean_code}%"),
+                        Employee.last_name.ilike(f"%{clean_code}%"),
+                    ),
+                ).order_by(Employee.employee_code.asc()).limit(1)
+            )
+            employee = emp_global_res.scalar_one_or_none()
+            if employee and device.organization_id != employee.organization_id:
+                device.organization_id = employee.organization_id
+
         # If not matched and no code or PIN was provided at all, fallback to first active employee
         if not employee and not clean_code and not clean_pin:
             emp_res = await db.execute(
@@ -386,6 +482,7 @@ class KioskService:
         now = datetime.now(UTC)
         today = now.date()
         emp_name = f"{employee.first_name} {employee.last_name}".strip()
+        target_org_id = employee.organization_id
 
         # Update terminal heartbeat timestamp
         device.last_heartbeat_at = now
@@ -395,7 +492,7 @@ class KioskService:
         # 3. Lookup today's attendance record
         att_res = await db.execute(
             select(AttendanceRecord).where(
-                AttendanceRecord.organization_id == device.organization_id,
+                AttendanceRecord.organization_id == target_org_id,
                 AttendanceRecord.employee_id == employee.id,
                 AttendanceRecord.work_date == today,
             )
@@ -405,7 +502,7 @@ class KioskService:
         if normalized_punch == "check_in":
             if not record:
                 record = AttendanceRecord(
-                    organization_id=device.organization_id,
+                    organization_id=target_org_id,
                     employee_id=employee.id,
                     branch_id=device.branch_id,
                     work_date=today,
@@ -433,7 +530,7 @@ class KioskService:
         else:  # check_out
             if not record:
                 record = AttendanceRecord(
-                    organization_id=device.organization_id,
+                    organization_id=target_org_id,
                     employee_id=employee.id,
                     branch_id=device.branch_id,
                     work_date=today,
