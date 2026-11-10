@@ -87,3 +87,29 @@ class KioskActivationCode(UUIDPrimaryKeyMixin, Base):
     branch: Mapped[Branch | None] = relationship()
     created_by: Mapped[Profile | None] = relationship(foreign_keys=[created_by_id])
     used_by_device: Mapped[KioskDevice | None] = relationship(foreign_keys=[used_by_device_id])
+
+
+class EmployeeBiometric(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "employee_biometrics"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "id", name="uq_employee_biometrics_org_id"),
+        UniqueConstraint("organization_id", "employee_code", name="uq_employee_biometrics_code"),
+    )
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
+    employee_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("employees.id", ondelete="CASCADE"), index=True
+    )
+    employee_code: Mapped[str] = mapped_column(String(32), nullable=False)
+    credential_id: Mapped[str] = mapped_column(String(500), nullable=False)
+    raw_id_base64: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    finger_label: Mapped[str | None] = mapped_column(String(64), default="Biometric", server_default="Biometric")
+    device_model: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    enrolled_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, server_default="now()"
+    )
+
+    organization: Mapped[Organization] = relationship()
+    employee: Mapped["Employee"] = relationship("Employee")

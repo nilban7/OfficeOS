@@ -164,3 +164,33 @@ class KioskPunchAuditItem(BaseModel):
     face_snapshot_url: str | None = None
     client_ip: str | None = None
     device_name: str | None = None
+
+
+class KioskEmployeeStatusItem(BaseModel):
+    id: UUID
+    code: str
+    name: str
+    role: str
+    department: str
+    initials: str
+    is_enrolled: bool = False
+    credential_id: str | None = None
+    raw_id_base64: str | None = None
+    finger_label: str | None = None
+    enrolled_at: str | None = None
+    today_status: str | None = None  # "in" | "out" | None
+    punched_at: str | None = None
+
+
+class KioskBiometricRegisterRequest(BaseModel):
+    employee_code: str = Field(..., min_length=1, max_length=32)
+    credential_id: str = Field(..., min_length=1, max_length=500)
+    raw_id_base64: str | None = None
+    finger_label: str | None = "Biometric"
+    device_model: str | None = None
+
+
+class KioskBiometricResetRequest(BaseModel):
+    employee_code: str | None = None
+    reset_all: bool = False
+    exit_pin: str | None = None

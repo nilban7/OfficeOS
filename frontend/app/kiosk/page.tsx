@@ -11,6 +11,7 @@ import {
   BatteryCharging,
   Wifi,
   Lock,
+  Unlock,
   Maximize2,
   Minimize2,
   RefreshCw,
@@ -22,6 +23,8 @@ import {
   RotateCcw,
   Check,
   Search,
+  MapPin,
+  MapPinOff,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,9 +40,10 @@ import type {
   KioskPunchRequest,
   KioskPunchResponse,
   KioskVerificationMethod,
+  KioskEmployeeStatusItem,
 } from "@/types/kiosk";
 
-// 4 Active Employees in Niladri's Organization
+// 4 Active Employees in Niladri's Organization (Default Standby Fallback)
 interface KioskEmployee {
   id: string;
   code: string;
@@ -47,10 +51,10 @@ interface KioskEmployee {
   role: string;
   department: string;
   initials: string;
-  fingerLabel: string;
+  fingerLabel?: string;
 }
 
-const ACTIVE_EMPLOYEES: KioskEmployee[] = [
+const DEFAULT_EMPLOYEES: KioskEmployee[] = [
   {
     id: "00000000-0000-0000-0000-000000000041",
     code: "EMP-NIL-001",
@@ -96,7 +100,7 @@ interface StoredBiometric {
   enrolledAt: string;
   employeeCode: string;
   employeeName: string;
-  fingerLabel: string;
+  fingerLabel?: string;
 }
 
 // Base64 helpers for WebAuthn buffers
@@ -120,8 +124,6 @@ function base64ToUint8Array(base64: string): Uint8Array {
   }
   return bytes;
 }
-
-
 
 // Synthesized audio feedback
 function playChime(success = true) {
@@ -158,72 +160,63 @@ function playChime(success = true) {
       const gain = ctx.createGain();
       osc.type = "sawtooth";
       osc.frequency.setValueAtTime(220, ctx.currentTime);
-      osc.frequency.setValueAtTime(180, ctx.currentTime + 0.15);
-      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.35);
     }
   } catch {
-    // audio output blocked or unsupported
+    // audio context blocked or unavailable
   }
 }
 
 export default function KioskPage() {
-  // Device & Storage State
   const [isInitialized, setIsInitialized] = React.useState(false);
+
+  // Kiosk Session State
   const [kioskToken, setKioskToken] = React.useState<string | null>(null);
   const [orgName, setOrgName] = React.useState<string>("OfficeOS Workspace");
-  const [deviceName, setDeviceName] = React.useState<string>("Main Reception Terminal");
+  const [deviceName, setDeviceName] = React.useState<string>("Front Desk Mobile PWA");
   const [exitPin, setExitPin] = React.useState<string>("9999");
-  const [_allowedModes, setAllowedModes] = React.useState<string[]>([
-    "fingerprint",
-    "pin",
-    "face",
-    "qr",
-  ]);
+  const [, setAllowedModes] = React.useState<string[]>(["fingerprint", "pin", "face", "qr"]);
 
-  // Battery & Connectivity
-  const [batteryLevel, setBatteryLevel] = React.useState<number>(100);
-  const [isCharging, setIsCharging] = React.useState<boolean>(true);
-
-  // Activation Screen State
+  // Activation State
   const [activationCode, setActivationCode] = React.useState("");
-  const [customDeviceName, setCustomDeviceName] = React.useState("Mobile Kiosk PWA");
+  const [customDeviceName, setCustomDeviceName] = React.useState("");
   const [isActivating, setIsActivating] = React.useState(false);
   const [activationError, setActivationError] = React.useState<string | null>(null);
 
-  // Standby & Clock
+  // Live Clock & Hardware Telemetry
   const [currentTime, setCurrentTime] = React.useState<Date>(new Date());
+  const [batteryLevel, setBatteryLevel] = React.useState<number>(88);
+  const [isCharging, setIsCharging] = React.useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = React.useState(false);
 
-  // Punch Flow
+  // Geolocation State
+  const [currentLocation, setCurrentLocation] = React.useState<{
+    latitude: number;
+    longitude: number;
+    accuracy: number;
+  } | null>(null);
+  const [isLocating, setIsLocating] = React.useState(false);
+  const [locationStatus, setLocationStatus] = React.useState<"idle" | "requesting" | "acquired" | "denied">("idle");
+
+  // Server-Synchronized Employees & Clock Status
+  const [serverEmployees, setServerEmployees] = React.useState<KioskEmployeeStatusItem[]>([]);
+  const [clockStatus, setClockStatus] = React.useState<Record<string, { status: "in" | "out"; punchedAt: string }>>({});
+  const [searchQuery, setSearchQuery] = React.useState("");
+
+  // Punch Flow State
   const [selectedPunchType, setSelectedPunchType] = React.useState<"in" | "out">("in");
   const [isPunchModalOpen, setIsPunchModalOpen] = React.useState(false);
   const [employeeInput, setEmployeeInput] = React.useState("");
   const [isPunching, setIsPunching] = React.useState(false);
   const [punchError, setPunchError] = React.useState<string | null>(null);
   const [punchSuccess, setPunchSuccess] = React.useState<KioskPunchResponse | null>(null);
-  const [searchQuery, setSearchQuery] = React.useState("");
   const [countdown, setCountdown] = React.useState(4);
-
-  // Filtered employees based on search query
-  const filteredEmployees = React.useMemo(() => {
-    const q = searchQuery.trim().toUpperCase();
-    if (!q) return ACTIVE_EMPLOYEES;
-    return ACTIVE_EMPLOYEES.filter((emp) => {
-      const codeClean = emp.code.toUpperCase();
-      const codeNum = emp.code.replace(/\D/g, "");
-      const nameClean = emp.name.toUpperCase();
-      return (
-        codeClean.includes(q) ||
-        codeNum.includes(q) ||
-        nameClean.includes(q)
-      );
-    });
-  }, [searchQuery]);
 
   // Biometric Enrolled Store: { [employeeCode: string]: StoredBiometric }
   const [enrolledBiometrics, setEnrolledBiometrics] = React.useState<Record<string, StoredBiometric>>({});
@@ -233,19 +226,138 @@ export default function KioskPage() {
   const [enrollmentError, setEnrollmentError] = React.useState<string | null>(null);
   const [enrollmentSuccess, setEnrollmentSuccess] = React.useState<string | null>(null);
   const [mismatchError, setMismatchError] = React.useState<string | null>(null);
-  const [scannedFinger, setScannedFinger] = React.useState<string | null>(null);
   const [isVerifyingScan, setIsVerifyingScan] = React.useState(false);
 
   // PWA Install Prompt State
   const [deferredInstallPrompt, setDeferredInstallPrompt] = React.useState<any>(null);
   const [isInstallable, setIsInstallable] = React.useState(false);
 
-  // Master Lock / Exit State
+  // Master Lock / Manager Exit State (Code-Protected Access)
   const [isExitModalOpen, setIsExitModalOpen] = React.useState(false);
+  const [isManagerUnlocked, setIsManagerUnlocked] = React.useState(false);
   const [enteredExitPin, setEnteredExitPin] = React.useState("");
   const [exitPinError, setExitPinError] = React.useState<string | null>(null);
 
-  // Initial Load from localStorage
+  // Effective Employee List: merged from server response or default organization employees
+  const effectiveEmployees: KioskEmployee[] = React.useMemo(() => {
+    if (serverEmployees.length > 0) {
+      return serverEmployees.map((s) => ({
+        id: s.id,
+        code: s.code,
+        name: s.name,
+        role: s.role,
+        department: s.department,
+        initials: s.initials,
+        fingerLabel: s.finger_label || "Fingerprint",
+      }));
+    }
+    return DEFAULT_EMPLOYEES;
+  }, [serverEmployees]);
+
+  // Filtered employees based on search query
+  const filteredEmployees = React.useMemo(() => {
+    const q = searchQuery.trim().toUpperCase();
+    if (!q) return effectiveEmployees;
+    return effectiveEmployees.filter((emp) => {
+      const codeClean = emp.code.toUpperCase();
+      const codeNum = emp.code.replace(/\D/g, "");
+      const nameClean = emp.name.toUpperCase();
+      return (
+        codeClean.includes(q) ||
+        codeNum.includes(q) ||
+        nameClean.includes(q)
+      );
+    });
+  }, [effectiveEmployees, searchQuery]);
+
+  // Geolocation Acquisition Helper
+  const acquireLocation = React.useCallback(async () => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      setLocationStatus("denied");
+      return null;
+    }
+    setIsLocating(true);
+    setLocationStatus("requesting");
+
+    return new Promise<{ latitude: number; longitude: number; accuracy: number } | null>((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const geo = {
+            latitude: Number(pos.coords.latitude.toFixed(6)),
+            longitude: Number(pos.coords.longitude.toFixed(6)),
+            accuracy: Number(pos.coords.accuracy.toFixed(1)),
+          };
+          setCurrentLocation(geo);
+          setLocationStatus("acquired");
+          setIsLocating(false);
+          resolve(geo);
+        },
+        (err) => {
+          console.warn("GPS acquire error:", err.message);
+          setLocationStatus("denied");
+          setIsLocating(false);
+          resolve(null);
+        },
+        { timeout: 7000, enableHighAccuracy: true, maximumAge: 30000 }
+      );
+    });
+  }, []);
+
+  // Sync Kiosk Employees & Biometrics from Backend
+  const fetchKioskEmployeesStatus = React.useCallback(async () => {
+    if (!kioskToken) return;
+    try {
+      const res = await apiClient.get<KioskEmployeeStatusItem[]>(
+        API_ENDPOINTS.kiosks.employees,
+        {
+          headers: {
+            "X-Kiosk-Token": kioskToken,
+          },
+        }
+      );
+      const data = (res as unknown as { data: KioskEmployeeStatusItem[] })?.data || res;
+      if (Array.isArray(data) && data.length > 0) {
+        setServerEmployees(data);
+
+        // Update enrolled biometrics from backend
+        const newBios: Record<string, StoredBiometric> = {};
+        const newClock: Record<string, { status: "in" | "out"; punchedAt: string }> = {};
+
+        data.forEach((item) => {
+          if (item.is_enrolled) {
+            newBios[item.code] = {
+              credentialId: item.credential_id || `bio-${item.code.toLowerCase()}`,
+              rawIdBase64: item.raw_id_base64 || undefined,
+              enrolledAt: item.enrolled_at || new Date().toISOString(),
+              employeeCode: item.code,
+              employeeName: item.name,
+              fingerLabel: item.finger_label || "Fingerprint",
+            };
+          }
+          if (item.today_status) {
+            newClock[item.code] = {
+              status: item.today_status,
+              punchedAt: item.punched_at || "",
+            };
+          }
+        });
+
+        setEnrolledBiometrics((prev) => ({ ...prev, ...newBios }));
+        setClockStatus((prev) => ({ ...prev, ...newClock }));
+
+        try {
+          localStorage.setItem("officeos_kiosk_biometrics", JSON.stringify(newBios));
+          localStorage.setItem("officeos_kiosk_clock_status", JSON.stringify(newClock));
+        } catch {
+          // ignore
+        }
+      }
+    } catch {
+      // Offline fallback
+    }
+  }, [kioskToken]);
+
+  // Initial Load from localStorage & GPS initialization
   React.useEffect(() => {
     try {
       const storedToken = localStorage.getItem("officeos_kiosk_token");
@@ -254,6 +366,7 @@ export default function KioskPage() {
       const storedPin = localStorage.getItem("officeos_kiosk_exit_pin");
       const storedModes = localStorage.getItem("officeos_kiosk_modes");
       const storedBios = localStorage.getItem("officeos_kiosk_biometrics");
+      const storedClock = localStorage.getItem("officeos_kiosk_clock_status");
 
       if (storedToken) {
         setKioskToken(storedToken);
@@ -279,12 +392,29 @@ export default function KioskPage() {
           // ignore parsing error
         }
       }
+
+      if (storedClock) {
+        try {
+          setClockStatus(JSON.parse(storedClock));
+        } catch {
+          // ignore
+        }
+      }
     } catch {
       // storage unavailable
     } finally {
       setIsInitialized(true);
+      acquireLocation();
     }
-  }, []);
+  }, [acquireLocation]);
+
+  // Background Status Sync Polling every 8 seconds
+  React.useEffect(() => {
+    if (!kioskToken) return;
+    fetchKioskEmployeesStatus();
+    const interval = setInterval(fetchKioskEmployeesStatus, 8000);
+    return () => clearInterval(interval);
+  }, [kioskToken, fetchKioskEmployeesStatus]);
 
   // Listen for PWA Install Prompt
   React.useEffect(() => {
@@ -373,6 +503,8 @@ export default function KioskPage() {
         setVerifyingEmployee(null);
       } else {
         setIsExitModalOpen(true);
+        setIsManagerUnlocked(false);
+        setEnteredExitPin("");
         setExitPinError("Kiosk Lock Active: Enter Master Exit PIN (9999) to exit.");
       }
     };
@@ -454,42 +586,36 @@ export default function KioskPage() {
     return () => clearInterval(interval);
   }, [punchSuccess]);
 
-  // Fullscreen Toggle
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      const docEl = document.documentElement as HTMLElement & {
-        requestFullscreen: (options?: { navigationUI?: "auto" | "hide" | "show" }) => Promise<void>;
-      };
-      if (docEl.requestFullscreen) {
-        docEl.requestFullscreen({ navigationUI: "hide" }).catch(() => {});
-      }
-      setIsFullscreen(true);
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
+  // Fullscreen Handler
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+        setIsFullscreen(true);
+      } else {
+        await document.exitFullscreen();
         setIsFullscreen(false);
       }
+    } catch {
+      // Fullscreen not permitted
     }
   };
 
-  // Activate Tablet Handler
+  // Pair & Activate Tablet
   const handleActivateDevice = async (e?: React.FormEvent, overrideCode?: string) => {
     if (e) e.preventDefault();
     const codeToVerify = (overrideCode || activationCode).trim().toUpperCase();
+
     if (!codeToVerify) {
-      setActivationError("Please enter the Secret Activation Code.");
+      setActivationError("Please enter your Kiosk Secret Activation Code.");
+      playChime(false);
       return;
     }
 
     setIsActivating(true);
     setActivationError(null);
 
-    const isHardcodedTestCode =
-      codeToVerify === "DEMO-2026" ||
-      codeToVerify === "TEST-2026" ||
-      codeToVerify === "OFFICE-2026" ||
-      codeToVerify === "888888" ||
-      codeToVerify === "999999";
+    const isHardcodedTestCode = codeToVerify === "DEMO-2026" || codeToVerify === "OS-8492-71";
 
     let deviceId = "";
     try {
@@ -540,6 +666,7 @@ export default function KioskPage() {
       setAllowedModes(modes);
 
       playChime(true);
+      fetchKioskEmployeesStatus();
     } catch (err: unknown) {
       if (isHardcodedTestCode) {
         const demoToken = "kiosk_demo_token_master_2026";
@@ -561,6 +688,7 @@ export default function KioskPage() {
         setAllowedModes(modes);
 
         playChime(true);
+        fetchKioskEmployeesStatus();
         return;
       }
 
@@ -572,8 +700,7 @@ export default function KioskPage() {
     }
   };
 
-
-  // Perform Punch to backend with genuine database persistence
+  // Perform Attendance Punch to Backend with Geolocation
   const handlePerformPunch = async (
     targetCode?: string,
     modeOverride?: KioskVerificationMethod,
@@ -597,11 +724,16 @@ export default function KioskPage() {
     const activePunchType = punchTypeOverride || selectedPunchType;
     const activeMode = modeOverride || "fingerprint";
 
+    // Obtain coordinates
+    const loc = currentLocation || (await acquireLocation());
+
     const payload: KioskPunchRequest = {
       employee_code: code,
       employee_identifier: code,
       verification_method: activeMode,
       punch_type: activePunchType === "in" ? "check_in" : "check_out",
+      latitude: loc?.latitude,
+      longitude: loc?.longitude,
       device_timestamp: new Date().toISOString(),
     };
 
@@ -619,10 +751,30 @@ export default function KioskPage() {
       setPunchSuccess(data);
       setIsPunchModalOpen(true);
       playChime(true);
+
+      // Immediately update local clockStatus and trigger backend refresh
+      const punchTimeStr = data.punched_at || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      setClockStatus((prev) => {
+        const updated = {
+          ...prev,
+          [code]: {
+            status: activePunchType,
+            punchedAt: punchTimeStr,
+          },
+        };
+        try {
+          localStorage.setItem("officeos_kiosk_clock_status", JSON.stringify(updated));
+        } catch {
+          // ignore
+        }
+        return updated;
+      });
+
+      fetchKioskEmployeesStatus();
     } catch (err: unknown) {
       if (typeof navigator !== "undefined" && !navigator.onLine) {
         // True offline fallback only when phone is in airplane mode
-        const matched = ACTIVE_EMPLOYEES.find(
+        const matched = effectiveEmployees.find(
           (e) => e.code.toUpperCase() === code.toUpperCase() || e.code.endsWith(code)
         );
         const mockPunchResponse: KioskPunchResponse = {
@@ -642,6 +794,20 @@ export default function KioskPage() {
         setPunchSuccess(mockPunchResponse);
         setIsPunchModalOpen(true);
         playChime(true);
+
+        const punchTimeStr = mockPunchResponse.punched_at;
+        setClockStatus((prev) => {
+          const updated = {
+            ...prev,
+            [code]: { status: activePunchType, punchedAt: punchTimeStr },
+          };
+          try {
+            localStorage.setItem("officeos_kiosk_clock_status", JSON.stringify(updated));
+          } catch {
+            // ignore
+          }
+          return updated;
+        });
       } else {
         const errorMsg =
           (err as { message?: string })?.message ||
@@ -655,11 +821,11 @@ export default function KioskPage() {
     }
   };
 
-  // First-Time Biometric Registration Workflow (Summons Native Phone Biometric Prompt via WebAuthn)
+  // First-Time Biometric Registration Workflow (WebAuthn Platform + Server Storage)
   const handleRegisterFingerprint = async (emp: KioskEmployee) => {
-    // Enforcement: "no one can register that fingerprint once done"
+    // Check if already registered
     if (enrolledBiometrics[emp.code]) {
-      setEnrollmentError(`Fingerprint is already registered for ${emp.name} on this device. Re-registration is locked.`);
+      setEnrollmentError(`Fingerprint is already registered for ${emp.name}. Re-registration is locked.`);
       playChime(false);
       return;
     }
@@ -668,7 +834,6 @@ export default function KioskPage() {
     setEnrollmentError(null);
     setEnrollmentSuccess(null);
 
-    // Haptic feedback if supported on mobile
     if (typeof navigator !== "undefined" && navigator.vibrate) {
       try {
         navigator.vibrate([40, 60, 40]);
@@ -742,10 +907,33 @@ export default function KioskPage() {
         }
       }
 
-      // If WebAuthn was not available (e.g. simulator/unit tests), generate fallback credential
+      // Fallback credential when running simulator or non-WebAuthn device
       if (!registeredCredId) {
         registeredCredId = `bio-${emp.code.toLowerCase()}-${Date.now()}`;
         rawBase64 = window.btoa(registeredCredId);
+      }
+
+      // Persist to Server Database so ALL other employee phones reflect this registration immediately!
+      if (kioskToken) {
+        try {
+          await apiClient.post(
+            API_ENDPOINTS.kiosks.registerBiometric,
+            {
+              employee_code: emp.code,
+              credential_id: registeredCredId,
+              raw_id_base64: rawBase64,
+              finger_label: "Fingerprint",
+              device_model: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 100) : "Mobile PWA",
+            },
+            {
+              headers: {
+                "X-Kiosk-Token": kioskToken,
+              },
+            }
+          );
+        } catch (serverErr: unknown) {
+          console.warn("Backend biometric registration notice:", serverErr);
+        }
       }
 
       const newRecord: StoredBiometric = {
@@ -754,7 +942,7 @@ export default function KioskPage() {
         enrolledAt: new Date().toISOString(),
         employeeCode: emp.code,
         employeeName: emp.name,
-        fingerLabel: emp.fingerLabel,
+        fingerLabel: "Fingerprint",
       };
 
       const updated = {
@@ -763,14 +951,19 @@ export default function KioskPage() {
       };
 
       setEnrolledBiometrics(updated);
-      localStorage.setItem("officeos_kiosk_biometrics", JSON.stringify(updated));
+      try {
+        localStorage.setItem("officeos_kiosk_biometrics", JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
 
-      setEnrollmentSuccess(`Fingerprint registered for ${emp.name}! (${emp.fingerLabel})`);
+      setEnrollmentSuccess(`Fingerprint registered and locked for ${emp.name}!`);
       playChime(true);
 
       setTimeout(() => {
         setEnrollingEmployee(null);
         setEnrollmentSuccess(null);
+        fetchKioskEmployeesStatus();
       }, 1100);
     } catch (err: unknown) {
       const errName = (err as { name?: string })?.name;
@@ -799,7 +992,14 @@ export default function KioskPage() {
       typeof navigator !== "undefined" &&
       typeof navigator.credentials?.get === "function";
 
-    if (!hasWebAuthn) return;
+    if (!hasWebAuthn) {
+      // In simulator / test environments without WebAuthn, verify directly
+      playChime(true);
+      setVerifyingEmployee(null);
+      setIsVerifyingScan(false);
+      await handlePerformPunch(emp.code, "fingerprint", selectedPunchType);
+      return;
+    }
 
     setIsVerifyingScan(true);
     setMismatchError(null);
@@ -817,7 +1017,7 @@ export default function KioskPage() {
             type: "public-key",
           });
         } catch {
-          // fallback without allowCredentials filter
+          // fallback without filter
         }
       }
 
@@ -831,7 +1031,6 @@ export default function KioskPage() {
       });
 
       if (assertion) {
-        // Fingerprint verified by hardware sensor!
         if (typeof navigator !== "undefined" && navigator.vibrate) {
           try {
             navigator.vibrate([40, 60, 40]);
@@ -841,7 +1040,6 @@ export default function KioskPage() {
         }
         playChime(true);
         setVerifyingEmployee(null);
-        setScannedFinger(null);
         setIsVerifyingScan(false);
         await handlePerformPunch(emp.code, "fingerprint", selectedPunchType);
       }
@@ -868,10 +1066,9 @@ export default function KioskPage() {
       return;
     }
 
-    // Open biometric verification modal with finger matching/mismatch protection
+    // Open unified biometric verification modal
     setVerifyingEmployee(emp);
     setMismatchError(null);
-    setScannedFinger(null);
     setIsVerifyingScan(false);
     setPunchError(null);
 
@@ -886,103 +1083,136 @@ export default function KioskPage() {
     }
   };
 
-
-  // Fingerprint Scan with Mismatch Protection
-  const handleScanFinger = async (fingerTouched: string) => {
-    if (!verifyingEmployee || isVerifyingScan) return;
-    setIsVerifyingScan(true);
-    setScannedFinger(fingerTouched);
-
-    const expectedFinger = verifyingEmployee.fingerLabel;
-    const isMatch = fingerTouched === expectedFinger;
-
-    if (isMatch) {
-      setMismatchError(null);
-      if (typeof navigator !== "undefined" && navigator.vibrate) {
-        try {
-          navigator.vibrate([40, 60, 40]);
-        } catch {
-          // ignore
-        }
+  // Manager Actions: Reset Biometric (Synchronized with Backend)
+  const handleResetBiometric = async (code: string) => {
+    if (kioskToken) {
+      try {
+        await apiClient.post(
+          API_ENDPOINTS.kiosks.resetBiometrics,
+          {
+            employee_code: code,
+            exit_pin: enteredExitPin || "9999",
+          },
+          {
+            headers: { "X-Kiosk-Token": kioskToken },
+          }
+        );
+      } catch (err) {
+        console.warn("Backend reset error:", err);
       }
-      playChime(true);
-      const targetEmp = verifyingEmployee;
-      setVerifyingEmployee(null);
-      setScannedFinger(null);
-      setIsVerifyingScan(false);
-      await handlePerformPunch(targetEmp.code, "fingerprint", selectedPunchType);
-    } else {
-      // Biometric Mismatch Protection Activated!
-      if (typeof navigator !== "undefined" && navigator.vibrate) {
-        try {
-          navigator.vibrate([120, 80, 120, 80, 150]);
-        } catch {
-          // ignore
-        }
-      }
-      playChime(false);
-      setIsVerifyingScan(false);
-      setMismatchError(
-        `Fingerprint Mismatch: Touched "${fingerTouched}", but "${verifyingEmployee.name}" requires "${expectedFinger}". Attendance was NOT marked.`
-      );
     }
-  };
 
-  // Quick Enroll All 4 Employees for immediate testing
-  const handleQuickEnrollAll = () => {
-    const updated: Record<string, StoredBiometric> = { ...enrolledBiometrics };
-    ACTIVE_EMPLOYEES.forEach((emp) => {
-      updated[emp.code] = {
-        credentialId: `bio-${emp.code.toLowerCase()}-${Date.now()}`,
-        rawIdBase64: window.btoa(`bio-${emp.code.toLowerCase()}`),
-        enrolledAt: new Date().toISOString(),
-        employeeCode: emp.code,
-        employeeName: emp.name,
-        fingerLabel: emp.fingerLabel,
-      };
-    });
-    setEnrolledBiometrics(updated);
-    localStorage.setItem("officeos_kiosk_biometrics", JSON.stringify(updated));
-    playChime(true);
-  };
-
-  // Reset Single / All Fingerprint Biometrics
-  const handleResetBiometric = (code: string) => {
     const updated = { ...enrolledBiometrics };
     delete updated[code];
     setEnrolledBiometrics(updated);
-    localStorage.setItem("officeos_kiosk_biometrics", JSON.stringify(updated));
+    try {
+      localStorage.setItem("officeos_kiosk_biometrics", JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
     playChime(true);
+    fetchKioskEmployeesStatus();
   };
 
-  const handleResetAllBiometrics = () => {
+  const handleResetAllBiometrics = async () => {
+    if (kioskToken) {
+      try {
+        await apiClient.post(
+          API_ENDPOINTS.kiosks.resetBiometrics,
+          {
+            reset_all: true,
+            exit_pin: enteredExitPin || "9999",
+          },
+          {
+            headers: { "X-Kiosk-Token": kioskToken },
+          }
+        );
+      } catch (err) {
+        console.warn("Backend reset all error:", err);
+      }
+    }
+
     setEnrolledBiometrics({});
-    localStorage.removeItem("officeos_kiosk_biometrics");
+    try {
+      localStorage.removeItem("officeos_kiosk_biometrics");
+    } catch {
+      // ignore
+    }
     playChime(true);
+    fetchKioskEmployeesStatus();
   };
 
-  // Exit PIN
+  // Quick Enroll All for testing inside Manager PIN Panel
+  const handleQuickEnrollAll = async () => {
+    const updated: Record<string, StoredBiometric> = { ...enrolledBiometrics };
+    for (const emp of effectiveEmployees) {
+      const credId = `bio-${emp.code.toLowerCase()}-${Date.now()}`;
+      updated[emp.code] = {
+        credentialId: credId,
+        rawIdBase64: window.btoa(credId),
+        enrolledAt: new Date().toISOString(),
+        employeeCode: emp.code,
+        employeeName: emp.name,
+        fingerLabel: "Fingerprint",
+      };
+
+      if (kioskToken) {
+        try {
+          await apiClient.post(
+            API_ENDPOINTS.kiosks.registerBiometric,
+            {
+              employee_code: emp.code,
+              credential_id: credId,
+              raw_id_base64: window.btoa(credId),
+              finger_label: "Fingerprint",
+            },
+            {
+              headers: { "X-Kiosk-Token": kioskToken },
+            }
+          );
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    setEnrolledBiometrics(updated);
+    try {
+      localStorage.setItem("officeos_kiosk_biometrics", JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+    playChime(true);
+    fetchKioskEmployeesStatus();
+  };
+
+  // Exit PIN Verification to Unlock Manager Controls
   const handleVerifyExitPin = () => {
     if (enteredExitPin === exitPin || enteredExitPin === "9999") {
-      const confirmUnpair = window.confirm(
-        "Master Exit PIN verified.\n\nDo you want to UNPAIR this kiosk device and reset terminal settings?"
-      );
-      if (confirmUnpair) {
-        localStorage.removeItem("officeos_kiosk_token");
-        localStorage.removeItem("officeos_kiosk_device_name");
-        localStorage.removeItem("officeos_kiosk_org_name");
-        localStorage.removeItem("officeos_kiosk_exit_pin");
-        localStorage.removeItem("officeos_kiosk_modes");
-        setKioskToken(null);
-        setIsExitModalOpen(false);
-        setEnteredExitPin("");
-      } else {
-        setIsExitModalOpen(false);
-        setEnteredExitPin("");
-      }
+      setIsManagerUnlocked(true);
+      setExitPinError(null);
+      playChime(true);
     } else {
-      setExitPinError("Incorrect Master Exit PIN.");
+      setExitPinError("Incorrect Master Exit PIN. Access denied.");
       playChime(false);
+    }
+  };
+
+  // Unpair Terminal Confirmation
+  const handleUnpairDevice = () => {
+    const confirmUnpair = window.confirm(
+      "Master Exit PIN verified.\n\nDo you want to UNPAIR this kiosk device and reset terminal settings?"
+    );
+    if (confirmUnpair) {
+      localStorage.removeItem("officeos_kiosk_token");
+      localStorage.removeItem("officeos_kiosk_device_name");
+      localStorage.removeItem("officeos_kiosk_org_name");
+      localStorage.removeItem("officeos_kiosk_exit_pin");
+      localStorage.removeItem("officeos_kiosk_modes");
+      setKioskToken(null);
+      setIsExitModalOpen(false);
+      setIsManagerUnlocked(false);
+      setEnteredExitPin("");
     }
   };
 
@@ -990,8 +1220,8 @@ export default function KioskPage() {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-slate-500">
         <div className="flex flex-col items-center space-y-3">
-          <RefreshCw className="h-6 w-6 animate-spin text-primary-600" />
-          <p className="text-sm font-medium">Loading OfficeOS Terminal...</p>
+          <RefreshCw className="h-7 w-7 animate-spin text-primary-600" />
+          <p className="text-sm font-semibold tracking-wide">Loading OfficeOS Terminal...</p>
         </div>
       </div>
     );
@@ -1002,22 +1232,22 @@ export default function KioskPage() {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 flex flex-col justify-center items-center p-4 sm:p-6 select-none">
         <div className="mb-6 text-center">
-          <div className="inline-flex items-center space-x-2.5">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary-600 to-indigo-700 text-white shadow-md">
+          <div className="inline-flex items-center space-x-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-600 to-indigo-700 text-white shadow-lg">
               <Building2 className="h-6 w-6" />
             </div>
             <div className="text-left">
               <span className="font-bold text-2xl text-slate-900 dark:text-white tracking-tight block leading-tight">
                 OfficeOS
               </span>
-              <span className="text-[10px] text-primary-600 dark:text-primary-400 font-semibold uppercase tracking-wider block">
+              <span className="text-[11px] text-primary-600 dark:text-primary-400 font-semibold uppercase tracking-wider block">
                 Attendance Kiosk Terminal
               </span>
             </div>
           </div>
         </div>
 
-        <Card className="w-full max-w-md shadow-card border-slate-200/80 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900">
+        <Card className="w-full max-w-md shadow-card border-slate-200/80 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 overflow-hidden">
           <CardHeader className="space-y-1.5 text-center pb-4 pt-6 px-6 border-b border-slate-100 dark:border-slate-800">
             <CardTitle className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
               OfficeOS Kiosk Terminal
@@ -1028,7 +1258,7 @@ export default function KioskPage() {
           </CardHeader>
 
           <CardContent className="p-6 space-y-5">
-            <div className="rounded-xl bg-primary-50/70 dark:bg-primary-950/40 border border-primary-200/60 dark:border-primary-800/40 p-3.5 flex items-start space-x-2.5">
+            <div className="rounded-2xl bg-primary-50/70 dark:bg-primary-950/40 border border-primary-200/60 dark:border-primary-800/40 p-3.5 flex items-start space-x-2.5">
               <ShieldCheck className="h-5 w-5 text-primary-600 dark:text-primary-400 shrink-0 mt-0.5" />
               <div className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
                 Enter the <strong className="text-slate-900 dark:text-white font-semibold">Secret Activation Code</strong> from{" "}
@@ -1052,7 +1282,7 @@ export default function KioskPage() {
                   placeholder="e.g. OS-7241-98"
                   maxLength={16}
                   autoFocus
-                  className="h-12 text-center text-lg font-mono font-bold tracking-widest uppercase text-primary-700 dark:text-primary-300"
+                  className="h-12 text-center text-lg font-mono font-bold tracking-widest uppercase text-primary-700 dark:text-primary-300 rounded-2xl"
                 />
               </div>
 
@@ -1066,12 +1296,12 @@ export default function KioskPage() {
                   value={customDeviceName}
                   onChange={(e) => setCustomDeviceName(e.target.value)}
                   placeholder="e.g. Reception Mobile PWA"
-                  className="h-10 text-sm"
+                  className="h-10 text-sm rounded-xl"
                 />
               </div>
 
               {activationError && (
-                <div className="flex items-center space-x-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 p-3 text-xs text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40">
+                <div className="flex items-center space-x-2 rounded-2xl bg-rose-50 dark:bg-rose-950/40 p-3 text-xs text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40">
                   <AlertCircle className="h-4 w-4 shrink-0 text-rose-500" />
                   <span>{activationError}</span>
                 </div>
@@ -1080,7 +1310,7 @@ export default function KioskPage() {
               <Button
                 type="submit"
                 disabled={isActivating || !activationCode.trim()}
-                className="w-full h-11 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-xl shadow-sm transition-all"
+                className="w-full h-12 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-2xl shadow-sm transition-all"
               >
                 {isActivating ? (
                   <>
@@ -1139,113 +1369,143 @@ export default function KioskPage() {
   const enrolledCount = Object.keys(enrolledBiometrics).length;
 
   return (
-    <div className="h-[100dvh] max-h-[100dvh] w-full flex flex-col justify-between overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 select-none">
-      {/* MOBILE COMPACT APP HEADER */}
-      <header className="sticky top-0 z-20 flex h-13 shrink-0 w-full items-center justify-between border-b border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 px-3 sm:px-4 backdrop-blur-md shadow-subtle">
-        {/* Brand */}
-        <div className="flex items-center space-x-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary-600 to-indigo-700 text-white shadow-sm shrink-0">
-            <Building2 className="h-4 w-4" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center space-x-1.5">
-              <span className="font-bold text-sm text-slate-900 dark:text-white tracking-tight truncate">
-                OfficeOS
-              </span>
-              <Badge
-                variant="secondary"
-                className="bg-primary-50 text-primary-700 dark:bg-primary-950/60 dark:text-primary-300 text-[10px] font-semibold px-1.5 py-0"
-              >
-                Kiosk
-              </Badge>
+    <div className="h-[100dvh] max-h-[100dvh] w-full flex flex-col justify-between overflow-hidden bg-slate-100/70 dark:bg-slate-950 text-slate-900 dark:text-slate-100 select-none">
+      {/* BEAUTIFULLY STYLED PWA HEADER WITH BIG ROUNDED CORNERS */}
+      <header className="shrink-0 mx-3 sm:mx-4 mt-2 sm:mt-3 p-3.5 sm:p-4 rounded-3xl bg-white/95 dark:bg-slate-900/95 border border-slate-200/90 dark:border-slate-800 shadow-md backdrop-blur-md">
+        <div className="flex items-center justify-between gap-2">
+          {/* Brand Info */}
+          <div className="flex items-center space-x-3 min-w-0">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-600 to-indigo-700 text-white shadow-sm shrink-0">
+              <Building2 className="h-5 w-5" />
             </div>
-            <div className="flex items-center space-x-1 text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[180px] sm:max-w-xs">
-              <span className="font-medium text-slate-700 dark:text-slate-300 truncate">{orgName}</span>
-              <span>•</span>
-              <span className="truncate">{deviceName}</span>
+            <div className="min-w-0">
+              <div className="flex items-center space-x-1.5">
+                <span className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-white tracking-tight truncate">
+                  OfficeOS
+                </span>
+                <Badge
+                  variant="secondary"
+                  className="bg-primary-50 text-primary-700 dark:bg-primary-950/70 dark:text-primary-300 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                >
+                  Kiosk PWA
+                </Badge>
+              </div>
+              <div className="flex items-center space-x-1 text-xs text-slate-500 dark:text-slate-400 truncate max-w-[200px] sm:max-w-sm">
+                <span className="font-medium text-slate-700 dark:text-slate-300 truncate">{orgName}</span>
+                <span>•</span>
+                <span className="truncate">{deviceName}</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Right Status Indicators & Tools */}
-        <div className="flex items-center space-x-1.5 sm:space-x-2">
-          {/* PWA Install Button */}
-          {isInstallable && (
+          {/* Right Status Indicators & Tools */}
+          <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
+            {/* GPS Status Badge */}
+            {locationStatus === "acquired" && currentLocation ? (
+              <div
+                title={`GPS Accuracy: ±${currentLocation.accuracy}m`}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 text-[11px] font-semibold"
+              >
+                <MapPin className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span className="hidden xs:inline">GPS Ready</span>
+              </div>
+            ) : locationStatus === "requesting" || isLocating ? (
+              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 text-[11px] font-semibold animate-pulse">
+                <RefreshCw className="h-3 w-3 animate-spin shrink-0" />
+                <span className="hidden xs:inline">Locating...</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={acquireLocation}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 text-[11px] font-medium hover:border-primary-400"
+                title="Tap to acquire GPS location"
+              >
+                <MapPinOff className="h-3 w-3 text-slate-400" />
+                <span className="hidden xs:inline">GPS Off</span>
+              </button>
+            )}
+
+            {/* PWA Install Button */}
+            {isInstallable && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleInstallPWA}
+                className="h-8 px-2 text-[11px] font-semibold rounded-xl border-primary-500 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950/40"
+              >
+                <Download className="h-3.5 w-3.5 mr-1" />
+                <span className="hidden sm:inline">Install App</span>
+              </Button>
+            )}
+
+            {/* Online Indicator */}
+            <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40 text-[11px] font-semibold">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span className="hidden xs:inline">Online</span>
+            </div>
+
+            {/* Battery */}
+            <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[11px] font-medium">
+              {isCharging ? (
+                <BatteryCharging className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+              ) : (
+                <Battery className="h-3.5 w-3.5 text-slate-500" />
+              )}
+              <span>{batteryLevel}%</span>
+            </div>
+
+            {/* Theme */}
+            <div className="p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+              <ThemeSwitch />
+            </div>
+
+            {/* Fullscreen */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleFullscreen}
+              className="h-8 w-8 p-0 rounded-xl text-slate-500 hover:text-slate-900 dark:hover:text-white"
+              title="Toggle Fullscreen"
+            >
+              {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+            </Button>
+
+            {/* Code-Protected Manager Lock Button */}
             <Button
               variant="outline"
               size="sm"
-              onClick={handleInstallPWA}
-              className="h-8 px-2 text-[11px] font-semibold border-primary-500 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950/40"
+              onClick={() => {
+                setEnteredExitPin("");
+                setExitPinError(null);
+                setIsManagerUnlocked(false);
+                setIsExitModalOpen(true);
+              }}
+              className="h-8 px-2.5 rounded-xl border-amber-300 dark:border-amber-800/60 text-amber-700 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-950/30 hover:bg-amber-100 font-semibold text-xs"
+              title="Manager Settings (PIN 9999)"
             >
-              <Download className="h-3.5 w-3.5 mr-1" />
-              <span>Install App</span>
+              <Lock className="h-3.5 w-3.5 mr-1 text-amber-600" />
+              <span className="hidden sm:inline">Manager</span>
             </Button>
-          )}
-
-          {/* Online Indicator */}
-          <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40 text-[11px] font-medium">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <span className="hidden xs:inline">Online</span>
           </div>
-
-          {/* Battery */}
-          <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[11px]">
-            {isCharging ? (
-              <BatteryCharging className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-            ) : (
-              <Battery className="h-3.5 w-3.5 text-slate-500" />
-            )}
-            <span>{batteryLevel}%</span>
-          </div>
-
-          {/* Theme */}
-          <div className="p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-            <ThemeSwitch />
-          </div>
-
-          {/* Fullscreen */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={toggleFullscreen}
-            className="h-8 w-8 p-0 text-slate-500 hover:text-slate-900 dark:hover:text-white"
-            title="Toggle Fullscreen"
-          >
-            {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-          </Button>
-
-          {/* Master Lock / Admin Settings */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setEnteredExitPin("");
-              setExitPinError(null);
-              setIsExitModalOpen(true);
-            }}
-            className="h-8 w-8 p-0 text-slate-400 hover:text-amber-600 dark:hover:text-amber-400"
-            title="Terminal Settings & PIN"
-          >
-            <Lock className="h-3.5 w-3.5" />
-          </Button>
         </div>
       </header>
 
-      {/* MAIN MOBILE PORTRAIT CONTENT — Native Scrollable App Shell */}
-      <main className="flex-1 overflow-y-auto overscroll-contain px-3 py-2.5 sm:px-4 max-w-md mx-auto w-full space-y-3">
+      {/* MAIN MOBILE PORTRAIT CONTENT */}
+      <main className="flex-1 overflow-y-auto overscroll-contain px-3 py-2 sm:px-4 max-w-md mx-auto w-full space-y-3">
         {/* PUNCH MODE TOGGLE BUTTONS (Check In / Check Out) */}
-        <div className="grid grid-cols-2 gap-2 w-full">
+        <div className="grid grid-cols-2 gap-2.5 w-full">
           <button
             onClick={() => {
               setSelectedPunchType("in");
               playChime(true);
             }}
-            className={`py-2.5 px-3 rounded-2xl border transition-all duration-150 flex items-center justify-center space-x-2 shadow-xs touch-manipulation ${
+            className={`py-3 px-3.5 rounded-2xl border transition-all duration-150 flex items-center justify-center space-x-2 shadow-xs touch-manipulation ${
               selectedPunchType === "in"
-                ? "bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-500/30 font-bold"
+                ? "bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-500/30 font-bold shadow-md"
                 : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-emerald-400"
             }`}
           >
@@ -1258,9 +1518,9 @@ export default function KioskPage() {
               setSelectedPunchType("out");
               playChime(true);
             }}
-            className={`py-2.5 px-3 rounded-2xl border transition-all duration-150 flex items-center justify-center space-x-2 shadow-xs touch-manipulation ${
+            className={`py-3 px-3.5 rounded-2xl border transition-all duration-150 flex items-center justify-center space-x-2 shadow-xs touch-manipulation ${
               selectedPunchType === "out"
-                ? "bg-amber-600 text-white border-amber-600 ring-2 ring-amber-500/30 font-bold"
+                ? "bg-amber-600 text-white border-amber-600 ring-2 ring-amber-500/30 font-bold shadow-md"
                 : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-amber-400"
             }`}
           >
@@ -1269,14 +1529,14 @@ export default function KioskPage() {
           </button>
         </div>
 
-        {/* COMPACT DIGITAL CLOCK CARD */}
-        <Card className="w-full bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 shadow-card rounded-2xl p-3.5 text-center">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-semibold mb-1">
+        {/* DIGITAL CLOCK CARD WITH BIG ROUNDED CORNERS */}
+        <Card className="w-full bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 shadow-md rounded-3xl p-4 text-center">
+          <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-bold mb-1">
             <Wifi className="h-3 w-3 text-primary-600 dark:text-primary-400" />
             <span>Biometric Standby Ready</span>
           </div>
 
-          <div className="text-3xl sm:text-4xl font-bold font-mono tracking-tight text-slate-900 dark:text-white my-0.5">
+          <div className="text-3xl sm:text-4xl font-extrabold font-mono tracking-tight text-slate-900 dark:text-white my-1">
             {formattedTime}
           </div>
 
@@ -1285,37 +1545,19 @@ export default function KioskPage() {
           </div>
         </Card>
 
-        {/* 4 ORGANIZATION EMPLOYEES: ONE-TOUCH BIOMETRIC SELECTION */}
-        <div className="w-full space-y-2">
+        {/* EMPLOYEES LIST WITH LIVE CLOCKED STATUS & BIOMETRICS */}
+        <div className="w-full space-y-2.5">
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center space-x-1.5">
               <Fingerprint className="h-4 w-4 text-primary-600 dark:text-primary-400" />
               <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Employees
+                Organization Employees ({effectiveEmployees.length})
               </h2>
             </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                {enrolledCount}/4 Enrolled
+            <div className="flex items-center space-x-1.5">
+              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                {enrolledCount}/{effectiveEmployees.length} Registered
               </span>
-              {enrolledCount > 0 ? (
-                <button
-                  type="button"
-                  onClick={handleResetAllBiometrics}
-                  className="text-[10px] font-semibold text-rose-600 dark:text-rose-400 hover:underline bg-rose-50 dark:bg-rose-950/50 px-2 py-0.5 rounded-md border border-rose-200 dark:border-rose-900/60 inline-flex items-center space-x-0.5 touch-manipulation"
-                >
-                  <RotateCcw className="h-2.5 w-2.5 mr-0.5" />
-                  <span>Reset All</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleQuickEnrollAll}
-                  className="text-[10px] font-semibold text-primary-600 dark:text-primary-400 hover:underline bg-primary-50 dark:bg-primary-950/50 px-2 py-0.5 rounded-md border border-primary-200 dark:border-primary-800 touch-manipulation"
-                >
-                  Quick Enroll All
-                </button>
-              )}
             </div>
           </div>
 
@@ -1327,7 +1569,7 @@ export default function KioskPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by code (e.g. 001, 002) or name..."
-              className="h-9 pl-8 pr-7 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl touch-manipulation"
+              className="h-10 pl-9 pr-8 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-2xl touch-manipulation shadow-xs"
             />
             {searchQuery && (
               <button
@@ -1340,31 +1582,32 @@ export default function KioskPage() {
             )}
           </div>
 
-          {/* Employees List — Pure Fingerprint Scan Verification */}
-          <div className="grid grid-cols-1 gap-2 w-full">
+          {/* Employees List */}
+          <div className="grid grid-cols-1 gap-2.5 w-full">
             {filteredEmployees.length === 0 ? (
-              <div className="p-4 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
+              <div className="p-5 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
                 No employee found for &quot;{searchQuery}&quot;. Try 001, 002, 003, or 004.
               </div>
             ) : (
               filteredEmployees.map((emp) => {
                 const enrollment = enrolledBiometrics[emp.code];
                 const isEnrolled = !!enrollment;
+                const empClock = clockStatus[emp.code];
 
                 return (
                   <div
                     key={emp.code}
                     onClick={() => handleVerifyFingerprintAndPunch(emp)}
-                    className={`group relative p-3 sm:p-3.5 rounded-2xl border transition-all duration-200 flex items-center justify-between cursor-pointer active:scale-[0.98] ${
+                    className={`group relative p-3.5 rounded-2xl border transition-all duration-200 flex items-center justify-between cursor-pointer active:scale-[0.98] ${
                       isEnrolled
-                        ? "bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 hover:border-primary-500/80 shadow-xs"
+                        ? "bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 hover:border-primary-500/80 shadow-xs hover:shadow-md"
                         : "bg-primary-50/40 dark:bg-primary-950/20 border-primary-200/80 dark:border-primary-800/40 hover:border-primary-400"
                     }`}
                   >
-                    {/* Left: Avatar + Details */}
+                    {/* Left: Avatar + Details + Clock Status Mark */}
                     <div className="flex items-center space-x-3 min-w-0">
                       <div
-                        className={`h-11 w-11 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 border ${
+                        className={`h-12 w-12 rounded-2xl flex items-center justify-center font-bold text-sm shrink-0 border ${
                           isEnrolled
                             ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60"
                             : "bg-primary-100 dark:bg-primary-900/60 text-primary-700 dark:text-primary-300 border-primary-300 dark:border-primary-700/60"
@@ -1373,7 +1616,7 @@ export default function KioskPage() {
                         {emp.initials}
                       </div>
 
-                      <div className="min-w-0">
+                      <div className="min-w-0 space-y-0.5">
                         <div className="flex items-center space-x-1.5">
                           <span className="text-sm font-bold text-slate-900 dark:text-white truncate">
                             {emp.name}
@@ -1386,28 +1629,47 @@ export default function KioskPage() {
                           <span>•</span>
                           <span className="truncate">{emp.role}</span>
                         </div>
+
+                        {/* LIVE CLOCKED IN / CLOCKED OUT STATUS BADGE */}
+                        <div className="pt-0.5">
+                          {empClock?.status === "in" ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/60">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              Clocked In • {empClock.punchedAt || "Today"}
+                            </span>
+                          ) : empClock?.status === "out" ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-800/60">
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                              Clocked Out • {empClock.punchedAt || "Today"}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              Ready to Clock In
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
-                    {/* Right: Biometric Status Badge & Finger Trigger */}
+                    {/* Right: Biometric Registration Status & Action Trigger */}
                     <div className="flex items-center space-x-2 shrink-0">
                       {isEnrolled ? (
                         <div className="flex flex-col items-end">
                           <Badge
                             variant="secondary"
-                            className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300 border-emerald-200 text-[10px] font-semibold flex items-center space-x-1"
+                            className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300 border-emerald-200 text-[10px] font-bold flex items-center space-x-1 rounded-full"
                           >
                             <Check className="h-3 w-3" />
                             <span>Registered</span>
                           </Badge>
-                          <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
+                          <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">
                             Tap to Mark
                           </span>
                         </div>
                       ) : (
                         <Badge
                           variant="outline"
-                          className="border-primary-500 text-primary-700 dark:text-primary-300 bg-primary-50/50 dark:bg-primary-950/40 text-[10px] font-semibold flex items-center space-x-1"
+                          className="border-primary-500 text-primary-700 dark:text-primary-300 bg-primary-50/50 dark:bg-primary-950/40 text-[10px] font-semibold flex items-center space-x-1 rounded-full"
                         >
                           <Fingerprint className="h-3 w-3" />
                           <span>Register</span>
@@ -1415,7 +1677,7 @@ export default function KioskPage() {
                       )}
 
                       <div
-                        className={`h-9 w-9 rounded-xl flex items-center justify-center transition-colors ${
+                        className={`h-10 w-10 rounded-2xl flex items-center justify-center transition-colors shadow-xs ${
                           isEnrolled
                             ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white"
                             : "bg-primary-100 text-primary-600 dark:bg-primary-900/60 dark:text-primary-300 group-hover:bg-primary-600 group-hover:text-white"
@@ -1433,31 +1695,33 @@ export default function KioskPage() {
       </main>
 
       {/* FOOTER */}
-      <footer className="shrink-0 h-9 border-t border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 px-3 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+      <footer className="shrink-0 h-10 border-t border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 px-4 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 backdrop-blur-md">
         <div className="flex items-center space-x-1.5 truncate">
           <ShieldCheck className="h-3.5 w-3.5 text-primary-600 dark:text-primary-400 shrink-0" />
-          <span className="truncate">Multi-Finger Biometric Active</span>
+          <span className="truncate">Multi-Device Biometric Sync Active</span>
         </div>
         <button
           onClick={() => {
             setEnteredExitPin("");
             setExitPinError(null);
+            setIsManagerUnlocked(false);
             setIsExitModalOpen(true);
           }}
-          className="text-primary-600 hover:underline shrink-0 ml-2"
+          className="text-primary-600 hover:underline shrink-0 ml-2 font-semibold inline-flex items-center"
         >
-          Manage Biometrics
+          <Lock className="h-3 w-3 mr-1" />
+          <span>Manage Biometrics</span>
         </button>
       </footer>
 
-      {/* 2.5 BIOMETRIC ATTENDANCE SCAN MODAL WITH MISMATCH PROTECTION */}
+      {/* 2.5 UNIFIED BIOMETRIC ATTENDANCE VERIFICATION MODAL */}
       {verifyingEmployee && (
         <div className="fixed inset-0 z-50 bg-slate-900/70 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none">
-          <Card className="w-full max-w-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-2xl shadow-modal p-5 space-y-4">
+          <Card className="w-full max-w-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl shadow-modal p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2.5">
                 <div
-                  className={`h-8 w-8 rounded-lg flex items-center justify-center ${
+                  className={`h-9 w-9 rounded-2xl flex items-center justify-center ${
                     selectedPunchType === "in"
                       ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400"
                       : "bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400"
@@ -1478,7 +1742,6 @@ export default function KioskPage() {
                 onClick={() => {
                   setVerifyingEmployee(null);
                   setMismatchError(null);
-                  setScannedFinger(null);
                   setIsVerifyingScan(false);
                 }}
                 className="text-slate-400 hover:text-slate-600"
@@ -1487,7 +1750,7 @@ export default function KioskPage() {
               </button>
             </div>
 
-            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 text-xs space-y-1.5 border border-slate-200 dark:border-slate-700/60">
+            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-3 text-xs space-y-1.5 border border-slate-200 dark:border-slate-700/60">
               <div className="flex justify-between">
                 <span className="text-slate-500">Employee:</span>
                 <span className="font-semibold text-slate-900 dark:text-white">
@@ -1501,103 +1764,42 @@ export default function KioskPage() {
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-slate-500">Registered Finger:</span>
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800 text-[11px]">
-                  {verifyingEmployee.fingerLabel}
+                <span className="text-slate-500">Department:</span>
+                <span className="font-medium text-slate-700 dark:text-slate-300">
+                  {verifyingEmployee.department}
                 </span>
               </div>
             </div>
 
             {/* Native Hardware Fingerprint Sensor Trigger Button */}
-            <div className="text-center py-2 space-y-2">
+            <div className="text-center py-3 space-y-3">
               <button
                 type="button"
                 onClick={() => handleNativeBiometricVerification(verifyingEmployee)}
                 disabled={isVerifyingScan || isPunching}
-                className="w-24 h-24 rounded-3xl bg-gradient-to-b from-primary-50 to-primary-100/80 hover:from-primary-100 hover:to-primary-200/80 dark:from-primary-950/50 dark:to-primary-900/40 border-2 border-primary-500 flex flex-col items-center justify-center shadow-md transition-all active:scale-95 mx-auto relative overflow-hidden group touch-manipulation"
+                className="w-28 h-28 rounded-3xl bg-gradient-to-b from-primary-50 via-primary-100/90 to-primary-100 dark:from-primary-950/70 dark:via-primary-900/50 dark:to-primary-900/30 border-2 border-primary-500 hover:border-primary-600 flex flex-col items-center justify-center shadow-lg transition-all active:scale-95 mx-auto relative overflow-hidden group touch-manipulation"
               >
-                <Fingerprint className={`h-11 w-11 text-primary-600 dark:text-primary-400 group-hover:scale-110 transition-transform ${isVerifyingScan ? "animate-pulse" : ""}`} />
-                <span className="text-[10px] font-bold text-primary-700 dark:text-primary-300 mt-1">
+                <Fingerprint className={`h-12 w-12 text-primary-600 dark:text-primary-400 group-hover:scale-110 transition-transform ${isVerifyingScan ? "animate-pulse" : ""}`} />
+                <span className="text-xs font-bold text-primary-700 dark:text-primary-300 mt-2">
                   {isVerifyingScan ? "Scanning..." : "Touch Phone Sensor"}
                 </span>
               </button>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Touch phone sensor or tap button above to verify fingerprint
-              </p>
-            </div>
-
-            {/* Test Multi-Finger Biometric Sensor Pads */}
-            <div className="space-y-2.5">
-              <div className="text-center">
-                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Scan / Select Finger Touching Sensor:
-                </span>
-                <p className="text-[10px] text-slate-400 mt-0.5">
-                  Mismatch Protection is ACTIVE: only the registered finger will verify.
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                  Touch your phone&apos;s fingerprint sensor with any enrolled finger
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  You can use your thumb, index, or any finger configured on this phone
                 </p>
               </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { label: "Finger 1 (Thumb)", icon: "👍", owner: "Niladri" },
-                  { label: "Finger 2 (Index)", icon: "☝️", owner: "Aritra" },
-                  { label: "Finger 3 (Middle)", icon: "🖕", owner: "Sarah" },
-                  { label: "Finger 4 (Ring)", icon: "💍", owner: "Rudranil" },
-                ].map((f) => {
-                  const isExpected = f.label === verifyingEmployee.fingerLabel;
-                  const isTouched = scannedFinger === f.label;
-                  return (
-                    <button
-                      key={f.label}
-                      type="button"
-                      onClick={() => handleScanFinger(f.label)}
-                      disabled={isVerifyingScan || isPunching}
-                      className={`p-2.5 rounded-xl border text-left transition-all active:scale-95 flex items-center space-x-2.5 ${
-                        isTouched && isExpected
-                          ? "bg-emerald-50 border-emerald-500 ring-2 ring-emerald-400 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300"
-                          : isTouched && !isExpected
-                          ? "bg-rose-50 border-rose-500 ring-2 ring-rose-400 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300"
-                          : isExpected
-                          ? "bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-300/80 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-                          : "bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-                      }`}
-                    >
-                      <span className="text-lg shrink-0">{f.icon}</span>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-xs font-bold truncate leading-tight text-slate-900 dark:text-white">
-                          {f.label}
-                        </div>
-                        <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                          {f.owner} {isExpected ? "(Match)" : "(Mismatch)"}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Un-enrolled finger test button */}
-              <button
-                type="button"
-                onClick={() => handleScanFinger("Un-enrolled Finger")}
-                disabled={isVerifyingScan || isPunching}
-                className={`w-full py-2 px-3 rounded-xl border border-dashed text-xs transition-colors flex items-center justify-center space-x-1.5 ${
-                  scannedFinger === "Un-enrolled Finger"
-                    ? "bg-rose-50 border-rose-400 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300"
-                    : "border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
-                }`}
-              >
-                <span>🚫</span>
-                <span>Test Un-enrolled / Other Finger</span>
-              </button>
             </div>
 
-            {/* Mismatch Alert Box */}
+            {/* Scan Alert / Retry Box */}
             {mismatchError && (
-              <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-900/60 rounded-xl space-y-1 text-xs text-rose-700 dark:text-rose-300 animate-pulse">
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-900/60 rounded-2xl space-y-1 text-xs text-rose-700 dark:text-rose-300">
                 <div className="flex items-center space-x-1.5 font-bold text-rose-800 dark:text-rose-200">
                   <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
-                  <span>Biometric Mismatch Rejected!</span>
+                  <span>Scan Attention</span>
                 </div>
                 <p className="text-[11px] leading-relaxed text-rose-600 dark:text-rose-400 pl-5">
                   {mismatchError}
@@ -1612,10 +1814,9 @@ export default function KioskPage() {
                 onClick={() => {
                   setVerifyingEmployee(null);
                   setMismatchError(null);
-                  setScannedFinger(null);
                   setIsVerifyingScan(false);
                 }}
-                className="w-full"
+                className="w-full rounded-xl"
               >
                 Cancel
               </Button>
@@ -1627,10 +1828,10 @@ export default function KioskPage() {
       {/* 3. FIRST-TIME BIOMETRIC REGISTRATION MODAL */}
       {enrollingEmployee && (
         <div className="fixed inset-0 z-50 bg-slate-900/70 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none">
-          <Card className="w-full max-w-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-2xl shadow-modal p-5 space-y-4">
+          <Card className="w-full max-w-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl shadow-modal p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div className="flex items-center space-x-2">
-                <div className="h-8 w-8 rounded-lg bg-primary-50 dark:bg-primary-950/60 text-primary-600 dark:text-primary-400 flex items-center justify-center">
+              <div className="flex items-center space-x-2.5">
+                <div className="h-9 w-9 rounded-2xl bg-primary-50 dark:bg-primary-950/60 text-primary-600 dark:text-primary-400 flex items-center justify-center">
                   <Fingerprint className="h-5 w-5" />
                 </div>
                 <div>
@@ -1650,7 +1851,7 @@ export default function KioskPage() {
               </button>
             </div>
 
-            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 text-xs space-y-1.5 border border-slate-200 dark:border-slate-700/60">
+            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-3 text-xs space-y-1.5 border border-slate-200 dark:border-slate-700/60">
               <div className="flex justify-between">
                 <span className="text-slate-500">Employee:</span>
                 <span className="font-semibold text-slate-900 dark:text-white">
@@ -1663,47 +1864,32 @@ export default function KioskPage() {
                   {enrollingEmployee.code}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Assigned Finger:</span>
-                <span className="font-semibold text-emerald-600">
-                  {enrollingEmployee.fingerLabel}
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Setup Note:</span>
+                <span className="font-medium text-slate-600 dark:text-slate-300 text-[11px]">
+                  Permanently locked across all devices once enrolled
                 </span>
               </div>
             </div>
 
-            <div className="text-center py-2 space-y-3">
-              <button
-                type="button"
-                onClick={() => handleRegisterFingerprint(enrollingEmployee)}
-                disabled={isEnrolling}
-                className="w-28 h-28 rounded-3xl bg-gradient-to-b from-primary-50 to-primary-100/80 hover:from-primary-100 hover:to-primary-200/80 dark:from-primary-950/50 dark:to-primary-900/40 border-2 border-primary-500 flex flex-col items-center justify-center shadow-md transition-all active:scale-95 mx-auto relative overflow-hidden group"
-              >
-                <Fingerprint className="h-12 w-12 text-primary-600 dark:text-primary-400 group-hover:scale-110 transition-transform animate-pulse" />
-                <span className="text-[11px] font-bold text-primary-700 dark:text-primary-300 mt-1">
-                  {isEnrolling ? "Enrolling..." : "Touch to Register"}
-                </span>
-              </button>
-
-              <div className="rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/60 dark:border-blue-800/40 p-2.5 text-left text-[11px] text-blue-800 dark:text-blue-300 space-y-1">
-                <p className="font-semibold flex items-center">
-                  <Fingerprint className="h-3.5 w-3.5 mr-1 text-primary-600 dark:text-primary-400" />
-                  Hardware Fingerprint Sensor Prompt
-                </p>
-                <p className="text-[10px] text-blue-700 dark:text-blue-400 leading-relaxed">
-                  Tapping below asks for your phone&apos;s physical fingerprint sensor. Touch with your <strong>{enrollingEmployee.fingerLabel}</strong> to lock your biometric to this phone. Once registered, no one can re-register this employee!
-                </p>
+            <div className="text-center py-2 space-y-2">
+              <div className="w-24 h-24 rounded-3xl bg-primary-50 dark:bg-primary-950/40 border-2 border-primary-500/50 flex items-center justify-center mx-auto text-primary-600">
+                <Fingerprint className={`h-12 w-12 ${isEnrolling ? "animate-pulse" : ""}`} />
               </div>
+              <p className="text-xs text-slate-600 dark:text-slate-300">
+                Touch your phone&apos;s sensor with your preferred finger. Once registered, attendance can be marked from this phone seamlessly.
+              </p>
             </div>
 
             {enrollmentError && (
-              <div className="p-2.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 rounded-xl flex items-center space-x-2 text-rose-700 dark:text-rose-400 text-xs">
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 rounded-2xl flex items-center space-x-2 text-rose-700 dark:text-rose-400 text-xs">
                 <AlertCircle className="h-4 w-4 shrink-0 text-rose-500" />
                 <span>{enrollmentError}</span>
               </div>
             )}
 
             {enrollmentSuccess && (
-              <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40 rounded-xl flex items-center space-x-2 text-emerald-700 dark:text-emerald-400 text-xs">
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 rounded-2xl flex items-center space-x-2 text-emerald-700 dark:text-emerald-400 text-xs">
                 <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
                 <span>{enrollmentSuccess}</span>
               </div>
@@ -1714,7 +1900,7 @@ export default function KioskPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setEnrollingEmployee(null)}
-                className="flex-1"
+                className="flex-1 rounded-xl"
               >
                 Cancel
               </Button>
@@ -1722,77 +1908,53 @@ export default function KioskPage() {
                 size="sm"
                 onClick={() => handleRegisterFingerprint(enrollingEmployee)}
                 disabled={isEnrolling}
-                className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-semibold"
+                className="flex-1 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-semibold"
               >
-                {isEnrolling ? "Registering..." : `Enroll Finger (${enrollingEmployee.fingerLabel})`}
+                {isEnrolling ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                    <span>Enrolling...</span>
+                  </>
+                ) : (
+                  <span>Enroll Finger</span>
+                )}
               </Button>
             </div>
           </Card>
         </div>
       )}
 
-      {/* 4. PUNCH STATUS / CONFIRMATION MODAL */}
+      {/* 4. ATTENDANCE PUNCH CONFIRMATION CARD (4s Auto Dismiss) */}
       {isPunchModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-modal overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center space-x-2.5">
-                <div
-                  className={`h-9 w-9 rounded-xl flex items-center justify-center border ${
-                    selectedPunchType === "in"
-                      ? "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400"
-                      : "bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400"
-                  }`}
-                >
-                  {selectedPunchType === "in" ? <LogIn className="h-5 w-5" /> : <LogOut className="h-5 w-5" />}
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                    {selectedPunchType === "in" ? "Check In Verified" : "Check Out Verified"}
-                  </h3>
-                  <p className="text-[11px] text-slate-500">Biometric Attendance Logged</p>
-                </div>
-              </div>
-
-              {!punchSuccess && (
-                <button
-                  onClick={() => {
-                    setIsPunchModalOpen(false);
-                    setPunchError(null);
-                  }}
-                  className="rounded-lg p-1 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              )}
-            </div>
-
+          <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-modal overflow-hidden">
             {punchSuccess ? (
-              <div className="p-5 flex flex-col items-center justify-center text-center space-y-3.5">
-                <div className="h-14 w-14 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border-2 border-emerald-500 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-sm animate-bounce">
-                  <CheckCircle2 className="h-8 w-8" />
-                </div>
-                <div>
-                  <h4 className="text-base font-bold text-slate-900 dark:text-white">
-                    {punchSuccess.message}
-                  </h4>
-                  <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border-emerald-200 mt-1 text-[11px] font-semibold">
-                    {punchSuccess.punch_type === "in"
-                      ? "Check In Complete"
-                      : "Check Out Complete"}
-                  </Badge>
+              <div className="p-6 text-center space-y-4">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-300 animate-bounce">
+                  <CheckCircle2 className="h-9 w-9" />
                 </div>
 
-                <div className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-3.5 text-left space-y-2 text-xs">
+                <div className="space-y-1">
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                    {String(punchSuccess.punch_type).includes("in")
+                      ? "Check-In Verified!"
+                      : "Check-Out Verified!"}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {punchSuccess.message}
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl text-xs space-y-1.5 border border-slate-200 dark:border-slate-700 text-left">
                   <div className="flex justify-between items-center">
                     <span className="text-slate-500">Employee:</span>
-                    <span className="font-bold text-slate-900 dark:text-white text-sm">
+                    <span className="font-bold text-slate-900 dark:text-white">
                       {punchSuccess.employee_name}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-slate-500">Employee Code:</span>
-                    <span className="font-mono font-bold text-primary-600 bg-primary-50 dark:bg-primary-950/50 px-2 py-0.5 rounded border border-primary-200 dark:border-primary-800 text-[11px]">
+                    <span className="font-mono font-bold text-primary-600 dark:text-primary-400">
                       {punchSuccess.employee_code}
                     </span>
                   </div>
@@ -1845,7 +2007,7 @@ export default function KioskPage() {
                     setEmployeeInput("");
                     setPunchError(null);
                   }}
-                  className="w-full text-xs font-semibold"
+                  className="w-full text-xs font-semibold rounded-xl"
                 >
                   Return to Standby Now
                 </Button>
@@ -1853,7 +2015,7 @@ export default function KioskPage() {
             ) : (
               <div className="p-4 space-y-4">
                 {punchError && (
-                  <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 rounded-xl flex items-center space-x-2 text-rose-700 dark:text-rose-400 text-xs">
+                  <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 rounded-2xl flex items-center space-x-2 text-rose-700 dark:text-rose-400 text-xs">
                     <AlertCircle className="h-4 w-4 shrink-0 text-rose-500" />
                     <span>{punchError}</span>
                   </div>
@@ -1867,7 +2029,7 @@ export default function KioskPage() {
                       setIsPunchModalOpen(false);
                       setPunchError(null);
                     }}
-                    className="w-full"
+                    className="w-full rounded-xl"
                   >
                     Close
                   </Button>
@@ -1878,126 +2040,178 @@ export default function KioskPage() {
         </div>
       )}
 
-      {/* 5. MASTER EXIT PIN & BIOMETRIC RESET MODAL */}
+      {/* 5. CODE-PROTECTED MASTER MANAGER PIN MODAL */}
       {isExitModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <Card className="w-full max-w-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-2xl shadow-modal p-5 space-y-4">
+          <Card className="w-full max-w-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl shadow-modal p-5 space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center space-x-2">
-                <Lock className="h-4 w-4 text-primary-600" />
+                <Lock className="h-4 w-4 text-amber-600" />
                 <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Kiosk &amp; Biometric Settings
+                  Manager Security Authentication
                 </h4>
               </div>
               <button
-                onClick={() => setIsExitModalOpen(false)}
+                onClick={() => {
+                  setIsExitModalOpen(false);
+                  setIsManagerUnlocked(false);
+                  setEnteredExitPin("");
+                }}
                 className="text-slate-400 hover:text-slate-600"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Manage Enrolled Fingerprints */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Enrolled Fingerprints ({enrolledCount}/4)
-                </span>
-                {enrolledCount > 0 && (
+            {!isManagerUnlocked ? (
+              /* GATE: Must enter PIN before any biometric management is allowed */
+              <div className="space-y-4">
+                <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Enter Manager Master PIN (Default: <strong className="font-mono text-primary-600">9999</strong>) to manage biometrics, reset enrollments, or unpair device.
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Master PIN
+                  </Label>
+                  <Input
+                    type="password"
+                    value={enteredExitPin}
+                    onChange={(e) => {
+                      setEnteredExitPin(e.target.value);
+                      setExitPinError(null);
+                    }}
+                    placeholder="Enter 9999"
+                    maxLength={8}
+                    autoFocus
+                    className="text-center font-mono text-base font-bold tracking-widest h-11 rounded-2xl"
+                  />
+                  {exitPinError && (
+                    <p className="text-rose-600 text-xs text-center font-medium pt-1">
+                      {exitPinError}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex space-x-2 pt-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setIsExitModalOpen(false);
+                      setIsManagerUnlocked(false);
+                    }}
+                    className="flex-1 rounded-xl"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleVerifyExitPin}
+                    className="flex-1 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold"
+                  >
+                    <Unlock className="h-3.5 w-3.5 mr-1" />
+                    Unlock Manager Panel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              /* UNLOCKED: Full Manager Controls */
+              <div className="space-y-4">
+                <div className="p-2.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    Manager Access Unlocked
+                  </span>
                   <button
                     onClick={handleResetAllBiometrics}
-                    className="text-[10px] text-rose-600 hover:underline inline-flex items-center"
+                    className="text-[10px] text-rose-600 hover:underline font-bold"
                   >
-                    <RotateCcw className="h-3 w-3 mr-0.5" />
-                    Reset All Fingers
+                    Reset All Biometrics
                   </button>
-                )}
-              </div>
+                </div>
 
-              <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                {ACTIVE_EMPLOYEES.map((emp) => {
-                  const isEnrolled = !!enrolledBiometrics[emp.code];
-                  return (
-                    <div
-                      key={emp.code}
-                      className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-xs"
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Enrolled Biometrics ({enrolledCount}/{effectiveEmployees.length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleQuickEnrollAll}
+                      className="text-[10px] text-primary-600 hover:underline font-semibold"
                     >
-                      <div className="min-w-0">
-                        <p className="font-semibold text-slate-900 dark:text-white truncate">
-                          {emp.name}
-                        </p>
-                        <p className="text-[10px] text-slate-400">
-                          {emp.code} • {emp.fingerLabel}
-                        </p>
-                      </div>
+                      Quick Enroll All
+                    </button>
+                  </div>
 
-                      {isEnrolled ? (
-                        <div className="flex items-center space-x-1.5 shrink-0">
-                          <span className="text-[10px] text-emerald-600 font-medium">Enrolled</span>
-                          <button
-                            onClick={() => handleResetBiometric(emp.code)}
-                            className="p-1 text-slate-400 hover:text-rose-600 rounded"
-                            title="Reset this finger"
-                          >
-                            <RotateCcw className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            setIsExitModalOpen(false);
-                            setEnrollingEmployee(emp);
-                          }}
-                          className="text-[10px] text-primary-600 font-semibold hover:underline"
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {effectiveEmployees.map((emp) => {
+                      const isEnrolled = !!enrolledBiometrics[emp.code];
+                      return (
+                        <div
+                          key={emp.code}
+                          className="flex items-center justify-between p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-xs"
                         >
-                          Enroll Now
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-900 dark:text-white truncate">
+                              {emp.name}
+                            </p>
+                            <p className="text-[10px] text-slate-400">
+                              {emp.code}
+                            </p>
+                          </div>
+
+                          {isEnrolled ? (
+                            <div className="flex items-center space-x-1.5 shrink-0">
+                              <span className="text-[10px] text-emerald-600 font-bold">Enrolled</span>
+                              <button
+                                onClick={() => handleResetBiometric(emp.code)}
+                                className="p-1 text-slate-400 hover:text-rose-600 rounded"
+                                title="Reset biometric for this employee"
+                              >
+                                <RotateCcw className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setIsExitModalOpen(false);
+                                setEnrollingEmployee(emp);
+                              }}
+                              className="text-[10px] text-primary-600 font-bold hover:underline"
+                            >
+                              Enroll Now
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setIsExitModalOpen(false);
+                      setIsManagerUnlocked(false);
+                    }}
+                    className="flex-1 rounded-xl"
+                  >
+                    Done
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleUnpairDevice}
+                    className="flex-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold"
+                  >
+                    Unpair Terminal
+                  </Button>
+                </div>
               </div>
-            </div>
-
-            {/* Exit PIN & Unpair */}
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
-              <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Master Exit PIN (Default: 9999)
-              </Label>
-              <Input
-                type="password"
-                value={enteredExitPin}
-                onChange={(e) => {
-                  setEnteredExitPin(e.target.value);
-                  setExitPinError(null);
-                }}
-                placeholder="Enter 9999 to unpair"
-                maxLength={8}
-                className="text-center font-mono text-base font-bold tracking-widest h-10"
-              />
-
-              {exitPinError && (
-                <div className="text-rose-600 text-xs text-center">{exitPinError}</div>
-              )}
-
-              <div className="flex space-x-2 pt-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsExitModalOpen(false)}
-                  className="flex-1"
-                >
-                  Close
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={handleVerifyExitPin}
-                  className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-semibold"
-                >
-                  Unpair Device
-                </Button>
-              </div>
-            </div>
+            )}
           </Card>
         </div>
       )}

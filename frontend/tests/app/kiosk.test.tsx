@@ -151,7 +151,7 @@ describe("KioskPage Component", () => {
 
     await waitFor(() => {
       expect(screen.getByText("First-Time Fingerprint Setup")).toBeDefined();
-      expect(screen.getAllByText("Finger 1 (Thumb)").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Niladri Banerjee").length).toBeGreaterThan(0);
     });
 
     // 2. Click Enroll Finger
@@ -166,23 +166,10 @@ describe("KioskPage Component", () => {
     });
   });
 
-  it("enforces biometric mismatch protection when non-matching finger is scanned", async () => {
+  it("requires Master Manager PIN (9999) before unlocking biometric management", async () => {
     const user = userEvent.setup();
     localStorage.setItem("officeos_kiosk_token", "kiosk-token-active");
     localStorage.setItem("officeos_kiosk_org_name", "Niladri Organization");
-    // Pre-enroll Niladri with Finger 1 (Thumb)
-    localStorage.setItem(
-      "officeos_kiosk_biometrics",
-      JSON.stringify({
-        "EMP-NIL-001": {
-          credentialId: "bio-niladri",
-          enrolledAt: new Date().toISOString(),
-          employeeCode: "EMP-NIL-001",
-          employeeName: "Niladri Banerjee",
-          fingerLabel: "Finger 1 (Thumb)",
-        },
-      })
-    );
 
     render(<KioskPage />);
 
@@ -190,35 +177,39 @@ describe("KioskPage Component", () => {
       expect(screen.getByText("Niladri Banerjee")).toBeDefined();
     });
 
-    // Click Niladri Banerjee card (now enrolled) -> opens Biometric Scan Modal
-    await user.click(screen.getByText("Niladri Banerjee"));
+    // Click Manage Biometrics in footer
+    const manageBioBtn = screen.getByRole("button", { name: /Manage Biometrics/i });
+    await user.click(manageBioBtn);
 
+    // Should open Manager Security Authentication modal
     await waitFor(() => {
-      expect(screen.getByText("Verify Check In")).toBeDefined();
-      expect(screen.getByText("Scan / Select Finger Touching Sensor:")).toBeDefined();
+      expect(screen.getByText("Manager Security Authentication")).toBeDefined();
+      expect(screen.getByPlaceholderText("Enter 9999")).toBeDefined();
     });
 
-    // Touch Finger 2 (Index) (Aritra's finger) instead of Niladri's Thumb
-    const indexFingerBtn = screen.getByRole("button", { name: /Finger 2 \(Index\)/i });
-    await user.click(indexFingerBtn);
+    // Attempting wrong PIN
+    const pinInput = screen.getByPlaceholderText("Enter 9999");
+    await user.type(pinInput, "1234");
+    const unlockBtn = screen.getByRole("button", { name: /Unlock Manager Panel/i });
+    await user.click(unlockBtn);
 
-    // Mismatch Protection should trigger!
     await waitFor(() => {
-      expect(screen.getByText("Biometric Mismatch Rejected!")).toBeDefined();
-      expect(
-        screen.getByText(/Touched "Finger 2 \(Index\)", but "Niladri Banerjee" requires "Finger 1 \(Thumb\)"/i)
-      ).toBeDefined();
+      expect(screen.getByText(/Incorrect Master Exit PIN/i)).toBeDefined();
     });
 
-    // API Punch must NOT be called on mismatch!
-    expect(apiClient.post).not.toHaveBeenCalledWith(
-      expect.stringContaining("/attendance/punch"),
-      expect.anything(),
-      expect.anything()
-    );
+    // Entering correct PIN: 9999
+    await user.clear(pinInput);
+    await user.type(pinInput, "9999");
+    await user.click(unlockBtn);
+
+    // Should unlock Manager Panel
+    await waitFor(() => {
+      expect(screen.getByText("Manager Access Unlocked")).toBeDefined();
+      expect(screen.getByText("Reset All Biometrics")).toBeDefined();
+    });
   });
 
-  it("successfully punches attendance and displays 4-second confirmation card when registered finger matches", async () => {
+  it("successfully punches attendance when touching sensor and displays live Clocked In badge", async () => {
     const user = userEvent.setup();
     localStorage.setItem("officeos_kiosk_token", "kiosk-token-active");
     localStorage.setItem("officeos_kiosk_org_name", "Niladri Organization");
@@ -230,7 +221,7 @@ describe("KioskPage Component", () => {
           enrolledAt: new Date().toISOString(),
           employeeCode: "EMP-NIL-001",
           employeeName: "Niladri Banerjee",
-          fingerLabel: "Finger 1 (Thumb)",
+          fingerLabel: "Fingerprint",
         },
       })
     );
@@ -255,17 +246,17 @@ describe("KioskPage Component", () => {
       expect(screen.getByText("Niladri Banerjee")).toBeDefined();
     });
 
-    // Click Niladri Banerjee card
+    // Click Niladri Banerjee card (enrolled) -> opens verification modal
     await user.click(screen.getByText("Niladri Banerjee"));
 
     await waitFor(() => {
       expect(screen.getByText("Verify Check In")).toBeDefined();
-      expect(screen.getByText("Scan / Select Finger Touching Sensor:")).toBeDefined();
+      expect(screen.getByRole("button", { name: /Touch Phone Sensor/i })).toBeDefined();
     });
 
-    // Touch the correct finger: Finger 1 (Thumb)
-    const thumbFingerBtn = screen.getByRole("button", { name: /Finger 1 \(Thumb\)/i });
-    await user.click(thumbFingerBtn);
+    // Touch sensor button
+    const sensorBtn = screen.getByRole("button", { name: /Touch Phone Sensor/i });
+    await user.click(sensorBtn);
 
     // Punch Success card should appear with details and countdown
     await waitFor(() => {
@@ -274,9 +265,18 @@ describe("KioskPage Component", () => {
         expect.anything(),
         expect.anything()
       );
-      expect(screen.getByText(/Check-in verified/i)).toBeDefined();
+      expect(screen.getByText(/Check-In Verified!/i)).toBeDefined();
       expect(screen.getAllByText("EMP-NIL-001").length).toBeGreaterThan(0);
       expect(screen.getByText(/Returning to standby in/i)).toBeDefined();
+    });
+
+    // Close or return to standby
+    const returnBtn = screen.getByRole("button", { name: /Return to Standby Now/i });
+    await user.click(returnBtn);
+
+    // Standby screen should now show Clocked In badge on Niladri's card
+    await waitFor(() => {
+      expect(screen.getByText(/Clocked In • 09:30 AM/i)).toBeDefined();
     });
   });
 });

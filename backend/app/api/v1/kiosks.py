@@ -8,8 +8,11 @@ from app.models.kiosk import KioskDevice
 from app.schemas.common import ApiSuccess
 from app.schemas.kiosk import (
     KioskActivateResponse,
+    KioskBiometricRegisterRequest,
+    KioskBiometricResetRequest,
     KioskDeviceActivateRequest,
     KioskDeviceResponse,
+    KioskEmployeeStatusItem,
     KioskExitPinVerifyRequest,
     KioskHeartbeatRequest,
     KioskPunchRequest,
@@ -183,3 +186,45 @@ async def submit_kiosk_punch(
     client_ip = extract_client_ip(request)
     punch_res = await KioskService.process_kiosk_punch(session, device, req, client_ip=client_ip)
     return ApiSuccess(data=punch_res, message=punch_res.message)
+
+
+@router.get(
+    "/employees",
+    response_model=ApiSuccess[list[KioskEmployeeStatusItem]],
+    summary="Get active organization employees with biometric registration and today attendance status",
+)
+async def get_kiosk_employees(
+    kiosk_auth: Annotated[tuple[AsyncSession, KioskDevice], Depends(get_authenticated_kiosk)],
+) -> ApiSuccess[list[KioskEmployeeStatusItem]]:
+    session, device = kiosk_auth
+    items = await KioskService.get_kiosk_employees_status(session, device)
+    return ApiSuccess(data=items, message="Kiosk employees status retrieved.")
+
+
+@router.post(
+    "/biometrics/register",
+    response_model=ApiSuccess[dict],
+    summary="Register and permanently lock an employee biometric credential on the backend",
+)
+async def register_kiosk_biometric(
+    req: KioskBiometricRegisterRequest,
+    kiosk_auth: Annotated[tuple[AsyncSession, KioskDevice], Depends(get_authenticated_kiosk)],
+) -> ApiSuccess[dict]:
+    session, device = kiosk_auth
+    res = await KioskService.register_biometric(session, device, req)
+    return ApiSuccess(data=res, message=res["message"])
+
+
+@router.post(
+    "/biometrics/reset",
+    response_model=ApiSuccess[dict],
+    summary="Reset single or all employee biometrics (authorized via Master Exit PIN)",
+)
+async def reset_kiosk_biometrics(
+    req: KioskBiometricResetRequest,
+    kiosk_auth: Annotated[tuple[AsyncSession, KioskDevice], Depends(get_authenticated_kiosk)],
+) -> ApiSuccess[dict]:
+    session, device = kiosk_auth
+    res = await KioskService.reset_biometrics(session, device, req)
+    return ApiSuccess(data=res, message=res["message"])
+
