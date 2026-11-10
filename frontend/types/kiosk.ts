@@ -93,3 +93,20 @@ export interface KioskPunchAuditItem {
   face_snapshot_url?: string | null;
   client_ip?: string | null;
 }
+
+export interface KioskEmployeeStatusItem {
+  id: string;
+  code: string;
+  name: string;
+  role: string;
+  department: string;
+  initials: string;
+  is_enrolled: boolean;
+  credential_id?: string | null;
+  raw_id_base64?: string | null;
+  finger_label?: string | null;
+  enrolled_at?: string | null;
+  today_status?: "in" | "out" | null;
+  punched_at?: string | null;
+}
+

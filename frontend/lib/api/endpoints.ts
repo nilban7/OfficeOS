@@ -333,6 +333,9 @@ export const API_ENDPOINTS = {
     heartbeat: "/kiosks/heartbeat",
     verifyExitPin: "/kiosks/verify-exit-pin",
     punch: "/kiosks/attendance/punch",
+    employees: "/kiosks/employees",
+    registerBiometric: "/kiosks/biometrics/register",
+    resetBiometrics: "/kiosks/biometrics/reset",
   },
   announcements: {
     active: "/announcements/active",

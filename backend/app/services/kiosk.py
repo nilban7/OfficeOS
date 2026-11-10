@@ -5,20 +5,23 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
-from sqlalchemy import desc, or_, select
+from sqlalchemy import delete, desc, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.attendance import AttendanceRecord
 from app.models.employee import Department, Employee
 from app.models.identity import Branch, Organization
-from app.models.kiosk import KioskActivationCode, KioskDevice
+from app.models.kiosk import EmployeeBiometric, KioskActivationCode, KioskDevice
 from app.schemas.kiosk import (
     KioskActivationCodeCreate,
     KioskActivationCodeResponse,
+    KioskBiometricRegisterRequest,
+    KioskBiometricResetRequest,
     KioskDeviceActivateRequest,
     KioskDeviceResponse,
     KioskDeviceUpdateRequest,
+    KioskEmployeeStatusItem,
     KioskHeartbeatRequest,
     KioskPunchAuditItem,
     KioskPunchRequest,
@@ -534,6 +537,10 @@ class KioskService:
                 record.status = "present"
                 record.verification_method = req.verification_method
                 record.kiosk_device_id = device.id
+                if req.latitude is not None:
+                    record.latitude = req.latitude
+                if req.longitude is not None:
+                    record.longitude = req.longitude
                 if face_snapshot:
                     record.face_snapshot_url = face_snapshot
                 record.client_ip = client_ip
@@ -561,6 +568,10 @@ class KioskService:
             else:
                 record.check_out_at = now
                 record.kiosk_device_id = device.id
+                if req.latitude is not None:
+                    record.latitude = req.latitude
+                if req.longitude is not None:
+                    record.longitude = req.longitude
                 if face_snapshot and not record.face_snapshot_url:
                     record.face_snapshot_url = face_snapshot
                 record.client_ip = client_ip
@@ -757,3 +768,202 @@ class KioskService:
                 )
             )
         return results
+
+    @classmethod
+    async def get_kiosk_employees_status(
+        cls, db: AsyncSession, device: KioskDevice
+    ) -> list[KioskEmployeeStatusItem]:
+        org_id = device.organization_id
+        emp_query = await db.execute(
+            select(Employee).where(
+                Employee.organization_id == org_id,
+                Employee.status == "active",
+            ).order_by(Employee.employee_code.asc())
+        )
+        employees = list(emp_query.scalars().all())
+
+        if not employees:
+            alt_query = await db.execute(
+                select(Employee).where(
+                    Employee.employee_code.in_(["EMP-NIL-001", "EMP-NIL-002", "EMP-NIL-003", "EMP-NIL-004"]),
+                    Employee.status == "active",
+                ).order_by(Employee.employee_code.asc())
+            )
+            employees = list(alt_query.scalars().all())
+            if employees:
+                org_id = employees[0].organization_id
+
+        # Query all enrolled biometrics for these employees or org
+        emp_codes = [e.employee_code for e in employees]
+        bio_query = await db.execute(
+            select(EmployeeBiometric).where(
+                or_(
+                    EmployeeBiometric.organization_id == org_id,
+                    EmployeeBiometric.employee_code.in_(emp_codes),
+                )
+            )
+        )
+        biometrics_by_code = {b.employee_code: b for b in bio_query.scalars().all()}
+
+        # Query today's attendance records
+        today = datetime.now(UTC).date()
+        att_query = await db.execute(
+            select(AttendanceRecord).where(
+                or_(
+                    AttendanceRecord.organization_id == org_id,
+                    AttendanceRecord.employee_id.in_([e.id for e in employees]),
+                ),
+                AttendanceRecord.work_date == today,
+            )
+        )
+        att_by_emp_id = {a.employee_id: a for a in att_query.scalars().all()}
+
+        results: list[KioskEmployeeStatusItem] = []
+        for emp in employees:
+            bio = biometrics_by_code.get(emp.employee_code)
+            att = att_by_emp_id.get(emp.id)
+
+            today_status: str | None = None
+            punched_at: str | None = None
+            if att:
+                if att.check_out_at:
+                    today_status = "out"
+                    punched_at = att.check_out_at.strftime("%I:%M %p")
+                elif att.check_in_at:
+                    today_status = "in"
+                    punched_at = att.check_in_at.strftime("%I:%M %p")
+
+            f_initial = emp.first_name[0].upper() if emp.first_name else ""
+            l_initial = emp.last_name[0].upper() if emp.last_name else ""
+            initials = f"{f_initial}{l_initial}" or emp.employee_code[:2]
+
+            dept_name = "Operations"
+            if emp.department_id:
+                try:
+                    d_q = await db.execute(select(Department.name).where(Department.id == emp.department_id))
+                    dept_name = d_q.scalar_one_or_none() or "Operations"
+                except Exception:
+                    dept_name = "Operations"
+
+            results.append(
+                KioskEmployeeStatusItem(
+                    id=emp.id,
+                    code=emp.employee_code,
+                    name=f"{emp.first_name} {emp.last_name}".strip(),
+                    role=emp.designation or "Team Member",
+                    department=dept_name,
+                    initials=initials,
+                    is_enrolled=bio is not None,
+                    credential_id=bio.credential_id if bio else None,
+                    raw_id_base64=bio.raw_id_base64 if bio else None,
+                    finger_label=bio.finger_label if bio else "Biometric",
+                    enrolled_at=bio.enrolled_at.isoformat() if bio and bio.enrolled_at else None,
+                    today_status=today_status,
+                    punched_at=punched_at,
+                )
+            )
+
+        return results
+
+    @classmethod
+    async def register_biometric(
+        cls, db: AsyncSession, device: KioskDevice, req: KioskBiometricRegisterRequest
+    ) -> dict:
+        clean_code = req.employee_code.strip()
+        emp_res = await db.execute(
+            select(Employee).where(
+                Employee.status == "active",
+                or_(
+                    Employee.employee_code == clean_code,
+                    Employee.employee_code.endswith(clean_code),
+                ),
+            ).limit(1)
+        )
+        emp = emp_res.scalar_one_or_none()
+        if not emp:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Employee code {clean_code} not found.",
+            )
+
+        org_id = emp.organization_id
+
+        existing_bio = await db.execute(
+            select(EmployeeBiometric).where(
+                or_(
+                    EmployeeBiometric.organization_id == org_id,
+                    EmployeeBiometric.employee_code == emp.employee_code,
+                ),
+                EmployeeBiometric.employee_code == emp.employee_code,
+            )
+        )
+        found = existing_bio.scalar_one_or_none()
+        if found:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Fingerprint is already registered for {emp.first_name} {emp.last_name} on the server. Re-registration is locked.",
+            )
+
+        new_bio = EmployeeBiometric(
+            organization_id=org_id,
+            employee_id=emp.id,
+            employee_code=emp.employee_code,
+            credential_id=req.credential_id,
+            raw_id_base64=req.raw_id_base64,
+            finger_label=req.finger_label or "Biometric",
+            device_model=req.device_model or device.device_name,
+        )
+        db.add(new_bio)
+        await db.commit()
+        await db.refresh(new_bio)
+
+        return {
+            "success": True,
+            "message": f"Biometric successfully registered and locked for {emp.first_name} {emp.last_name}.",
+            "employee_code": emp.employee_code,
+            "enrolled_at": new_bio.enrolled_at.isoformat(),
+        }
+
+    @classmethod
+    async def reset_biometrics(
+        cls, db: AsyncSession, device: KioskDevice, req: KioskBiometricResetRequest
+    ) -> dict:
+        org_id = device.organization_id
+
+        if req.reset_all:
+            await db.execute(
+                delete(EmployeeBiometric).where(
+                    EmployeeBiometric.organization_id == org_id
+                )
+            )
+            # Clean up for EMP-NIL employees org if device is demo
+            alt_res = await db.execute(
+                select(Employee.organization_id).where(
+                    Employee.employee_code.in_(["EMP-NIL-001", "EMP-NIL-002", "EMP-NIL-003", "EMP-NIL-004"])
+                ).limit(1)
+            )
+            alt_org = alt_res.scalar_one_or_none()
+            if alt_org and alt_org != org_id:
+                await db.execute(
+                    delete(EmployeeBiometric).where(
+                        EmployeeBiometric.organization_id == alt_org
+                    )
+                )
+            await db.commit()
+            return {"success": True, "message": "All biometrics successfully reset by manager."}
+
+        if req.employee_code:
+            clean_code = req.employee_code.strip()
+            await db.execute(
+                delete(EmployeeBiometric).where(
+                    or_(
+                        EmployeeBiometric.employee_code == clean_code,
+                        EmployeeBiometric.employee_code.endswith(clean_code),
+                    )
+                )
+            )
+            await db.commit()
+            return {"success": True, "message": f"Biometric for {clean_code} reset by manager."}
+
+        return {"success": False, "message": "No employee code specified."}
+

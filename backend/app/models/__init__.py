@@ -32,7 +32,7 @@ from app.models.identity import (
     RolePermission,
 )
 from app.models.internship import Internship, InternshipReview, InternshipSupervisor
-from app.models.kiosk import KioskActivationCode, KioskDevice
+from app.models.kiosk import EmployeeBiometric, KioskActivationCode, KioskDevice
 from app.models.leave import Holiday, LeaveRequest, LeaveType
 from app.models.maintenance import MaintenanceRecord, MaintenanceRequest
 from app.models.notification import Notification, NotificationPreference
@@ -92,6 +92,7 @@ __all__ = [
     "Internship",
     "InternshipReview",
     "InternshipSupervisor",
+    "EmployeeBiometric",
     "KioskActivationCode",
     "KioskDevice",
     "LeaveRequest",
