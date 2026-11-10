@@ -56,9 +56,9 @@ describe("KioskPage Component", () => {
 
     await waitFor(() => {
       expect(localStorage.getItem("officeos_kiosk_token")).toBe("mock-kiosk-token-123");
-      expect(screen.getByText("Acme Global")).toBeDefined();
-      expect(screen.getByRole("button", { name: /Check In/i })).toBeDefined();
-      expect(screen.getByRole("button", { name: /Check Out/i })).toBeDefined();
+      expect(screen.getByText(/Acme Global/)).toBeDefined();
+      expect(screen.getByText(/Organization Employees/i)).toBeDefined();
+      expect(screen.getByPlaceholderText(/Search by code/i)).toBeDefined();
     });
   });
 
@@ -70,10 +70,10 @@ describe("KioskPage Component", () => {
     render(<KioskPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Cyberdyne Systems")).toBeDefined();
+      expect(screen.getByText(/Cyberdyne Systems/)).toBeDefined();
       expect(screen.getByText(/East Wing Terminal/)).toBeDefined();
-      expect(screen.getByRole("button", { name: /Check In/i })).toBeDefined();
-      expect(screen.getByRole("button", { name: /Check Out/i })).toBeDefined();
+      expect(screen.getByText(/Organization Employees/i)).toBeDefined();
+      expect(screen.getByPlaceholderText(/Search by code/i)).toBeDefined();
     });
   });
 
@@ -97,9 +97,9 @@ describe("KioskPage Component", () => {
 
     await waitFor(() => {
       expect(localStorage.getItem("officeos_kiosk_token")).toBe("kiosk_demo_token_master_2026");
-      expect(screen.getByText("OfficeOS Demo Workspace")).toBeDefined();
-      expect(screen.getByRole("button", { name: /Check In/i })).toBeDefined();
-      expect(screen.getByRole("button", { name: /Check Out/i })).toBeDefined();
+      expect(screen.getByText(/OfficeOS Demo Workspace/)).toBeDefined();
+      expect(screen.getByText(/Organization Employees/i)).toBeDefined();
+      expect(screen.getByPlaceholderText(/Search by code/i)).toBeDefined();
     });
   });
 
@@ -177,9 +177,9 @@ describe("KioskPage Component", () => {
       expect(screen.getByText("Niladri Banerjee")).toBeDefined();
     });
 
-    // Click Manage Biometrics in footer
-    const manageBioBtn = screen.getByRole("button", { name: /Manage Biometrics/i });
-    await user.click(manageBioBtn);
+    // Click Manager Settings button in header
+    const managerBtn = screen.getByRole("button", { name: /Manager/i });
+    await user.click(managerBtn);
 
     // Should open Manager Security Authentication modal
     await waitFor(() => {

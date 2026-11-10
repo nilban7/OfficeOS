@@ -4,7 +4,6 @@ import * as React from "react";
 import {
   Building2,
   Fingerprint,
-  LogIn,
   LogOut,
   ShieldCheck,
   Battery,
@@ -1497,45 +1496,37 @@ export default function KioskPage() {
       <header className="shrink-0 mx-3 sm:mx-4 mt-2 sm:mt-3 p-3 sm:p-4 rounded-3xl bg-white/95 dark:bg-slate-900/95 border border-slate-200/90 dark:border-slate-800 shadow-md backdrop-blur-md">
         <div className="flex flex-col gap-2.5">
           {/* Row 1: Brand Info & Primary Status (Zero Overlap Guaranteed) */}
-          <div className="flex items-center justify-between gap-2 min-w-0">
+          <div className="flex items-center justify-between gap-3 min-w-0">
             {/* Left: Brand Identity */}
             <div className="flex items-center space-x-2.5 min-w-0">
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-600 to-indigo-700 text-white shadow-sm shrink-0">
                 <Building2 className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <div className="flex items-center space-x-1.5">
-                  <span className="font-extrabold text-base text-slate-900 dark:text-white tracking-tight">
-                    OfficeOS
-                  </span>
-                  <Badge
-                    variant="secondary"
-                    className="bg-primary-50 text-primary-700 dark:bg-primary-950/70 dark:text-primary-300 text-[10px] font-bold px-1.5 py-0.2 rounded-full"
-                  >
-                    Kiosk
-                  </Badge>
-                </div>
-                <div className="flex items-center space-x-1 text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[140px] sm:max-w-xs font-medium">
-                  <span className="truncate">{orgName}</span>
-                  <span>•</span>
-                  <span className="truncate">{deviceName}</span>
+                <h1 className="font-extrabold text-base text-slate-900 dark:text-white tracking-tight leading-tight">
+                  OfficeOS
+                </h1>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[150px] sm:max-w-xs font-medium leading-tight">
+                  {orgName} • {deviceName}
                 </div>
               </div>
             </div>
 
-            {/* Right: Online, Battery & Manager PIN Access */}
+            {/* Right: Online Dot, Battery & Manager PIN Access */}
             <div className="flex items-center space-x-1.5 shrink-0">
-              {/* Online Indicator */}
-              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40 text-[11px] font-semibold">
-                <span className="relative flex h-2 w-2">
+              {/* Online Dot */}
+              <div
+                title="System Online & Live"
+                className="flex items-center justify-center h-7 w-7 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40"
+              >
+                <span className="relative flex h-2.5 w-2.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                 </span>
-                <span className="hidden xs:inline">Online</span>
               </div>
 
               {/* Battery */}
-              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[11px] font-medium">
+              <div className="inline-flex items-center gap-1 px-2 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[11px] font-semibold">
                 {isCharging ? (
                   <BatteryCharging className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                 ) : (
@@ -1554,7 +1545,7 @@ export default function KioskPage() {
                   setIsManagerUnlocked(false);
                   setIsExitModalOpen(true);
                 }}
-                className="h-7 px-2 rounded-xl border-amber-300 dark:border-amber-800/60 text-amber-700 dark:text-amber-400 bg-amber-50/70 dark:bg-amber-950/30 hover:bg-amber-100 font-semibold text-xs"
+                className="h-8 px-2.5 rounded-xl border-amber-300 dark:border-amber-800/60 text-amber-700 dark:text-amber-400 bg-amber-50/70 dark:bg-amber-950/30 hover:bg-amber-100 font-bold text-xs"
                 title="Manager Settings (PIN 9999)"
               >
                 <Lock className="h-3.5 w-3.5 mr-1 text-amber-600" />
@@ -1629,38 +1620,6 @@ export default function KioskPage() {
 
       {/* MAIN MOBILE PORTRAIT CONTENT */}
       <main className="flex-1 overflow-y-auto overscroll-contain px-3 py-2 sm:px-4 max-w-md mx-auto w-full space-y-3">
-        {/* PUNCH MODE TOGGLE BUTTONS (Check In / Check Out) */}
-        <div className="grid grid-cols-2 gap-2.5 w-full">
-          <button
-            onClick={() => {
-              setSelectedPunchType("in");
-              playChime(true);
-            }}
-            className={`py-3 px-3.5 rounded-2xl border transition-all duration-150 flex items-center justify-center space-x-2 shadow-xs touch-manipulation ${
-              selectedPunchType === "in"
-                ? "bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-500/30 font-bold shadow-md"
-                : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-emerald-400"
-            }`}
-          >
-            <LogIn className="h-4 w-4 shrink-0" />
-            <span className="text-sm font-semibold tracking-wide">Check In</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setSelectedPunchType("out");
-              playChime(true);
-            }}
-            className={`py-3 px-3.5 rounded-2xl border transition-all duration-150 flex items-center justify-center space-x-2 shadow-xs touch-manipulation ${
-              selectedPunchType === "out"
-                ? "bg-amber-600 text-white border-amber-600 ring-2 ring-amber-500/30 font-bold shadow-md"
-                : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-amber-400"
-            }`}
-          >
-            <LogOut className="h-4 w-4 shrink-0" />
-            <span className="text-sm font-semibold tracking-wide">Check Out</span>
-          </button>
-        </div>
 
         {/* DIGITAL CLOCK CARD WITH BIG ROUNDED CORNERS */}
         <Card className="w-full bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 shadow-md rounded-3xl p-4 text-center">
@@ -1778,14 +1737,14 @@ export default function KioskPage() {
                         <div className="pt-0.5">
                           {isShiftCompleted ? (
                             empClock.attendanceStatus === "half_day" ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800/60">
+                              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800/60">
                                 <span>🌓</span>
-                                <span>Half Day Done • {empClock.durationHours ? `${empClock.durationHours}h` : "Completed"} ({formatKioskTime(empClock.checkInTime) || "--"} - {formatKioskTime(empClock.checkOutTime) || "--"})</span>
+                                <span>Half Day • {empClock.durationHours && empClock.durationHours > 0 ? `${empClock.durationHours}h • ` : ""}Out: {formatKioskTime(empClock.checkOutTime || empClock.punchedAt) || "Done"}</span>
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-300 dark:border-slate-700">
+                              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-slate-300 dark:border-slate-700">
                                 <span>🏁</span>
-                                <span>Shift Completed • {empClock.durationHours ? `${empClock.durationHours}h` : "Done"} ({formatKioskTime(empClock.checkInTime) || "--"} - {formatKioskTime(empClock.checkOutTime) || "--"})</span>
+                                <span>Shift Completed • {empClock.durationHours && empClock.durationHours > 0 ? `${empClock.durationHours}h • ` : ""}Out: {formatKioskTime(empClock.checkOutTime || empClock.punchedAt) || "Done"}</span>
                               </span>
                             )
                           ) : isClockedIn ? (
@@ -1885,26 +1844,6 @@ export default function KioskPage() {
           </div>
         </div>
       </main>
-
-      {/* FOOTER */}
-      <footer className="shrink-0 h-10 border-t border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 px-4 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 backdrop-blur-md">
-        <div className="flex items-center space-x-1.5 truncate">
-          <ShieldCheck className="h-3.5 w-3.5 text-primary-600 dark:text-primary-400 shrink-0" />
-          <span className="truncate">Multi-Device Biometric Sync Active</span>
-        </div>
-        <button
-          onClick={() => {
-            setEnteredExitPin("");
-            setExitPinError(null);
-            setIsManagerUnlocked(false);
-            setIsExitModalOpen(true);
-          }}
-          className="text-primary-600 hover:underline shrink-0 ml-2 font-semibold inline-flex items-center"
-        >
-          <Lock className="h-3 w-3 mr-1" />
-          <span>Manage Biometrics</span>
-        </button>
-      </footer>
 
       {/* 2.5 UNIFIED BIOMETRIC ATTENDANCE VERIFICATION MODAL */}
       {verifyingEmployee && (
