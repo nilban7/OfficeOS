@@ -165,5 +165,119 @@ describe("KioskPage Component", () => {
       expect(bios["EMP-NIL-001"].employeeCode).toBe("EMP-NIL-001");
     });
   });
+
+  it("enforces biometric mismatch protection when non-matching finger is scanned", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("officeos_kiosk_token", "kiosk-token-active");
+    localStorage.setItem("officeos_kiosk_org_name", "Niladri Organization");
+    // Pre-enroll Niladri with Finger 1 (Thumb)
+    localStorage.setItem(
+      "officeos_kiosk_biometrics",
+      JSON.stringify({
+        "EMP-NIL-001": {
+          credentialId: "bio-niladri",
+          enrolledAt: new Date().toISOString(),
+          employeeCode: "EMP-NIL-001",
+          employeeName: "Niladri Banerjee",
+          fingerLabel: "Finger 1 (Thumb)",
+        },
+      })
+    );
+
+    render(<KioskPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Niladri Banerjee")).toBeDefined();
+    });
+
+    // Click Niladri Banerjee card (now enrolled) -> opens Biometric Scan Modal
+    await user.click(screen.getByText("Niladri Banerjee"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Verify Check In")).toBeDefined();
+      expect(screen.getByText("Scan / Select Finger Touching Sensor:")).toBeDefined();
+    });
+
+    // Touch Finger 2 (Index) (Aritra's finger) instead of Niladri's Thumb
+    const indexFingerBtn = screen.getByRole("button", { name: /Finger 2 \(Index\)/i });
+    await user.click(indexFingerBtn);
+
+    // Mismatch Protection should trigger!
+    await waitFor(() => {
+      expect(screen.getByText("Biometric Mismatch Rejected!")).toBeDefined();
+      expect(
+        screen.getByText(/Touched "Finger 2 \(Index\)", but "Niladri Banerjee" requires "Finger 1 \(Thumb\)"/i)
+      ).toBeDefined();
+    });
+
+    // API Punch must NOT be called on mismatch!
+    expect(apiClient.post).not.toHaveBeenCalledWith(
+      expect.stringContaining("/attendance/punch"),
+      expect.anything(),
+      expect.anything()
+    );
+  });
+
+  it("successfully punches attendance and displays 4-second confirmation card when registered finger matches", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("officeos_kiosk_token", "kiosk-token-active");
+    localStorage.setItem("officeos_kiosk_org_name", "Niladri Organization");
+    localStorage.setItem(
+      "officeos_kiosk_biometrics",
+      JSON.stringify({
+        "EMP-NIL-001": {
+          credentialId: "bio-niladri",
+          enrolledAt: new Date().toISOString(),
+          employeeCode: "EMP-NIL-001",
+          employeeName: "Niladri Banerjee",
+          fingerLabel: "Finger 1 (Thumb)",
+        },
+      })
+    );
+
+    (apiClient.post as unknown as { mockResolvedValue: (val: unknown) => void }).mockResolvedValue({
+      data: {
+        success: true,
+        message: "Check-in verified successfully for Niladri Banerjee.",
+        punch_type: "in",
+        employee_id: "00000000-0000-0000-0000-000000000041",
+        employee_name: "Niladri Banerjee",
+        employee_code: "EMP-NIL-001",
+        department: "Executive Management",
+        punched_at: "09:30 AM",
+        verification_method: "fingerprint",
+      },
+    });
+
+    render(<KioskPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Niladri Banerjee")).toBeDefined();
+    });
+
+    // Click Niladri Banerjee card
+    await user.click(screen.getByText("Niladri Banerjee"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Verify Check In")).toBeDefined();
+      expect(screen.getByText("Scan / Select Finger Touching Sensor:")).toBeDefined();
+    });
+
+    // Touch the correct finger: Finger 1 (Thumb)
+    const thumbFingerBtn = screen.getByRole("button", { name: /Finger 1 \(Thumb\)/i });
+    await user.click(thumbFingerBtn);
+
+    // Punch Success card should appear with details and countdown
+    await waitFor(() => {
+      expect(apiClient.post).toHaveBeenCalledWith(
+        expect.stringContaining("/attendance/punch"),
+        expect.anything(),
+        expect.anything()
+      );
+      expect(screen.getByText(/Check-in verified/i)).toBeDefined();
+      expect(screen.getAllByText("EMP-NIL-001").length).toBeGreaterThan(0);
+      expect(screen.getByText(/Returning to standby in/i)).toBeDefined();
+    });
+  });
 });
 
