@@ -911,8 +911,47 @@ export default function KioskPage() {
           return updated;
         });
       } else {
-        const errorMsg =
+        const errorDetail =
+          (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+          (err as { detail?: string })?.detail ||
           (err as { message?: string })?.message ||
+          "";
+        const errorMsgStr = typeof errorDetail === "string" ? errorDetail : JSON.stringify(errorDetail);
+
+        // Smart Self-Healing: If request was check_in but server reports already checked in today:
+        // Seamlessly perform check_out immediately so user is never stuck!
+        if (
+          activePunchType === "in" &&
+          errorMsgStr.toLowerCase().includes("already checked in")
+        ) {
+          console.warn("Self-healing kiosk punch: auto-resolving to check_out for", code);
+          setClockStatus((prev) => ({
+            ...prev,
+            [code]: {
+              ...prev[code],
+              status: "in",
+              punchedAt: prev[code]?.punchedAt || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            },
+          }));
+          setSelectedPunchType("out");
+          await handlePerformPunch(code, activeMode, "out");
+          return;
+        }
+
+        // If request was check_out but employee has not checked in yet:
+        if (
+          activePunchType === "out" &&
+          (errorMsgStr.toLowerCase().includes("not checked in") ||
+            errorMsgStr.toLowerCase().includes("first action must be check in"))
+        ) {
+          console.warn("Self-healing kiosk punch: auto-resolving to check_in for", code);
+          setSelectedPunchType("in");
+          await handlePerformPunch(code, activeMode, "in");
+          return;
+        }
+
+        const errorMsg =
+          errorMsgStr ||
           "Punch verification failed on server. Please check your connection.";
         setPunchError(errorMsg);
         setIsPunchModalOpen(true);
@@ -1084,9 +1123,17 @@ export default function KioskPage() {
   };
 
   // Trigger Native Phone Fingerprint Sensor Verification
-  const handleNativeBiometricVerification = async (emp: KioskEmployee) => {
+  const handleNativeBiometricVerification = async (
+    emp: KioskEmployee,
+    targetPunchType?: "in" | "out"
+  ) => {
     const enrollment = enrolledBiometrics[emp.code];
     if (!enrollment) return;
+
+    // Resolve punch type directly without depending on asynchronous state
+    const punchType: "in" | "out" =
+      targetPunchType ||
+      (clockStatus[emp.code]?.status === "in" ? "out" : selectedPunchType);
 
     const hasWebAuthn =
       typeof window !== "undefined" &&
@@ -1099,7 +1146,7 @@ export default function KioskPage() {
       playChime(true);
       setVerifyingEmployee(null);
       setIsVerifyingScan(false);
-      await handlePerformPunch(emp.code, "fingerprint", selectedPunchType);
+      await handlePerformPunch(emp.code, "fingerprint", punchType);
       return;
     }
 
@@ -1143,7 +1190,7 @@ export default function KioskPage() {
         playChime(true);
         setVerifyingEmployee(null);
         setIsVerifyingScan(false);
-        await handlePerformPunch(emp.code, "fingerprint", selectedPunchType);
+        await handlePerformPunch(emp.code, "fingerprint", punchType);
       }
     } catch (err: unknown) {
       const errName = (err as { name?: string })?.name;
@@ -1172,12 +1219,9 @@ export default function KioskPage() {
       return;
     }
 
-    // Auto-detect punch type based on current status
-    if (empClock?.status === "in") {
-      setSelectedPunchType("out");
-    } else {
-      setSelectedPunchType("in");
-    }
+    // Explicitly determine target punch type
+    const targetPunchType: "in" | "out" = empClock?.status === "in" ? "out" : "in";
+    setSelectedPunchType(targetPunchType);
 
     const enrollment = enrolledBiometrics[emp.code];
     if (!enrollment) {
@@ -1194,14 +1238,14 @@ export default function KioskPage() {
     setIsVerifyingScan(false);
     setPunchError(null);
 
-    // If device supports WebAuthn, immediately trigger native sensor prompt
+    // If device supports WebAuthn, immediately trigger native sensor prompt with explicit targetPunchType
     if (
       typeof window !== "undefined" &&
       window.PublicKeyCredential &&
       typeof navigator !== "undefined" &&
       typeof navigator.credentials?.get === "function"
     ) {
-      handleNativeBiometricVerification(emp);
+      handleNativeBiometricVerification(emp, targetPunchType);
     }
   };
 
@@ -1906,7 +1950,10 @@ export default function KioskPage() {
             <div className="text-center py-3 space-y-3">
               <button
                 type="button"
-                onClick={() => handleNativeBiometricVerification(verifyingEmployee)}
+                onClick={() => {
+                  const currentPunchType = clockStatus[verifyingEmployee.code]?.status === "in" ? "out" : "in";
+                  handleNativeBiometricVerification(verifyingEmployee, currentPunchType);
+                }}
                 disabled={isVerifyingScan || isPunching}
                 className="w-28 h-28 rounded-3xl bg-gradient-to-b from-primary-50 via-primary-100/90 to-primary-100 dark:from-primary-950/70 dark:via-primary-900/50 dark:to-primary-900/30 border-2 border-primary-500 hover:border-primary-600 flex flex-col items-center justify-center shadow-lg transition-all active:scale-95 mx-auto relative overflow-hidden group touch-manipulation"
               >

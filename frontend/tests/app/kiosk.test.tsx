@@ -327,5 +327,77 @@ describe("KioskPage Component", () => {
       expect(screen.getByText(/Further punches are locked/i)).toBeDefined();
     });
   });
+
+  it("automatically performs check-out for a clocked-in employee without state lag or errors", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("officeos_kiosk_token", "kiosk-token-active");
+    localStorage.setItem("officeos_kiosk_org_name", "Acme Global");
+    localStorage.setItem(
+      "officeos_kiosk_clock_status",
+      JSON.stringify({
+        "EMP-NIL-001": {
+          status: "in",
+          punchedAt: "09:30 AM",
+          checkInTime: "09:30 AM",
+        },
+      })
+    );
+    localStorage.setItem(
+      "officeos_kiosk_biometrics",
+      JSON.stringify({
+        "EMP-NIL-001": {
+          credentialId: "bio-niladri",
+          enrolledAt: new Date().toISOString(),
+          employeeCode: "EMP-NIL-001",
+          employeeName: "Niladri Banerjee",
+          fingerLabel: "Fingerprint",
+        },
+      })
+    );
+
+    (apiClient.post as unknown as { mockResolvedValue: (val: unknown) => void }).mockResolvedValue({
+      data: {
+        success: true,
+        message: "Check-out verified successfully for Niladri Banerjee.",
+        punch_type: "out",
+        employee_id: "00000000-0000-0000-0000-000000000041",
+        employee_name: "Niladri Banerjee",
+        employee_code: "EMP-NIL-001",
+        department: "Executive Management",
+        punched_at: "06:00 PM",
+        work_duration_hours: 8.5,
+      },
+    });
+
+    render(<KioskPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Niladri Banerjee")).toBeDefined();
+      expect(screen.getByText(/Clocked In • 09:30 AM/i)).toBeDefined();
+    });
+
+    // Clicking Niladri Banerjee (who is currently clocked in)
+    await user.click(screen.getByText("Niladri Banerjee"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Verify Check Out")).toBeDefined();
+    });
+
+    // Touch Phone Sensor
+    const sensorBtn = screen.getByRole("button", { name: /Touch Phone Sensor/i });
+    await user.click(sensorBtn);
+
+    // Should submit punch_type: check_out directly
+    await waitFor(() => {
+      expect(apiClient.post).toHaveBeenCalledWith(
+        expect.stringContaining("/attendance/punch"),
+        expect.objectContaining({
+          employee_code: "EMP-NIL-001",
+          punch_type: "check_out",
+        }),
+        expect.anything()
+      );
+    });
+  });
 });
 
