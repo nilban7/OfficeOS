@@ -98,6 +98,28 @@ interface StoredBiometric {
   fingerLabel: string;
 }
 
+// Base64 helpers for WebAuthn buffers
+function bufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    const b = bytes[i];
+    if (b !== undefined) {
+      binary += String.fromCharCode(b);
+    }
+  }
+  return window.btoa(binary);
+}
+
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binary = window.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
 
 
 // Synthesized audio feedback
@@ -652,8 +674,15 @@ export default function KioskPage() {
     }
   };
 
-  // First-Time Biometric Registration Workflow (Pure Screen-Touch — Never fails with OS Keystore error)
+  // First-Time Biometric Registration Workflow (Summons Native Phone Biometric Prompt via WebAuthn)
   const handleRegisterFingerprint = async (emp: KioskEmployee) => {
+    // Enforcement: "no one can register that fingerprint once done"
+    if (enrolledBiometrics[emp.code]) {
+      setEnrollmentError(`Fingerprint is already registered for ${emp.name} on this device. Re-registration is locked.`);
+      playChime(false);
+      return;
+    }
+
     setIsEnrolling(true);
     setEnrollmentError(null);
     setEnrollmentSuccess(null);
@@ -668,8 +697,75 @@ export default function KioskPage() {
     }
 
     try {
-      const registeredCredId = `bio-${emp.code.toLowerCase()}-${Date.now()}`;
-      const rawBase64 = window.btoa(registeredCredId);
+      let registeredCredId = "";
+      let rawBase64 = "";
+
+      // Check if native WebAuthn Platform Authenticator is available
+      const hasWebAuthn =
+        typeof window !== "undefined" &&
+        !!window.PublicKeyCredential &&
+        typeof navigator !== "undefined" &&
+        typeof navigator.credentials?.create === "function";
+
+      let platformAvailable = false;
+      if (hasWebAuthn) {
+        try {
+          if (typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === "function") {
+            platformAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+          } else {
+            platformAvailable = true;
+          }
+        } catch {
+          platformAvailable = false;
+        }
+      }
+
+      if (hasWebAuthn && platformAvailable) {
+        const challenge = new Uint8Array(32);
+        window.crypto.getRandomValues(challenge);
+        const userId = new Uint8Array(emp.code.split("").map((c) => c.charCodeAt(0)));
+
+        const isIpAddress =
+          typeof window !== "undefined" && /^(\d{1,3}\.){3}\d{1,3}$/.test(window.location.hostname);
+        const rpEntity: PublicKeyCredentialRpEntity = {
+          name: "OfficeOS Attendance Terminal",
+          ...(isIpAddress || !window.location.hostname ? {} : { id: window.location.hostname }),
+        };
+
+        const credential = (await navigator.credentials.create({
+          publicKey: {
+            challenge,
+            rp: rpEntity,
+            user: {
+              id: userId,
+              name: emp.code.toLowerCase(),
+              displayName: emp.name,
+            },
+            pubKeyCredParams: [
+              { alg: -7, type: "public-key" }, // ES256
+              { alg: -257, type: "public-key" }, // RS256
+            ],
+            authenticatorSelection: {
+              authenticatorAttachment: "platform",
+              userVerification: "required",
+              residentKey: "preferred",
+            },
+            timeout: 60000,
+            attestation: "none",
+          },
+        })) as PublicKeyCredential | null;
+
+        if (credential) {
+          registeredCredId = credential.id;
+          rawBase64 = bufferToBase64(credential.rawId);
+        }
+      }
+
+      // If WebAuthn was not available (e.g. simulator/unit tests), generate fallback credential
+      if (!registeredCredId) {
+        registeredCredId = `bio-${emp.code.toLowerCase()}-${Date.now()}`;
+        rawBase64 = window.btoa(registeredCredId);
+      }
 
       const newRecord: StoredBiometric = {
         credentialId: registeredCredId,
@@ -694,13 +790,89 @@ export default function KioskPage() {
       setTimeout(() => {
         setEnrollingEmployee(null);
         setEnrollmentSuccess(null);
-      }, 1000);
+      }, 1100);
     } catch (err: unknown) {
-      const msg = (err as { message?: string })?.message || "Biometric registration failed.";
-      setEnrollmentError(msg);
+      const errName = (err as { name?: string })?.name;
+      const rawMsg = (err as { message?: string })?.message || "";
+      let errorMsg = "Biometric registration failed. Please try again.";
+      if (errName === "NotAllowedError") {
+        errorMsg = "Fingerprint scan cancelled or timed out. Please tap Enroll Finger again.";
+      } else if (rawMsg) {
+        errorMsg = rawMsg;
+      }
+      setEnrollmentError(errorMsg);
       playChime(false);
     } finally {
       setIsEnrolling(false);
+    }
+  };
+
+  // Trigger Native Phone Fingerprint Sensor Verification
+  const handleNativeBiometricVerification = async (emp: KioskEmployee) => {
+    const enrollment = enrolledBiometrics[emp.code];
+    if (!enrollment) return;
+
+    const hasWebAuthn =
+      typeof window !== "undefined" &&
+      !!window.PublicKeyCredential &&
+      typeof navigator !== "undefined" &&
+      typeof navigator.credentials?.get === "function";
+
+    if (!hasWebAuthn) return;
+
+    setIsVerifyingScan(true);
+    setMismatchError(null);
+
+    try {
+      const challenge = new Uint8Array(32);
+      window.crypto.getRandomValues(challenge);
+
+      const allowCreds: PublicKeyCredentialDescriptor[] = [];
+      if (enrollment.rawIdBase64 && !enrollment.credentialId.startsWith("bio-")) {
+        try {
+          const rawIdBytes = base64ToUint8Array(enrollment.rawIdBase64);
+          allowCreds.push({
+            id: rawIdBytes as unknown as BufferSource,
+            type: "public-key",
+          });
+        } catch {
+          // fallback without allowCredentials filter
+        }
+      }
+
+      const assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge,
+          ...(allowCreds.length > 0 ? { allowCredentials: allowCreds } : {}),
+          userVerification: "required",
+          timeout: 60000,
+        },
+      });
+
+      if (assertion) {
+        // Fingerprint verified by hardware sensor!
+        if (typeof navigator !== "undefined" && navigator.vibrate) {
+          try {
+            navigator.vibrate([40, 60, 40]);
+          } catch {
+            // ignore
+          }
+        }
+        playChime(true);
+        setVerifyingEmployee(null);
+        setScannedFinger(null);
+        setIsVerifyingScan(false);
+        await handlePerformPunch(emp.code, "fingerprint", selectedPunchType);
+      }
+    } catch (err: unknown) {
+      const errName = (err as { name?: string })?.name;
+      setIsVerifyingScan(false);
+      playChime(false);
+      if (errName === "NotAllowedError") {
+        setMismatchError("Fingerprint scan cancelled or not recognized. Touch sensor to retry.");
+      } else {
+        setMismatchError("Biometric verification rejected. Please scan your registered finger.");
+      }
     }
   };
 
@@ -721,6 +893,16 @@ export default function KioskPage() {
     setScannedFinger(null);
     setIsVerifyingScan(false);
     setPunchError(null);
+
+    // If device supports WebAuthn, immediately trigger native sensor prompt
+    if (
+      typeof window !== "undefined" &&
+      window.PublicKeyCredential &&
+      typeof navigator !== "undefined" &&
+      typeof navigator.credentials?.get === "function"
+    ) {
+      handleNativeBiometricVerification(emp);
+    }
   };
 
   // Code entry verification — ALWAYS requires fingerprint scan!
@@ -1230,16 +1412,19 @@ export default function KioskPage() {
                           className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300 border-emerald-200 text-[10px] font-semibold flex items-center space-x-1"
                         >
                           <Check className="h-3 w-3" />
-                          <span>Enrolled</span>
+                          <span>Registered</span>
                         </Badge>
-                        <span className="text-[9px] text-slate-400 mt-0.5">{emp.fingerLabel}</span>
+                        <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
+                          Tap to Mark
+                        </span>
                       </div>
                     ) : (
                       <Badge
                         variant="outline"
-                        className="border-primary-400 text-primary-700 dark:text-primary-300 bg-white dark:bg-slate-900 text-[10px] font-semibold animate-pulse"
+                        className="border-primary-500 text-primary-700 dark:text-primary-300 bg-primary-50/50 dark:bg-primary-950/40 text-[10px] font-semibold flex items-center space-x-1"
                       >
-                        Register Finger
+                        <Fingerprint className="h-3 w-3" />
+                        <span>Register</span>
                       </Badge>
                     )}
 
@@ -1411,6 +1596,24 @@ export default function KioskPage() {
               </div>
             </div>
 
+            {/* Native Hardware Fingerprint Sensor Trigger Button */}
+            <div className="text-center py-2 space-y-2">
+              <button
+                type="button"
+                onClick={() => handleNativeBiometricVerification(verifyingEmployee)}
+                disabled={isVerifyingScan || isPunching}
+                className="w-24 h-24 rounded-3xl bg-gradient-to-b from-primary-50 to-primary-100/80 hover:from-primary-100 hover:to-primary-200/80 dark:from-primary-950/50 dark:to-primary-900/40 border-2 border-primary-500 flex flex-col items-center justify-center shadow-md transition-all active:scale-95 mx-auto relative overflow-hidden group touch-manipulation"
+              >
+                <Fingerprint className={`h-11 w-11 text-primary-600 dark:text-primary-400 group-hover:scale-110 transition-transform ${isVerifyingScan ? "animate-pulse" : ""}`} />
+                <span className="text-[10px] font-bold text-primary-700 dark:text-primary-300 mt-1">
+                  {isVerifyingScan ? "Scanning..." : "Touch Phone Sensor"}
+                </span>
+              </button>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Touch phone sensor or tap button above to verify fingerprint
+              </p>
+            </div>
+
             {/* Test Multi-Finger Biometric Sensor Pads */}
             <div className="space-y-2.5">
               <div className="text-center">
@@ -1572,10 +1775,10 @@ export default function KioskPage() {
               <div className="rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/60 dark:border-blue-800/40 p-2.5 text-left text-[11px] text-blue-800 dark:text-blue-300 space-y-1">
                 <p className="font-semibold flex items-center">
                   <Fingerprint className="h-3.5 w-3.5 mr-1 text-primary-600 dark:text-primary-400" />
-                  On-Screen Multi-Finger Enrollment
+                  Hardware Fingerprint Sensor Prompt
                 </p>
                 <p className="text-[10px] text-blue-700 dark:text-blue-400 leading-relaxed">
-                  Touch the sensor pad above with your <strong>{enrollingEmployee.fingerLabel}</strong> to enroll. This pairs directly to {enrollingEmployee.name} without needing Android system settings!
+                  Tapping below asks for your phone&apos;s physical fingerprint sensor. Touch with your <strong>{enrollingEmployee.fingerLabel}</strong> to lock your biometric to this phone. Once registered, no one can re-register this employee!
                 </p>
               </div>
             </div>
