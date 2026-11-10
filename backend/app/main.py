@@ -31,11 +31,13 @@ app.include_router(router)
 
 
 @app.get("/health", tags=["health"])
+@app.head("/health", tags=["health"])
 async def root_health():
     return {"status": "ok"}
 
 
 @app.get("/", tags=["health"])
+@app.head("/", tags=["health"])
 async def root_index():
     return {"status": "ok", "service": "OfficeOS API"}
 
