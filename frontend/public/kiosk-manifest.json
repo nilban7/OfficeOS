@@ -3,8 +3,8 @@
   "short_name": "OfficeKiosk",
   "description": "Standalone attendance terminal for OfficeOS with Face Capture, PIN, QR and Biometrics.",
   "start_url": "/kiosk",
-  "display": "fullscreen",
-  "orientation": "any",
+  "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#020617",
   "theme_color": "#0f172a",
   "icons": [

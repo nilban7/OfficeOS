@@ -5,7 +5,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
-from sqlalchemy import desc, select
+from sqlalchemy import desc, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -333,6 +333,7 @@ class KioskService:
         face_snapshot = req.get_face_snapshot()
 
         if clean_code:
+            # 1. Exact employee code match
             emp_res = await db.execute(
                 select(Employee).where(
                     Employee.organization_id == device.organization_id,
@@ -342,18 +343,32 @@ class KioskService:
             )
             employee = emp_res.scalar_one_or_none()
 
+            # 2. Flexible matching (e.g. '001', 'EMP-001' -> 'EMP-NIL-001')
+            if not employee:
+                emp_flex_res = await db.execute(
+                    select(Employee).where(
+                        Employee.organization_id == device.organization_id,
+                        Employee.status == "active",
+                        or_(
+                            Employee.employee_code.endswith(clean_code),
+                            Employee.employee_code.ilike(f"%{clean_code}%"),
+                        ),
+                    ).order_by(Employee.employee_code.asc()).limit(1)
+                )
+                employee = emp_flex_res.scalar_one_or_none()
+
         if not employee and clean_pin:
             pin_res = await db.execute(
                 select(Employee).where(
                     Employee.organization_id == device.organization_id,
                     Employee.employee_code.endswith(clean_pin),
                     Employee.status == "active",
-                )
+                ).limit(1)
             )
-            employee = pin_res.scalars().first()
+            employee = pin_res.scalar_one_or_none()
 
-        # If not matched yet (e.g. testing with generic code), link to active employee
-        if not employee:
+        # If not matched and no code or PIN was provided at all, fallback to first active employee
+        if not employee and not clean_code and not clean_pin:
             emp_res = await db.execute(
                 select(Employee).where(
                     Employee.organization_id == device.organization_id,
