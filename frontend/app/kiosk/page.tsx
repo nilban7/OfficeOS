@@ -140,18 +140,37 @@ function formatKioskTime(value?: string | Date | null): string {
   if (value instanceof Date) {
     return value.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
-  const str = String(value).trim();
+  let str = String(value).trim();
   if (!str) return "";
+
+  // If already formatted like "09:30 AM" or "3:05 PM"
+  if (/^\d{1,2}:\d{2}\s*(AM|PM)$/i.test(str)) {
+    return str;
+  }
 
   // If it's an ISO timestamp or date-parseable string containing 'T', '-', or 'Z':
   if (str.includes("T") || str.includes("-") || str.endsWith("Z")) {
-    const d = new Date(str);
+    // Strip microseconds: "2026-11-10T09:54:30.846457+00:00" -> "2026-11-10T09:54:30+00:00"
+    const cleaned = str.replace(/\.\d+/, "");
+    const d = new Date(cleaned);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+    const d2 = new Date(str);
+    if (!isNaN(d2.getTime())) {
+      return d2.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+  }
+
+  // Handle raw time like "09:30:00"
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(str)) {
+    const todayStr = new Date().toDateString();
+    const d = new Date(`${todayStr} ${str}`);
     if (!isNaN(d.getTime())) {
       return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     }
   }
 
-  // If already formatted like "09:30 AM" or "3:05 PM"
   return str;
 }
 
@@ -1474,126 +1493,136 @@ export default function KioskPage() {
 
   return (
     <div className="h-[100dvh] max-h-[100dvh] w-full flex flex-col justify-between overflow-hidden bg-slate-100/70 dark:bg-slate-950 text-slate-900 dark:text-slate-100 select-none">
-      {/* BEAUTIFULLY STYLED PWA HEADER WITH BIG ROUNDED CORNERS */}
-      <header className="shrink-0 mx-3 sm:mx-4 mt-2 sm:mt-3 p-3.5 sm:p-4 rounded-3xl bg-white/95 dark:bg-slate-900/95 border border-slate-200/90 dark:border-slate-800 shadow-md backdrop-blur-md">
-        <div className="flex items-center justify-between gap-2">
-          {/* Brand Info */}
-          <div className="flex items-center space-x-3 min-w-0">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-600 to-indigo-700 text-white shadow-sm shrink-0">
-              <Building2 className="h-5 w-5" />
+      {/* BEAUTIFULLY STYLED PWA HEADER WITH BIG ROUNDED CORNERS (2-TIER RESPONSIVE NO-OVERLAP) */}
+      <header className="shrink-0 mx-3 sm:mx-4 mt-2 sm:mt-3 p-3 sm:p-4 rounded-3xl bg-white/95 dark:bg-slate-900/95 border border-slate-200/90 dark:border-slate-800 shadow-md backdrop-blur-md">
+        <div className="flex flex-col gap-2.5">
+          {/* Row 1: Brand Info & Primary Status (Zero Overlap Guaranteed) */}
+          <div className="flex items-center justify-between gap-2 min-w-0">
+            {/* Left: Brand Identity */}
+            <div className="flex items-center space-x-2.5 min-w-0">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-600 to-indigo-700 text-white shadow-sm shrink-0">
+                <Building2 className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center space-x-1.5">
+                  <span className="font-extrabold text-base text-slate-900 dark:text-white tracking-tight">
+                    OfficeOS
+                  </span>
+                  <Badge
+                    variant="secondary"
+                    className="bg-primary-50 text-primary-700 dark:bg-primary-950/70 dark:text-primary-300 text-[10px] font-bold px-1.5 py-0.2 rounded-full"
+                  >
+                    Kiosk
+                  </Badge>
+                </div>
+                <div className="flex items-center space-x-1 text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[140px] sm:max-w-xs font-medium">
+                  <span className="truncate">{orgName}</span>
+                  <span>•</span>
+                  <span className="truncate">{deviceName}</span>
+                </div>
+              </div>
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center space-x-1.5">
-                <span className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-white tracking-tight truncate">
-                  OfficeOS
+
+            {/* Right: Online, Battery & Manager PIN Access */}
+            <div className="flex items-center space-x-1.5 shrink-0">
+              {/* Online Indicator */}
+              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40 text-[11px] font-semibold">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
-                <Badge
-                  variant="secondary"
-                  className="bg-primary-50 text-primary-700 dark:bg-primary-950/70 dark:text-primary-300 text-[10px] font-bold px-2 py-0.5 rounded-full"
-                >
-                  Kiosk PWA
-                </Badge>
+                <span className="hidden xs:inline">Online</span>
               </div>
-              <div className="flex items-center space-x-1 text-xs text-slate-500 dark:text-slate-400 truncate max-w-[200px] sm:max-w-sm">
-                <span className="font-medium text-slate-700 dark:text-slate-300 truncate">{orgName}</span>
-                <span>•</span>
-                <span className="truncate">{deviceName}</span>
-              </div>
-            </div>
-          </div>
 
-          {/* Right Status Indicators & Tools */}
-          <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
-            {/* GPS Status Badge */}
-            {locationStatus === "acquired" && currentLocation ? (
-              <div
-                title={`GPS Accuracy: ±${currentLocation.accuracy}m`}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 text-[11px] font-semibold"
-              >
-                <MapPin className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <span className="hidden xs:inline">GPS Ready</span>
+              {/* Battery */}
+              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[11px] font-medium">
+                {isCharging ? (
+                  <BatteryCharging className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                ) : (
+                  <Battery className="h-3.5 w-3.5 text-slate-500" />
+                )}
+                <span>{batteryLevel}%</span>
               </div>
-            ) : locationStatus === "requesting" || isLocating ? (
-              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 text-[11px] font-semibold animate-pulse">
-                <RefreshCw className="h-3 w-3 animate-spin shrink-0" />
-                <span className="hidden xs:inline">Locating...</span>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={acquireLocation}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 text-[11px] font-medium hover:border-primary-400"
-                title="Tap to acquire GPS location"
-              >
-                <MapPinOff className="h-3 w-3 text-slate-400" />
-                <span className="hidden xs:inline">GPS Off</span>
-              </button>
-            )}
 
-            {/* PWA Install Button */}
-            {isInstallable && (
+              {/* Code-Protected Manager Lock Button */}
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleInstallPWA}
-                className="h-8 px-2 text-[11px] font-semibold rounded-xl border-primary-500 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950/40"
+                onClick={() => {
+                  setEnteredExitPin("");
+                  setExitPinError(null);
+                  setIsManagerUnlocked(false);
+                  setIsExitModalOpen(true);
+                }}
+                className="h-7 px-2 rounded-xl border-amber-300 dark:border-amber-800/60 text-amber-700 dark:text-amber-400 bg-amber-50/70 dark:bg-amber-950/30 hover:bg-amber-100 font-semibold text-xs"
+                title="Manager Settings (PIN 9999)"
               >
-                <Download className="h-3.5 w-3.5 mr-1" />
-                <span className="hidden sm:inline">Install App</span>
+                <Lock className="h-3.5 w-3.5 mr-1 text-amber-600" />
+                <span>Manager</span>
               </Button>
-            )}
-
-            {/* Online Indicator */}
-            <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40 text-[11px] font-semibold">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span className="hidden xs:inline">Online</span>
             </div>
+          </div>
 
-            {/* Battery */}
-            <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[11px] font-medium">
-              {isCharging ? (
-                <BatteryCharging className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+          {/* Row 2: GPS Status, Theme Switch & Fullscreen Toolbar */}
+          <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/80 pt-2 gap-2">
+            {/* GPS Status Badge */}
+            <div className="shrink-0">
+              {locationStatus === "acquired" && currentLocation ? (
+                <div
+                  title={`GPS Accuracy: ±${currentLocation.accuracy}m`}
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 text-[11px] font-semibold"
+                >
+                  <MapPin className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>GPS Active</span>
+                </div>
+              ) : locationStatus === "requesting" || isLocating ? (
+                <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 text-[11px] font-semibold animate-pulse">
+                  <RefreshCw className="h-3 w-3 animate-spin shrink-0" />
+                  <span>Locating...</span>
+                </div>
               ) : (
-                <Battery className="h-3.5 w-3.5 text-slate-500" />
+                <button
+                  type="button"
+                  onClick={acquireLocation}
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 text-[11px] font-medium hover:border-primary-400"
+                  title="Tap to acquire GPS location"
+                >
+                  <MapPinOff className="h-3 w-3 text-slate-400" />
+                  <span>GPS Off</span>
+                </button>
               )}
-              <span>{batteryLevel}%</span>
             </div>
 
-            {/* Theme */}
-            <div className="p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-              <ThemeSwitch />
+            {/* Right Tools: Install, Theme, Fullscreen */}
+            <div className="flex items-center space-x-1.5 shrink-0">
+              {isInstallable && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleInstallPWA}
+                  className="h-7 px-2 text-[10px] font-semibold rounded-lg border-primary-500 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950/40"
+                >
+                  <Download className="h-3 w-3 mr-1" />
+                  <span>Install</span>
+                </Button>
+              )}
+
+              {/* Theme Switch */}
+              <div className="p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                <ThemeSwitch />
+              </div>
+
+              {/* Fullscreen */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleFullscreen}
+                className="h-7 w-7 p-0 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                title="Toggle Fullscreen"
+              >
+                {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+              </Button>
             </div>
-
-            {/* Fullscreen */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={toggleFullscreen}
-              className="h-8 w-8 p-0 rounded-xl text-slate-500 hover:text-slate-900 dark:hover:text-white"
-              title="Toggle Fullscreen"
-            >
-              {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-            </Button>
-
-            {/* Code-Protected Manager Lock Button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setEnteredExitPin("");
-                setExitPinError(null);
-                setIsManagerUnlocked(false);
-                setIsExitModalOpen(true);
-              }}
-              className="h-8 px-2.5 rounded-xl border-amber-300 dark:border-amber-800/60 text-amber-700 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-950/30 hover:bg-amber-100 font-semibold text-xs"
-              title="Manager Settings (PIN 9999)"
-            >
-              <Lock className="h-3.5 w-3.5 mr-1 text-amber-600" />
-              <span className="hidden sm:inline">Manager</span>
-            </Button>
           </div>
         </div>
       </header>
@@ -1698,12 +1727,19 @@ export default function KioskPage() {
                 const isEnrolled = !!enrollment;
                 const empClock = clockStatus[emp.code];
 
+                const isClockedIn = empClock?.status === "in";
+                const isShiftCompleted = empClock?.status === "completed";
+
                 return (
                   <div
                     key={emp.code}
                     onClick={() => handleVerifyFingerprintAndPunch(emp)}
                     className={`group relative p-3.5 rounded-2xl border transition-all duration-200 flex items-center justify-between cursor-pointer active:scale-[0.98] ${
-                      isEnrolled
+                      isClockedIn
+                        ? "bg-sky-50/90 dark:bg-sky-950/40 border-sky-300 dark:border-sky-700/80 shadow-sm ring-1 ring-sky-400/40 hover:border-sky-500"
+                        : isShiftCompleted
+                        ? "bg-slate-50/80 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 opacity-90"
+                        : isEnrolled
                         ? "bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 hover:border-primary-500/80 shadow-xs hover:shadow-md"
                         : "bg-primary-50/40 dark:bg-primary-950/20 border-primary-200/80 dark:border-primary-800/40 hover:border-primary-400"
                     }`}
@@ -1712,7 +1748,11 @@ export default function KioskPage() {
                     <div className="flex items-center space-x-3 min-w-0">
                       <div
                         className={`h-12 w-12 rounded-2xl flex items-center justify-center font-bold text-sm shrink-0 border ${
-                          isEnrolled
+                          isClockedIn
+                            ? "bg-sky-100 dark:bg-sky-900/70 text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-700"
+                            : isShiftCompleted
+                            ? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700"
+                            : isEnrolled
                             ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60"
                             : "bg-primary-100 dark:bg-primary-900/60 text-primary-700 dark:text-primary-300 border-primary-300 dark:border-primary-700/60"
                         }`}
@@ -1736,7 +1776,7 @@ export default function KioskPage() {
 
                         {/* LIVE CLOCKED IN / CLOCKED OUT STATUS BADGE */}
                         <div className="pt-0.5">
-                          {empClock?.status === "completed" ? (
+                          {isShiftCompleted ? (
                             empClock.attendanceStatus === "half_day" ? (
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800/60">
                                 <span>🌓</span>
@@ -1748,10 +1788,10 @@ export default function KioskPage() {
                                 <span>Shift Completed • {empClock.durationHours ? `${empClock.durationHours}h` : "Done"} ({formatKioskTime(empClock.checkInTime) || "--"} - {formatKioskTime(empClock.checkOutTime) || "--"})</span>
                               </span>
                             )
-                          ) : empClock?.status === "in" ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/60">
-                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                              Clocked In • {formatKioskTime(empClock.checkInTime || empClock.punchedAt) || "Today"}
+                          ) : isClockedIn ? (
+                            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-sky-800 dark:text-sky-200 bg-sky-100 dark:bg-sky-900/60 px-2.5 py-0.5 rounded-full border border-sky-300 dark:border-sky-700">
+                              <span className="h-1.5 w-1.5 rounded-full bg-sky-500 animate-pulse" />
+                              <span>Clocked In • {formatKioskTime(empClock.checkInTime || empClock.punchedAt) || "Today"}</span>
                             </span>
                           ) : empClock?.status === "out" ? (
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-800/60">
@@ -1769,7 +1809,7 @@ export default function KioskPage() {
 
                     {/* Right: Biometric Registration Status & Action Trigger */}
                     <div className="flex items-center space-x-2 shrink-0">
-                      {empClock?.status === "completed" ? (
+                      {isShiftCompleted ? (
                         <div className="flex flex-col items-end">
                           <Badge
                             variant="secondary"
@@ -1782,6 +1822,19 @@ export default function KioskPage() {
                             Locked Today
                           </span>
                         </div>
+                      ) : isClockedIn ? (
+                        <div className="flex flex-col items-end">
+                          <Badge
+                            variant="secondary"
+                            className="bg-sky-100 text-sky-800 dark:bg-sky-900/80 dark:text-sky-200 border-sky-300 dark:border-sky-700 text-[10px] font-bold flex items-center space-x-1 rounded-full px-2 py-0.5"
+                          >
+                            <Check className="h-3 w-3 text-sky-600" />
+                            <span>Clocked In</span>
+                          </Badge>
+                          <span className="text-[9px] text-sky-600 dark:text-sky-400 font-semibold mt-0.5">
+                            Tap to Check Out
+                          </span>
+                        </div>
                       ) : isEnrolled ? (
                         <div className="flex flex-col items-end">
                           <Badge
@@ -1792,7 +1845,7 @@ export default function KioskPage() {
                             <span>Registered</span>
                           </Badge>
                           <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">
-                            {empClock?.status === "in" ? "Tap to Check Out" : "Tap to Mark"}
+                            Tap to Mark
                           </span>
                         </div>
                       ) : (
@@ -1807,15 +1860,19 @@ export default function KioskPage() {
 
                       <div
                         className={`h-10 w-10 rounded-2xl flex items-center justify-center transition-colors shadow-xs ${
-                          empClock?.status === "completed"
+                          isShiftCompleted
                             ? "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                            : isClockedIn
+                            ? "bg-sky-100 text-sky-600 dark:bg-sky-900/60 dark:text-sky-300 group-hover:bg-sky-600 group-hover:text-white"
                             : isEnrolled
                             ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white"
                             : "bg-primary-100 text-primary-600 dark:bg-primary-900/60 dark:text-primary-300 group-hover:bg-primary-600 group-hover:text-white"
                         }`}
                       >
-                        {empClock?.status === "completed" ? (
+                        {isShiftCompleted ? (
                           <Lock className="h-5 w-5" />
+                        ) : isClockedIn ? (
+                          <LogOut className="h-5 w-5" />
                         ) : (
                           <Fingerprint className="h-5 w-5" />
                         )}

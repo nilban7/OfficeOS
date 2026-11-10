@@ -614,7 +614,7 @@ class KioskService:
             work_date=today,
             check_in_at=record.check_in_at,
             check_out_at=record.check_out_at,
-            punched_at=now.isoformat(),
+            punched_at=now.replace(microsecond=0).isoformat(),
             verification_method=record.verification_method or req.verification_method,
             face_snapshot_url=record.face_snapshot_url,
             department=dept_name,
@@ -849,10 +849,10 @@ class KioskService:
                 attendance_status = att.status
                 if att.check_in_at:
                     c_in = att.check_in_at if att.check_in_at.tzinfo else att.check_in_at.replace(tzinfo=UTC)
-                    check_in_time = c_in.isoformat()
+                    check_in_time = c_in.replace(microsecond=0).isoformat()
                 if att.check_out_at:
                     c_out = att.check_out_at if att.check_out_at.tzinfo else att.check_out_at.replace(tzinfo=UTC)
-                    check_out_time = c_out.isoformat()
+                    check_out_time = c_out.replace(microsecond=0).isoformat()
 
                 if att.check_in_at and att.check_out_at:
                     today_status = "completed"
