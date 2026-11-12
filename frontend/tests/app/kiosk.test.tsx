@@ -62,6 +62,30 @@ describe("KioskPage Component", () => {
     });
   });
 
+  it("rejects unauthorized arbitrary OS- code when backend returns invalid code error", async () => {
+    const user = userEvent.setup();
+    (apiClient.post as unknown as { mockRejectedValueOnce: (err: unknown) => void }).mockRejectedValueOnce(
+      new Error("Invalid or expired secret activation code. Please request a new code from the administrator.")
+    );
+
+    render(<KioskPage />);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("e.g. OS-7241-98")).toBeDefined();
+    });
+
+    const codeInput = screen.getByPlaceholderText("e.g. OS-7241-98");
+    await user.type(codeInput, "OS-9999-99");
+
+    const pairBtn = screen.getByRole("button", { name: /Pair.*Activate Tablet/i });
+    await user.click(pairBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Invalid or expired secret activation code/i)).toBeDefined();
+      expect(localStorage.getItem("officeos_kiosk_token")).toBeNull();
+    });
+  });
+
   it("renders standby terminal directly when token is already in localStorage", async () => {
     localStorage.setItem("officeos_kiosk_token", "saved-token-abc");
     localStorage.setItem("officeos_kiosk_org_name", "Cyberdyne Systems");

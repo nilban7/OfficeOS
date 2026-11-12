@@ -22,6 +22,7 @@ import {
   LogOut,
   Sliders,
   Check,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -151,46 +152,28 @@ export default function AdminKiosksManagementPage() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  // Generate Secret Pairing Code (Optimistic Instant Generation + Silent Background Sync)
+  // Generate Secret Pairing Code (Persisted strictly in backend database)
   const handleGenerateCode = async () => {
     setIsGenerating(true);
     setCopiedCode(false);
     setGenerateError(null);
 
-    // 1. Instantly generate human-friendly pairing code on frontend (0ms UI wait!)
-    const randomPart = `${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(10 + Math.random() * 90)}`;
-    const instantCode = `OS-${randomPart}`;
-
-    const optimisticRecord: KioskActivationCode = {
-      id: `local-${Date.now()}`,
-      organization_id: currentOrganization?.id || membership?.organizationId || "default",
-      code: instantCode,
-      is_used: false,
-      expires_at: new Date(Date.now() + expiresInHours * 3600 * 1000).toISOString(),
-      created_at: new Date().toISOString(),
-    };
-
-    // Immediately show code in modal without waiting for server response
-    setGeneratedCode(optimisticRecord);
-    setIsGenerating(false);
-
-    // 2. Silently sync this code with the backend database in the background
     try {
       const orgId = currentOrganization?.id || membership?.organizationId;
       const res = await apiClient.post<KioskActivationCode>(
         API_ENDPOINTS.admin.generateKioskCode,
         {
           expires_in_hours: expiresInHours,
-          custom_code: instantCode,
         },
         orgId ? { organizationId: orgId } : undefined
       );
       const data = (res as unknown as { data: KioskActivationCode })?.data || res;
       if (data) {
         const confirmedCode =
+          data.secret_code ||
           data.code ||
           (data as unknown as { secret_code?: string }).secret_code ||
-          instantCode;
+          "";
         setGeneratedCode({
           ...data,
           code: confirmedCode,
@@ -198,7 +181,12 @@ export default function AdminKiosksManagementPage() {
       }
       fetchData();
     } catch (err: unknown) {
-      console.warn("Notice: Code generated optimistically. Background sync will finish when cloud wakes:", err);
+      const msg =
+        (err as { message?: string })?.message ||
+        "Failed to generate activation code. Please check connection and try again.";
+      setGenerateError(msg);
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -814,9 +802,16 @@ export default function AdminKiosksManagementPage() {
                 <Button
                   onClick={handleGenerateCode}
                   disabled={isGenerating}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5"
                 >
-                  {isGenerating ? "Generating..." : "Generate Code"}
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Generating Secure Code...</span>
+                    </>
+                  ) : (
+                    <span>Generate Code</span>
+                  )}
                 </Button>
               </div>
             </div>

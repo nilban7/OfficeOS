@@ -24,6 +24,8 @@ export interface KioskActivationCode {
   organization_id: string;
   branch_id?: string | null;
   code: string;
+  secret_code?: string;
+  code_preview?: string;
   is_used: boolean;
   used_at?: string | null;
   expires_at: string;

@@ -76,6 +76,54 @@ async def test_activate_kiosk_device_invalid_code():
 
 
 @pytest.mark.asyncio
+async def test_activate_kiosk_device_unregistered_os_code_fails():
+    mock_session = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = None  # OS- code not in DB
+    mock_session.execute = AsyncMock(return_value=mock_result)
+
+    req = KioskDeviceActivateRequest(
+        secret_code="OS-9999-00",
+        device_identifier="tablet-hw-001",
+        device_name="Front Desk Tablet",
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await KioskService.activate_device(mock_session, req, client_ip="192.168.1.50")
+
+    assert exc_info.value.status_code == 400
+    assert "Invalid or expired secret activation code" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_activate_kiosk_device_demo_master_code():
+    mock_session = AsyncMock()
+    mock_code_res = MagicMock()
+    mock_code_res.scalar_one_or_none.return_value = None  # Not in DB
+
+    mock_emp_res = MagicMock()
+    mock_emp_res.scalar_one_or_none.return_value = uuid4()
+
+    mock_dev_res = MagicMock()
+    mock_dev_res.scalar_one_or_none.return_value = None
+
+    mock_org_res = MagicMock()
+    mock_org_res.scalar_one_or_none.return_value = "Demo Org"
+
+    mock_session.execute = AsyncMock(side_effect=[mock_code_res, mock_emp_res, mock_dev_res, mock_org_res, MagicMock()])
+
+    req = KioskDeviceActivateRequest(
+        secret_code="DEMO-2026",
+        device_identifier="tablet-demo-001",
+        device_name="Demo Tablet",
+    )
+
+    device, token, org_name, _ = await KioskService.activate_device(mock_session, req)
+    assert token.startswith("kiosk_")
+    assert device.is_activated is True
+
+
+@pytest.mark.asyncio
 async def test_activate_kiosk_device_success():
     mock_session = AsyncMock()
     mock_code = MagicMock()
