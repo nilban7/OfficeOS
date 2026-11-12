@@ -64,34 +64,46 @@ export function AdminHeader({ title, description, badgeText, children }: AdminHe
         {children && <div className="flex items-center gap-3">{children}</div>}
       </div>
 
-      {/* Admin Navigation Tabs */}
-      <div className="border-b border-slate-200 dark:border-slate-800">
-        <nav className="flex space-x-1 sm:space-x-4 overflow-x-auto py-1 scrollbar-none" aria-label="Admin Tabs">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive =
-              item.href === "/admin"
-                ? pathname === "/admin"
-                : pathname.startsWith(item.href);
+      {/* Admin Navigation Blocks (No Horizontal Scroll, Fixed Grid Display) */}
+      <nav
+        className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2 p-1.5 bg-slate-100/80 dark:bg-slate-900/60 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm"
+        aria-label="Admin Navigation Blocks"
+      >
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const isActive =
+            item.href === "/admin"
+              ? pathname === "/admin"
+              : pathname.startsWith(item.href);
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "group relative flex items-center justify-center gap-2 px-2.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 select-none text-center",
+                isActive
+                  ? "bg-white text-slate-900 dark:bg-slate-800 dark:text-white shadow-sm ring-1 ring-slate-900/5 dark:ring-white/10"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60"
+              )}
+            >
+              <div
                 className={cn(
-                  "flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors",
+                  "p-1 rounded-md transition-colors shrink-0",
                   isActive
-                    ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-sm"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800"
+                    ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+                    : "bg-slate-200/60 dark:bg-slate-800 text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300"
                 )}
               >
-                <Icon className="h-4 w-4" />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
+                <Icon className="h-3.5 w-3.5" />
+              </div>
+              <span className="truncate tracking-tight font-medium">
+                {item.label}
+              </span>
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }
