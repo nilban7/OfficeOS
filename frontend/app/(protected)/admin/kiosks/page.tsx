@@ -217,13 +217,18 @@ export default function AdminKiosksManagementPage() {
         .map((s) => s.trim())
         .filter(Boolean);
 
-      await apiClient.put(API_ENDPOINTS.admin.kioskDetail(editingKiosk.id), {
-        name: editName.trim() || editingKiosk.name,
-        device_name: editName.trim() || editingKiosk.name,
-        allowed_ip_range: editIpRestrictions.trim() || null,
-        ip_restrictions: ipList,
-        allowed_modes: editAllowedModes,
-      });
+      const orgId = currentOrganization?.id || membership?.organizationId;
+      await apiClient.patch(
+        API_ENDPOINTS.admin.kioskDetail(editingKiosk.id),
+        {
+          name: editName.trim() || editingKiosk.name,
+          device_name: editName.trim() || editingKiosk.name,
+          allowed_ip_range: editIpRestrictions.trim() || null,
+          ip_restrictions: ipList,
+          allowed_modes: editAllowedModes,
+        },
+        orgId ? { organizationId: orgId } : undefined
+      );
 
       setEditingKiosk(null);
       fetchData();
@@ -242,7 +247,11 @@ export default function AdminKiosksManagementPage() {
     if (!confirmDelete) return;
 
     try {
-      await apiClient.delete(API_ENDPOINTS.admin.kioskDetail(kiosk.id));
+      const orgId = currentOrganization?.id || membership?.organizationId;
+      await apiClient.delete(
+        API_ENDPOINTS.admin.kioskDetail(kiosk.id),
+        orgId ? { organizationId: orgId } : undefined
+      );
       fetchData();
     } catch (err: unknown) {
       alert((err as { message?: string })?.message || "Failed to delete kiosk");
