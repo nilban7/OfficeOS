@@ -219,6 +219,8 @@ export default function AdminKiosksManagementPage() {
 
       await apiClient.put(API_ENDPOINTS.admin.kioskDetail(editingKiosk.id), {
         name: editName.trim() || editingKiosk.name,
+        device_name: editName.trim() || editingKiosk.name,
+        allowed_ip_range: editIpRestrictions.trim() || null,
         ip_restrictions: ipList,
         allowed_modes: editAllowedModes,
       });
