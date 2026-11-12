@@ -42,9 +42,12 @@ class KioskService:
         created_by_id: uuid.UUID,
         req: KioskActivationCodeCreate,
     ) -> KioskActivationCodeResponse:
-        # Generate human-friendly code: e.g. OS-7429-81
-        random_part = f"{secrets.randbelow(8999) + 1000}-{secrets.randbelow(89) + 10}"
-        raw_code = f"OS-{random_part}"
+        # Generate human-friendly code: e.g. OS-7429-81 (or use optimistic custom_code from frontend)
+        if req.custom_code and req.custom_code.strip():
+            raw_code = req.custom_code.strip().upper()
+        else:
+            random_part = f"{secrets.randbelow(8999) + 1000}-{secrets.randbelow(89) + 10}"
+            raw_code = f"OS-{random_part}"
         code_hash = cls._hash_value(raw_code.upper())
         expires_at = datetime.now(UTC) + timedelta(hours=req.valid_hours)
 

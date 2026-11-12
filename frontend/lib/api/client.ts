@@ -66,6 +66,10 @@ export class ApiClient {
       window.location.hostname !== "localhost" &&
       window.location.hostname !== "127.0.0.1"
     ) {
+      if (window.location.hostname.includes("vercel.app") && this.baseUrl.includes("localhost")) {
+        return "https://officeos-rwls.onrender.com/api/v1";
+      }
+
       // Only swap localhost with client hostname if accessing via a private LAN IP
       const isLanIp = /^(?:192\.168\.|10\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(window.location.hostname);
       if (isLanIp) {

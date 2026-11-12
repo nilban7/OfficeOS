@@ -40,6 +40,22 @@ async def test_generate_kiosk_activation_code():
 
 
 @pytest.mark.asyncio
+async def test_generate_kiosk_activation_code_custom():
+    mock_session = AsyncMock()
+    org_id = uuid4()
+    user_id = uuid4()
+    req = KioskActivationCodeCreate(valid_hours=24, custom_code="OS-8899-22")
+
+    res = await KioskService.generate_activation_code(mock_session, org_id, user_id, req)
+
+    assert res.secret_code == "OS-8899-22"
+    assert res.code_preview == "OS-****-22"
+    assert res.is_used is False
+    assert mock_session.add.called
+    assert mock_session.commit.called
+
+
+@pytest.mark.asyncio
 async def test_activate_kiosk_device_invalid_code():
     mock_session = AsyncMock()
     mock_result = MagicMock()
