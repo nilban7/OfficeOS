@@ -58,6 +58,14 @@ async def set_transaction_context(session: AsyncSession, user_id: str, organizat
         text("SELECT set_config('app.organization_id', :organization_id, true)"),
         {"organization_id": organization_id},
     )
+    await session.execute(
+        text("SELECT set_config('app.current_user_id', :user_id, true)"),
+        {"user_id": user_id},
+    )
+    await session.execute(
+        text("SELECT set_config('app.current_organization_id', :organization_id, true)"),
+        {"organization_id": organization_id},
+    )
 
 
 async def set_user_context(session: AsyncSession, user_id: str) -> None:
@@ -65,5 +73,9 @@ async def set_user_context(session: AsyncSession, user_id: str) -> None:
     await session.execute(text("SET LOCAL ROLE authenticated"))
     await session.execute(
         text("SELECT set_config('app.user_id', :user_id, true)"),
+        {"user_id": user_id},
+    )
+    await session.execute(
+        text("SELECT set_config('app.current_user_id', :user_id, true)"),
         {"user_id": user_id},
     )
