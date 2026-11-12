@@ -83,6 +83,11 @@ async def list_kiosk_activation_codes(
     response_model=ApiSuccess[KioskDeviceResponse],
     summary="Update kiosk device policies, verification modes, IP range, or name",
 )
+@router.put(
+    "/{kiosk_id}",
+    response_model=ApiSuccess[KioskDeviceResponse],
+    summary="Update kiosk device policies, verification modes, IP range, or name",
+)
 async def update_kiosk_device(
     kiosk_id: UUID,
     req: KioskDeviceUpdateRequest,
