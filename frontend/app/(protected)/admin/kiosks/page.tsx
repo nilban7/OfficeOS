@@ -176,12 +176,14 @@ export default function AdminKiosksManagementPage() {
 
     // 2. Silently sync this code with the backend database in the background
     try {
+      const orgId = currentOrganization?.id || membership?.organizationId;
       const res = await apiClient.post<KioskActivationCode>(
         API_ENDPOINTS.admin.generateKioskCode,
         {
           expires_in_hours: expiresInHours,
           custom_code: instantCode,
-        }
+        },
+        orgId ? { organizationId: orgId } : undefined
       );
       const data = (res as unknown as { data: KioskActivationCode })?.data || res;
       if (data) {

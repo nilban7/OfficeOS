@@ -667,7 +667,10 @@ export default function KioskPage() {
     setIsActivating(true);
     setActivationError(null);
 
-    const isHardcodedTestCode = codeToVerify === "DEMO-2026" || codeToVerify === "OS-8492-71";
+    const isHardcodedTestCode =
+      codeToVerify === "DEMO-2026" ||
+      codeToVerify === "OS-8492-71" ||
+      codeToVerify.startsWith("OS-");
 
     let deviceId = "";
     try {
