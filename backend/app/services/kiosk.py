@@ -778,7 +778,12 @@ class KioskService:
             .outerjoin(KioskDevice, AttendanceRecord.kiosk_device_id == KioskDevice.id)
             .where(
                 AttendanceRecord.organization_id == org_id,
-                AttendanceRecord.kiosk_device_id.is_not(None),
+                or_(
+                    AttendanceRecord.kiosk_device_id.is_not(None),
+                    AttendanceRecord.verification_method.in_(
+                        ["fingerprint", "face", "qr", "pin", "kiosk_face", "kiosk_pin", "kiosk_fingerprint"]
+                    ),
+                ),
             )
             .order_by(desc(AttendanceRecord.created_at))
             .limit(limit)
@@ -789,22 +794,87 @@ class KioskService:
         results: list[KioskPunchAuditItem] = []
         for att, emp, dev in rows:
             emp_name = f"{emp.first_name} {emp.last_name}".strip()
-            results.append(
-                KioskPunchAuditItem(
-                    id=att.id,
-                    employee_id=emp.id,
-                    employee_name=emp_name,
-                    employee_code=emp.employee_code,
-                    work_date=att.work_date,
-                    check_in_at=att.check_in_at,
-                    check_out_at=att.check_out_at,
-                    verification_method=att.verification_method,
-                    face_snapshot_url=att.face_snapshot_url,
-                    client_ip=att.client_ip,
-                    device_name=dev.device_name if dev else "Unassigned Kiosk",
+            dev_name = dev.device_name if dev else "Lobby Kiosk Terminal"
+
+            # 1. If check-out exists, emit distinct Check-Out punch event
+            if att.check_out_at:
+                results.append(
+                    KioskPunchAuditItem(
+                        id=uuid.uuid5(att.id, "checkout"),
+                        employee_id=emp.id,
+                        employee_name=emp_name,
+                        employee_code=emp.employee_code,
+                        work_date=att.work_date,
+                        punch_type="out",
+                        timestamp=att.check_out_at,
+                        check_in_at=att.check_in_at,
+                        check_out_at=att.check_out_at,
+                        verification_method=att.verification_method or "kiosk",
+                        face_snapshot_url=att.face_snapshot_url,
+                        client_ip=att.client_ip,
+                        device_name=dev_name,
+                        kiosk_device_id=att.kiosk_device_id,
+                        kiosk_device_name=dev_name,
+                        created_at=att.created_at,
+                    )
                 )
-            )
-        return results
+
+            # 2. If check-in exists, emit distinct Check-In punch event
+            if att.check_in_at:
+                results.append(
+                    KioskPunchAuditItem(
+                        id=att.id,
+                        employee_id=emp.id,
+                        employee_name=emp_name,
+                        employee_code=emp.employee_code,
+                        work_date=att.work_date,
+                        punch_type="in",
+                        timestamp=att.check_in_at,
+                        check_in_at=att.check_in_at,
+                        check_out_at=att.check_out_at,
+                        verification_method=att.verification_method or "kiosk",
+                        face_snapshot_url=att.face_snapshot_url,
+                        client_ip=att.client_ip,
+                        device_name=dev_name,
+                        kiosk_device_id=att.kiosk_device_id,
+                        kiosk_device_name=dev_name,
+                        created_at=att.created_at,
+                    )
+                )
+
+            # 3. Fallback if neither timestamp is set
+            if not att.check_in_at and not att.check_out_at:
+                results.append(
+                    KioskPunchAuditItem(
+                        id=att.id,
+                        employee_id=emp.id,
+                        employee_name=emp_name,
+                        employee_code=emp.employee_code,
+                        work_date=att.work_date,
+                        punch_type="in",
+                        timestamp=att.created_at,
+                        check_in_at=att.check_in_at,
+                        check_out_at=att.check_out_at,
+                        verification_method=att.verification_method or "kiosk",
+                        face_snapshot_url=att.face_snapshot_url,
+                        client_ip=att.client_ip,
+                        device_name=dev_name,
+                        kiosk_device_id=att.kiosk_device_id,
+                        kiosk_device_name=dev_name,
+                        created_at=att.created_at,
+                    )
+                )
+
+        def get_sort_key(item: KioskPunchAuditItem) -> datetime:
+            t = item.timestamp or item.created_at
+            if t is None:
+                return datetime.min.replace(tzinfo=UTC)
+            if t.tzinfo is None:
+                return t.replace(tzinfo=UTC)
+            return t
+
+        results.sort(key=get_sort_key, reverse=True)
+        return results[:limit]
 
     @classmethod
     async def get_kiosk_employees_status(
