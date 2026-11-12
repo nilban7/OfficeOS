@@ -145,9 +145,12 @@ class KioskExitPinVerifyRequest(BaseModel):
 
 class KioskDeviceUpdateRequest(BaseModel):
     device_name: str | None = None
+    name: str | None = None
     branch_id: UUID | None = None
     allowed_ip_range: str | None = None
+    ip_restrictions: list[str] | None = None
     verification_modes: dict[str, Any] | None = None
+    allowed_modes: list[str] | None = None
     ip_tracking_enabled: bool | None = None
     is_active: bool | None = None
     exit_pin: str | None = None

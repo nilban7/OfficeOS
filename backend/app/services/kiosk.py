@@ -700,13 +700,21 @@ class KioskService:
         if not device:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Kiosk device not found.")
 
-        if req.device_name is not None:
-            device.device_name = req.device_name
+        dev_name = req.device_name or req.name
+        if dev_name is not None:
+            device.device_name = dev_name
         if req.branch_id is not None:
             device.branch_id = req.branch_id
+
         if req.allowed_ip_range is not None:
             device.allowed_ip_range = req.allowed_ip_range
-        if req.verification_modes is not None:
+        elif req.ip_restrictions is not None:
+            device.allowed_ip_range = ", ".join(req.ip_restrictions) if req.ip_restrictions else None
+
+        if req.allowed_modes is not None:
+            modes_dict = {m: True for m in req.allowed_modes}
+            device.verification_modes = modes_dict
+        elif req.verification_modes is not None:
             device.verification_modes = req.verification_modes
         if req.ip_tracking_enabled is not None:
             device.ip_tracking_enabled = req.ip_tracking_enabled
