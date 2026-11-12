@@ -1,4 +1,5 @@
 import hashlib
+import inspect
 import ipaddress
 import secrets
 import uuid
@@ -11,7 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.attendance import AttendanceRecord
 from app.models.employee import Department, Employee
-from app.models.identity import Branch, Organization
+from app.models.identity import Branch, Organization, Profile
 from app.models.kiosk import EmployeeBiometric, KioskActivationCode, KioskDevice
 from app.schemas.kiosk import (
     KioskActivationCodeCreate,
@@ -51,6 +52,19 @@ class KioskService:
         code_hash = cls._hash_value(raw_code.upper())
         expires_at = datetime.now(UTC) + timedelta(hours=req.valid_hours)
 
+        # Verify created_by profile exists before assigning to avoid ForeignKeyViolation
+        valid_creator_id = None
+        if created_by_id:
+            try:
+                profile_res = await db.execute(select(Profile.id).where(Profile.id == created_by_id))
+                val = profile_res.scalar_one_or_none()
+                if inspect.isawaitable(val):
+                    val = await val
+                if val:
+                    valid_creator_id = created_by_id
+            except Exception:
+                valid_creator_id = None
+
         now = datetime.now(UTC)
         record = KioskActivationCode(
             id=uuid.uuid4(),
@@ -58,7 +72,7 @@ class KioskService:
             branch_id=req.branch_id,
             code_hash=code_hash,
             code_preview=f"OS-****-{raw_code[-2:]}",
-            created_by_id=created_by_id,
+            created_by_id=valid_creator_id,
             expires_at=expires_at,
             is_used=False,
             created_at=now,

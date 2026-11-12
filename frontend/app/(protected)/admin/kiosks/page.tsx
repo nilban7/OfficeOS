@@ -163,6 +163,7 @@ export default function AdminKiosksManagementPage() {
       const res = await apiClient.post<KioskActivationCode>(
         API_ENDPOINTS.admin.generateKioskCode,
         {
+          valid_hours: expiresInHours,
           expires_in_hours: expiresInHours,
         },
         orgId ? { organizationId: orgId } : undefined
