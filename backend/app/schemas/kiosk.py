@@ -16,6 +16,7 @@ class KioskVerificationModes(BaseModel):
 class KioskActivationCodeCreate(BaseModel):
     branch_id: UUID | None = None
     valid_hours: int = Field(default=24, ge=1, le=168)
+    custom_code: str | None = Field(default=None, max_length=32)
 
 
 class KioskActivationCodeResponse(BaseModel):
