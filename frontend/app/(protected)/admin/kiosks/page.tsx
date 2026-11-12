@@ -134,6 +134,10 @@ export default function AdminKiosksManagementPage() {
                 p.timestamp ||
                 (p as unknown as { created_at?: string }).created_at ||
                 new Date().toISOString(),
+              kiosk_device_name:
+                p.kiosk_device_name ||
+                (p as unknown as { device_name?: string }).device_name ||
+                "Lobby Terminal",
             }))
           : [];
         setPunches(normalized);

@@ -471,3 +471,64 @@ async def test_kiosk_punch_full_day_classification():
     assert res.success is True
     assert record.status == "present"
     assert "Shift completed" in res.message
+
+
+@pytest.mark.asyncio
+async def test_list_kiosk_punches_emits_discrete_events():
+    mock_session = AsyncMock()
+    org_id = uuid4()
+    emp_id = uuid4()
+    device_id = uuid4()
+
+    att = MagicMock()
+    att.id = uuid4()
+    att.organization_id = org_id
+    att.employee_id = emp_id
+    att.kiosk_device_id = device_id
+    att.work_date = datetime.now(timezone.utc).date()
+    now = datetime.now(timezone.utc)
+    att.check_in_at = now - timedelta(hours=8)
+    att.check_out_at = now
+    att.verification_method = "kiosk_face"
+    att.face_snapshot_url = "https://example.com/snapshot.jpg"
+    att.client_ip = "103.214.138.90"
+    att.created_at = now - timedelta(hours=8)
+
+    emp = MagicMock()
+    emp.id = emp_id
+    emp.first_name = "Niladri"
+    emp.last_name = "Banerjee"
+    emp.employee_code = "EMP-NIL-001"
+
+    dev = MagicMock()
+    dev.id = device_id
+    dev.device_name = "Front Desk Terminal"
+
+    mock_res = MagicMock()
+    mock_res.all.return_value = [(att, emp, dev)]
+    mock_session.execute = AsyncMock(return_value=mock_res)
+
+    results = await KioskService.list_kiosk_punches(mock_session, org_id, limit=50)
+
+    # Should emit two distinct events: Check-Out and Check-In
+    assert len(results) == 2
+
+    # Check-Out event (latest)
+    out_event = results[0]
+    assert out_event.punch_type == "out"
+    assert out_event.timestamp == att.check_out_at
+    assert out_event.employee_name == "Niladri Banerjee"
+    assert out_event.employee_code == "EMP-NIL-001"
+    assert out_event.kiosk_device_name == "Front Desk Terminal"
+    assert out_event.client_ip == "103.214.138.90"
+    assert out_event.face_snapshot_url == "https://example.com/snapshot.jpg"
+
+    # Check-In event
+    in_event = results[1]
+    assert in_event.punch_type == "in"
+    assert in_event.timestamp == att.check_in_at
+    assert in_event.employee_name == "Niladri Banerjee"
+    assert in_event.employee_code == "EMP-NIL-001"
+    assert in_event.kiosk_device_name == "Front Desk Terminal"
+    assert in_event.client_ip == "103.214.138.90"
+

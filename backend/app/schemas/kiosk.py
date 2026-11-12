@@ -161,13 +161,18 @@ class KioskPunchAuditItem(BaseModel):
     employee_id: UUID
     employee_name: str
     employee_code: str
-    work_date: date
+    work_date: date | None = None
+    punch_type: str = "in"
+    timestamp: datetime | None = None
     check_in_at: datetime | None = None
     check_out_at: datetime | None = None
-    verification_method: str
+    verification_method: str = "kiosk"
     face_snapshot_url: str | None = None
     client_ip: str | None = None
     device_name: str | None = None
+    kiosk_device_id: UUID | None = None
+    kiosk_device_name: str | None = None
+    created_at: datetime | None = None
 
 
 class KioskEmployeeStatusItem(BaseModel):
