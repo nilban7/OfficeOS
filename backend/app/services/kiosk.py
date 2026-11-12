@@ -160,10 +160,8 @@ class KioskService:
         if activation_code:
             org_id = activation_code.organization_id
             branch_id = activation_code.branch_id
-        elif raw_code in ("DEMO-2026", "TEST-2026", "OFFICE-2026", "888888", "999999") or (
-            raw_code.startswith("OS-") and len(raw_code) >= 8 and any(c.isdigit() for c in raw_code)
-        ):
-            # Built-in master code or standard frontend-generated OS- format code:
+        elif raw_code in ("DEMO-2026", "TEST-2026", "OFFICE-2026"):
+            # Master demo code reserved for automated testing and demo environments:
             is_test_code = True
             # Find organization containing EMP-NIL-% (Niladri's org)
             emp_org_res = await db.execute(
