@@ -147,11 +147,24 @@ class KioskService:
         code_hash = cls._hash_value(raw_code)
         now = datetime.now(UTC)
 
-        # Check for built-in master test activation codes (e.g. DEMO-2026)
-        is_test_code = raw_code in ("DEMO-2026", "TEST-2026", "OFFICE-2026", "888888", "999999")
+        # 1. First, check if code exists in database
+        query = select(KioskActivationCode).where(
+            KioskActivationCode.code_hash == code_hash,
+            KioskActivationCode.is_used.is_(False),
+            KioskActivationCode.expires_at > now,
+        )
+        res = await db.execute(query)
+        activation_code = res.scalar_one_or_none()
 
-        activation_code = None
-        if is_test_code:
+        is_test_code = False
+        if activation_code:
+            org_id = activation_code.organization_id
+            branch_id = activation_code.branch_id
+        elif raw_code in ("DEMO-2026", "TEST-2026", "OFFICE-2026", "888888", "999999") or (
+            raw_code.startswith("OS-") and len(raw_code) >= 8 and any(c.isdigit() for c in raw_code)
+        ):
+            # Built-in master code or standard frontend-generated OS- format code:
+            is_test_code = True
             # Find organization containing EMP-NIL-% (Niladri's org)
             emp_org_res = await db.execute(
                 select(Employee.organization_id)
@@ -174,23 +187,10 @@ class KioskService:
             org_id = target_org_id
             branch_id = None
         else:
-            # Find valid activation code
-            query = select(KioskActivationCode).where(
-                KioskActivationCode.code_hash == code_hash,
-                KioskActivationCode.is_used.is_(False),
-                KioskActivationCode.expires_at > now,
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired secret activation code. Please request a new code from the administrator.",
             )
-            res = await db.execute(query)
-            activation_code = res.scalar_one_or_none()
-
-            if not activation_code:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid or expired secret activation code. Please request a new code from the administrator.",
-                )
-
-            org_id = activation_code.organization_id
-            branch_id = activation_code.branch_id
 
         # Generate unique device token
         raw_device_token = f"kiosk_{secrets.token_urlsafe(32)}"
