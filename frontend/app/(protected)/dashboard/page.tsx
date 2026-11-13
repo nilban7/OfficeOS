@@ -152,13 +152,13 @@ export default function DashboardPage() {
   }, [currentOrganization?.id]);
 
   const greetingName = React.useMemo(() => {
-    if (user?.firstName) return user.firstName;
-    if (user?.fullName && user.fullName.toLowerCase() !== "officeos") return user.fullName;
-    const prefix = user?.email?.split("@")[0] || "";
-    if (prefix.toLowerCase() === "officeos" || prefix.toLowerCase().includes("niladri") || prefix.toLowerCase().includes("nilban")) {
-      return "Niladri";
+    if (user?.fullName && !["officeos", "osoffice", "niladri banerjee"].includes(user.fullName.toLowerCase())) {
+      return user.fullName;
     }
-    return prefix ? prefix.charAt(0).toUpperCase() + prefix.slice(1) : "Leader";
+    if (user?.firstName && !["niladri"].includes(user.firstName.toLowerCase())) {
+      return user.firstName;
+    }
+    return "OsOffice";
   }, [user]);
 
   const todayFormatted = React.useMemo(() => {
@@ -361,7 +361,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary-50 dark:bg-primary-950/70 text-primary-700 dark:text-primary-300 border border-primary-200/60 dark:border-primary-800/80 shadow-2xs">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>{currentOrganization?.name || "Niladri Organization Workflow"}</span>
+              <span>{currentOrganization?.name || "OsOffice Organization Workflow"}</span>
             </span>
             <span className="text-slate-300 dark:text-slate-700">•</span>
             <span className="text-[11px] font-medium text-slate-400 dark:text-slate-400">
@@ -371,7 +371,7 @@ export default function DashboardPage() {
 
           {/* Minimalist Branded Title */}
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Welcome back,{" "}
+            Welcome back to{" "}
             <span className="bg-gradient-to-r from-primary-600 via-indigo-600 to-indigo-700 dark:from-primary-400 dark:via-indigo-400 dark:to-indigo-300 bg-clip-text text-transparent">
               {greetingName}
             </span>

@@ -12,7 +12,7 @@ export default function LoginPage() {
             <Building2 className="h-6 w-6" />
           </div>
           <div className="text-left">
-            <span className="font-bold text-2xl text-slate-900 tracking-tight block leading-tight">OfficeOS</span>
+            <span className="font-bold text-2xl text-slate-900 tracking-tight block leading-tight">OsOffice</span>
             <span className="text-[10px] text-primary-600 font-semibold uppercase tracking-wider block">Enterprise Workspace</span>
           </div>
         </Link>

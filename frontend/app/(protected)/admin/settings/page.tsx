@@ -48,7 +48,7 @@ export default function SaaSAdminSettingsPage() {
       const res = await apiClient.get<PlatformConfiguration>(API_ENDPOINTS.admin.config);
       const data = (res as any)?.data || res;
       setConfig(data);
-      setPlatformName(data.platform_name || "OfficeOS");
+      setPlatformName(data.platform_name || "OsOffice");
       setSupportEmail(data.support_email || "");
       setMaintenanceMode(data.maintenance_mode || false);
       setDomainsInput((data.allowed_signup_domains || []).join(", "));

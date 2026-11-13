@@ -12,7 +12,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "OfficeOS — Multi-Tenant Office Management System",
+  title: "OsOffice — Multi-Tenant Office Management System",
   description: "Enterprise SaaS platform for organizations, HR, operations, and finance management.",
   icons: {
     icon: "/icon.svg",

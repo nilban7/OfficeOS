@@ -210,7 +210,7 @@ export default function AISettingsPage() {
               <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200 bg-slate-50/50">
                 <div className="space-y-0.5">
                   <div className="text-xs font-semibold text-slate-900">Enable AI Assistant</div>
-                  <div className="text-xs text-slate-500">Allow authorized staff members to interact with OfficeOS Assistant</div>
+                  <div className="text-xs text-slate-500">Allow authorized staff members to interact with OsOffice Assistant</div>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input

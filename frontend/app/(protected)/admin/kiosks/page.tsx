@@ -101,7 +101,7 @@ export default function AdminKiosksManagementPage() {
         const normalized = Array.isArray(raw)
           ? raw.map((k) => ({
               ...k,
-              name: k.name || (k as unknown as { device_name?: string }).device_name || "OfficeOS Kiosk",
+              name: k.name || (k as unknown as { device_name?: string }).device_name || "OsOffice Kiosk",
               ip_address: k.ip_address || (k as unknown as { last_known_ip?: string }).last_known_ip,
               allowed_modes: k.allowed_modes || ["pin", "face", "qr", "fingerprint"],
             }))

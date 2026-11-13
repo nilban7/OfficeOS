@@ -41,7 +41,7 @@ export default function HomePage() {
               <Building2 className="h-5 w-5" />
             </div>
             <div className="flex items-center">
-              <span className="font-bold text-lg sm:text-xl text-slate-900 tracking-tight">OfficeOS</span>
+              <span className="font-bold text-lg sm:text-xl text-slate-900 tracking-tight">OsOffice</span>
               <span className="ml-2 rounded bg-primary-100 px-1.5 py-0.5 text-[10px] font-semibold text-primary-700 uppercase tracking-wider">
                 SaaS
               </span>
@@ -189,7 +189,7 @@ export default function HomePage() {
       {/* Footer */}
       <footer className="border-t border-slate-200 bg-white py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-3 text-center sm:text-left">
-          <p>© {new Date().getFullYear()} OfficeOS. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} OsOffice. All rights reserved.</p>
           <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4">
             <span>Next.js App Router</span>
             <span>•</span>

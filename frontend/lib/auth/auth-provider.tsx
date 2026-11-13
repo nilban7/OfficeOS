@@ -66,15 +66,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (isMounted && profile) {
           setUser((prev) => {
             if (!prev) return prev;
-            const fullName =
+            let fullName =
               profile.first_name || profile.last_name
                 ? [profile.first_name, profile.last_name].filter(Boolean).join(" ")
                 : prev.fullName;
 
+            if (fullName?.toLowerCase().includes("niladri") || prev.email === "officeos@gmail.com") {
+              fullName = "OsOffice";
+            }
+
             return {
               ...prev,
-              firstName: profile.first_name || undefined,
-              lastName: profile.last_name || undefined,
+              firstName: fullName === "OsOffice" ? "OsOffice" : (profile.first_name || undefined),
+              lastName: fullName === "OsOffice" ? "" : (profile.last_name || undefined),
               fullName: fullName || prev.fullName,
               email: profile.email || prev.email,
             };
@@ -104,6 +108,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           try {
             const parsed = JSON.parse(storedDev);
             if (parsed && parsed.accessToken && parsed.user) {
+              if (
+                parsed.user.fullName?.toLowerCase().includes("niladri") ||
+                parsed.user.firstName?.toLowerCase().includes("niladri") ||
+                parsed.user.email === "officeos@gmail.com"
+              ) {
+                parsed.user.fullName = "OsOffice";
+                parsed.user.firstName = "OsOffice";
+                parsed.user.lastName = "";
+                localStorage.setItem("officeos_dev_session", JSON.stringify(parsed));
+              }
               if (isMounted) {
                 setSession(parsed);
                 setUser(parsed.user);
@@ -167,9 +181,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const devUser: AuthUser = {
         id: "00000000-0000-0000-0000-000000000001",
         email: "officeos@gmail.com",
-        fullName: "Niladri Banerjee",
-        firstName: "Niladri",
-        lastName: "Banerjee",
+        fullName: "OsOffice",
+        firstName: "OsOffice",
+        lastName: "",
         createdAt: "2026-01-01T00:00:00Z",
       };
       const devSession: AuthSession = {

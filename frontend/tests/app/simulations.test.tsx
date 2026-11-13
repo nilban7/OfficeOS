@@ -98,7 +98,7 @@ describe("SimulationsPage Component", () => {
     render(<SimulationsPage />);
 
     expect(
-      screen.getByText("OfficeOS — What If? Simulator")
+      screen.getByText("OsOffice — What If? Simulator")
     ).toBeInTheDocument();
 
     await waitFor(() => {

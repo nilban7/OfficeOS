@@ -359,6 +359,12 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         if (cachedOrgStr) {
           const parsedOrg = JSON.parse(cachedOrgStr);
           if (parsedOrg && parsedOrg.id) {
+            if (parsedOrg.name && parsedOrg.name.includes("Niladri")) {
+              parsedOrg.name = parsedOrg.name.replace(/Niladri/g, "OsOffice");
+            }
+            if (parsedOrg.name && parsedOrg.name.includes("OfficeOS")) {
+              parsedOrg.name = parsedOrg.name.replace(/OfficeOS/g, "OsOffice");
+            }
             initialOrg = parsedOrg;
             setCurrentOrganization(parsedOrg);
             setOrganizations([parsedOrg]);

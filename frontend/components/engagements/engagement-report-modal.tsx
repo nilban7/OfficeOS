@@ -26,7 +26,7 @@ export function EngagementReportModal({
   isOpen,
   onClose,
   reportType,
-  organizationName = "OfficeOS Enterprise",
+  organizationName = "OsOffice Enterprise",
   engagementTitle = "Client Engagement",
   clientName = "Client Organization",
   data,
@@ -76,7 +76,7 @@ export function EngagementReportModal({
       <html lang="en">
         <head>
           <meta charset="utf-8" />
-          <title>${docTitle} — OfficeOS</title>
+          <title>${docTitle} — OsOffice</title>
           ${styles}
           <style>
             @page {
@@ -174,7 +174,7 @@ ${data.scope_of_work || "Commercial scope of deliverables and project milestones
 ## Client Acceptance
 **Status**: ${data.status === "accepted" ? `Accepted by ${clientName}${data.accepted_at ? ` on ${new Date(data.accepted_at).toLocaleDateString()}` : ""}` : "Pending Client Review & Formal Signoff"}
 
-*Generated securely by OfficeOS Enterprise SaaS Platform.*
+*Generated securely by OsOffice Enterprise SaaS Platform.*
 `;
     } else if (reportType === "agreement") {
       filename = `${data.agreement_number || "Agreement"}_Executed_Report.md`;
@@ -208,7 +208,7 @@ ${(data.signatures || [])
   )
   .join("\n")}
 
-*Generated securely by OfficeOS Enterprise SaaS Platform.*
+*Generated securely by OsOffice Enterprise SaaS Platform.*
 `;
     } else if (reportType === "handover") {
       filename = `${data.handover_number || "Handover"}_Certificate.md`;
@@ -234,7 +234,7 @@ ${(data.signatures || [])
 - **SLA Tier**: ${data.sla_tier || "Tier 1 - Standard SLA"}
 - **Delivery Notes**: ${data.notes || "Final handover completed with all requirements verified."}
 
-*Generated securely by OfficeOS Enterprise SaaS Platform.*
+*Generated securely by OsOffice Enterprise SaaS Platform.*
 `;
     } else if (reportType === "weekly_report") {
       filename = `${data.report_number || "Weekly_Report"}.md`;
@@ -265,7 +265,7 @@ ${(data.next_week_plans || ["Continuing active sprint execution."]).map((p: stri
 ## Risks, Blockers & Mitigations
 ${(data.risks_and_blockers || ["No critical delivery blockers."]).map((r: string) => `- ${r}`).join("\n")}
 
-*Generated securely by OfficeOS Enterprise SaaS Platform.*
+*Generated securely by OsOffice Enterprise SaaS Platform.*
 `;
     } else if (reportType === "uat_session") {
       filename = `UAT_${data.build_version || "Test_Run"}_Report.md`;
@@ -292,7 +292,7 @@ ${(data.test_cases || [])
   )
   .join("\n")}
 
-*Generated securely by OfficeOS Enterprise SaaS Platform.*
+*Generated securely by OsOffice Enterprise SaaS Platform.*
 `;
     }
 
@@ -709,7 +709,7 @@ ${(data.test_cases || [])
 
         {/* Document Footer */}
         <div className="pt-6 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between text-[11px] text-slate-400 gap-2">
-          <div>OfficeOS Enterprise Cloud • Certified Commercial Lifecycle Record</div>
+          <div>OsOffice Enterprise Cloud • Certified Commercial Lifecycle Record</div>
           <div className="font-mono">Security Hash Verified • Tamper-Evident Audit Trail</div>
         </div>
       </div>

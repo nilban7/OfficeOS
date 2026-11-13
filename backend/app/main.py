@@ -39,7 +39,7 @@ async def root_health():
 @app.get("/", tags=["health"])
 @app.head("/", tags=["health"])
 async def root_index():
-    return {"status": "ok", "service": "OfficeOS API"}
+    return {"status": "ok", "service": "OsOffice API"}
 
 
 def error_response(status_code: int, code: str, message: str, details: object = None) -> JSONResponse:

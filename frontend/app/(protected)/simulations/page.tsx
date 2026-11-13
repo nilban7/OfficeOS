@@ -144,7 +144,7 @@ export default function SimulationsPage() {
               <Sparkles className="h-4 w-4" />
             </div>
             <h1 className="text-xl font-bold tracking-tight text-slate-900">
-              OfficeOS — What If? Simulator
+              OsOffice — What If? Simulator
             </h1>
           </div>
           <p className="mt-1 text-xs text-slate-500">
@@ -268,7 +268,7 @@ export default function SimulationsPage() {
             Simulating Decision Against Live Tenant Data
           </h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto">
-            OfficeOS is calculating payroll deltas, mentor workload ratios, project dependency chains, and cash flow impacts...
+            OsOffice is calculating payroll deltas, mentor workload ratios, project dependency chains, and cash flow impacts...
           </p>
         </div>
       )}
@@ -337,7 +337,7 @@ export default function SimulationsPage() {
             </div>
             <div className="flex-1">
               <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-800">
-                OfficeOS Recommended Path
+                OsOffice Recommended Path
               </h4>
               <div className="text-xs text-emerald-900 mt-1 leading-relaxed">
                 <MarkdownMessage content={simulationResult.recommendation} />
