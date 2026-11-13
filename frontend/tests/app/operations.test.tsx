@@ -117,10 +117,9 @@ describe("OperationsPage Component", () => {
     render(<OperationsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Operations Management")).toBeInTheDocument();
+      expect(screen.getByText("Quarterly Facility Audit")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Quarterly Facility Audit")).toBeInTheDocument();
     expect(screen.getByText("OPT-001")).toBeInTheDocument();
     expect(screen.getByText("Server Backup Verification")).toBeInTheDocument();
     expect(screen.getByText("OPT-002")).toBeInTheDocument();

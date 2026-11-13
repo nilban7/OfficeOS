@@ -13,7 +13,6 @@ import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/constants/routes";
 import { cn } from "@/lib/utils/cn";
 import { SidebarProvider, useSidebar } from "@/components/layout/sidebar-context";
-import { RoleSwitcher } from "@/components/testing/role-switcher";
 
 function ProtectedLayoutContent({ children }: { children: React.ReactNode }) {
   const { currentOrganization, isLoadingOrgs, orgError, organizations } = useOrganization();
@@ -63,7 +62,6 @@ function ProtectedLayoutContent({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
-      <RoleSwitcher />
     </div>
   );
 }

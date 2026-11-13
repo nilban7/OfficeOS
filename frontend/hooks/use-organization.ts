@@ -152,6 +152,8 @@ export interface OrganizationContextType {
   error: string | null;
   selectOrganization: (orgId: string) => void;
   setOrganizations: React.Dispatch<React.SetStateAction<Organization[]>>;
+  simulatedRole?: string | null;
+  setSimulatedRole?: (role: string | null, customPermissions?: Permission[]) => void;
 }
 
 const OrganizationContext = createContext<OrganizationContextType | null>(null);
@@ -331,6 +333,8 @@ function useStandaloneOrganization(enabled: boolean): OrganizationContextType {
     error: orgError || permissionError,
     selectOrganization,
     setOrganizations,
+    simulatedRole: null,
+    setSimulatedRole: () => {},
   };
 }
 
@@ -343,6 +347,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const [isCacheLoaded, setIsCacheLoaded] = useState(false);
 
   const [membership, setMembership] = useState<OrganizationMembership | null>(null);
+  const [simulatedRole, setSimulatedRoleState] = useState<string | null>(null);
 
   const [isLoadingOrgs, setIsLoadingOrgs] = useState<boolean>(true);
   const [isLoadingPermissions, setIsLoadingPermissions] = useState<boolean>(false);
@@ -353,6 +358,10 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
+        const activeSim = localStorage.getItem("osoffice_simulated_role");
+        if (activeSim) {
+          setSimulatedRoleState(activeSim);
+        }
         const cachedOrgStr = localStorage.getItem("officeos_active_org");
         const cachedPermsStr = localStorage.getItem("officeos_active_perms");
         let initialOrg: Organization | null = null;
@@ -380,7 +389,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
                 organizationId: initialOrg.id,
                 organization: initialOrg,
                 userId: session?.user?.id || user?.id || "",
-                role: (user?.email === "osofficesupport@gmail.com" || user?.email === "officeos@gmail.com" || session?.user?.email === "osofficesupport@gmail.com" || session?.user?.email === "officeos@gmail.com") ? "organization_owner" : null,
+                role: (activeSim || ((user?.email === "osofficesupport@gmail.com" || user?.email === "officeos@gmail.com" || session?.user?.email === "osofficesupport@gmail.com" || session?.user?.email === "officeos@gmail.com") ? "organization_owner" : null)) as any,
                 permissions: parsedPerms,
                 isActive: true,
                 createdAt: new Date().toISOString(),
@@ -495,6 +504,10 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     const orgId = currentOrganization?.id;
 
     async function syncPermissions(targetOrgId: string) {
+      if (typeof window !== "undefined" && localStorage.getItem("osoffice_simulated_role")) {
+        setIsLoadingPermissions(false);
+        return;
+      }
       setIsLoadingPermissions(true);
       setPermissionError(null);
 
@@ -578,6 +591,65 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     [organizations]
   );
 
+  const setSimulatedRole = useCallback(
+    (role: string | null, customPermissions?: Permission[]) => {
+      setSimulatedRoleState(role);
+      if (typeof window !== "undefined") {
+        if (role && customPermissions) {
+          localStorage.setItem("osoffice_simulated_role", role);
+          localStorage.setItem("officeos_active_perms", JSON.stringify(customPermissions));
+          setPermissions(customPermissions);
+          if (currentOrganization) {
+            setMembership({
+              id: `mem-${currentOrganization.id}`,
+              organizationId: currentOrganization.id,
+              organization: currentOrganization,
+              userId: session?.user?.id || user?.id || "",
+              role: role as any,
+              permissions: customPermissions,
+              isActive: true,
+              createdAt: new Date().toISOString(),
+            });
+          }
+        } else {
+          localStorage.removeItem("osoffice_simulated_role");
+          localStorage.removeItem("officeos_active_perms");
+          if (currentOrganization?.id) {
+            setIsLoadingPermissions(true);
+            apiClient
+              .get<PermissionData[]>(API_ENDPOINTS.me.permissions, {
+                organizationId: currentOrganization.id,
+              })
+              .then((permData) => {
+                const codes = (permData || []).map((p) => p.code as Permission);
+                setPermissions(codes);
+                localStorage.setItem("officeos_active_perms", JSON.stringify(codes));
+                setMembership({
+                  id: `mem-${currentOrganization.id}`,
+                  organizationId: currentOrganization.id,
+                  organization: currentOrganization,
+                  userId: session?.user?.id || user?.id || "",
+                  role:
+                    user?.email === "osofficesupport@gmail.com" ||
+                    user?.email === "officeos@gmail.com" ||
+                    session?.user?.email === "osofficesupport@gmail.com" ||
+                    session?.user?.email === "officeos@gmail.com"
+                      ? "organization_owner"
+                      : null,
+                  permissions: codes,
+                  isActive: true,
+                  createdAt: new Date().toISOString(),
+                });
+              })
+              .catch(() => {})
+              .finally(() => setIsLoadingPermissions(false));
+          }
+        }
+      }
+    },
+    [currentOrganization, session?.user?.id, session?.user?.email, user?.id, user?.email]
+  );
+
   const value = useMemo<OrganizationContextType>(
     () => ({
       organizations,
@@ -592,6 +664,8 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       error: orgError || permissionError,
       selectOrganization,
       setOrganizations,
+      simulatedRole,
+      setSimulatedRole,
     }),
     [
       organizations,
@@ -603,6 +677,8 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       orgError,
       permissionError,
       selectOrganization,
+      simulatedRole,
+      setSimulatedRole,
     ]
   );
 
