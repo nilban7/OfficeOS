@@ -130,6 +130,7 @@ export default function EmployeesPage() {
   const [empEmergencyName, setEmpEmergencyName] = React.useState("");
   const [empEmergencyRel, setEmpEmergencyRel] = React.useState("");
   const [empEmergencyPhone, setEmpEmergencyPhone] = React.useState("");
+  const [empRole, setEmpRole] = React.useState<"employee" | "director" | "hr_manager">("employee");
 
   // Terminate Employee Modal
   const [isTerminateOpen, setIsTerminateOpen] = React.useState(false);
@@ -287,6 +288,7 @@ export default function EmployeesPage() {
     setEmpEmergencyName("");
     setEmpEmergencyRel("");
     setEmpEmergencyPhone("");
+    setEmpRole("employee");
     setEmployeeFormError(null);
     setEditingEmployee(null);
   };
@@ -352,6 +354,7 @@ export default function EmployeesPage() {
       emergency_contact_name: empEmergencyName.trim() || null,
       emergency_contact_relationship: empEmergencyRel.trim() || null,
       emergency_contact_phone: empEmergencyPhone.trim() || null,
+      role: empRole,
     };
 
     try {
@@ -1259,6 +1262,30 @@ export default function EmployeesPage() {
                     </div>
                   </div>
                 </div>
+
+                {!isEditEmployeeOpen && (
+                  <div>
+                    <Label htmlFor="emp_role" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      System Role & Access Level
+                    </Label>
+                    <div className="relative mt-1.5">
+                      <select
+                        id="emp_role"
+                        value={empRole}
+                        onChange={(e) => setEmpRole(e.target.value as any)}
+                        className="w-full appearance-none rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 pr-8 text-xs font-medium text-slate-900 dark:text-slate-100 shadow-sm transition-all hover:border-slate-400 dark:hover:border-slate-600 focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-500/10 cursor-pointer"
+                      >
+                        <option value="employee">Employee (Default self-service: attendance, leaves, assets)</option>
+                        <option value="director">Director (Executive oversight: reports, projects, approvals)</option>
+                        <option value="hr_manager">HR Manager (People & payroll operations)</option>
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+                      Company Owners and Superowners can toggle custom module permissions per employee after creation.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Card 2: Organizational Placement */}

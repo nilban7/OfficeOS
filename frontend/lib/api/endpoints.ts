@@ -29,6 +29,7 @@ export const API_ENDPOINTS = {
     list: "/employees",
     detail: (id: string) => `/employees/${id}`,
     managers: "/employees/managers",
+    permissions: (id: string) => `/employees/${id}/permissions`,
   },
   attendance: {
     list: "/attendance",

@@ -114,6 +114,9 @@ class OrganizationCreateRequest(BaseModel):
     slug: str | None = Field(default=None, max_length=100)
     timezone: str = "UTC"
     currency: str = "USD"
+    owner_email: str | None = Field(default=None, max_length=320)
+    owner_first_name: str | None = Field(default=None, max_length=100)
+    owner_last_name: str | None = Field(default=None, max_length=100)
 
 
 class OrganizationUpdateRequest(BaseModel):

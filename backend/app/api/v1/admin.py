@@ -94,6 +94,9 @@ async def create_organization(
         slug=data.slug,
         timezone=data.timezone,
         currency=data.currency,
+        owner_email=data.owner_email,
+        owner_first_name=data.owner_first_name,
+        owner_last_name=data.owner_last_name,
         actor_id=actor.id if actor else None,
         ip_address=get_ip_address(request),
     )

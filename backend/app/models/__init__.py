@@ -22,6 +22,7 @@ from app.models.engagement import (
 from app.models.finance import Expense, ExpenseCategory, ExpenseItem, FinancialTransaction
 from app.models.identity import (
     Branch,
+    MembershipPermission,
     MembershipRole,
     Organization,
     OrganizationMembership,
@@ -99,6 +100,7 @@ __all__ = [
     "LeaveType",
     "MaintenanceRecord",
     "MaintenanceRequest",
+    "MembershipPermission",
     "MembershipRole",
     "Notification",
     "NotificationPreference",

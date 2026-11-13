@@ -14,13 +14,20 @@ import { UserNav } from "./user-nav";
 import { MobileNav } from "./mobile-nav";
 import { ThemeSwitch } from "./theme-switch";
 import { RoleSwitcher } from "@/components/testing/role-switcher";
+import { useAuth } from "@/lib/auth/auth-provider";
 
 export function AppHeader() {
   const [isMobileOpen, setIsMobileOpen] = React.useState(false);
   const handleOpenMobile = React.useCallback(() => setIsMobileOpen(true), []);
   const handleCloseMobile = React.useCallback(() => setIsMobileOpen(false), []);
 
-  const { currentOrganization, permissions } = useOrganization();
+  const { user } = useAuth();
+  const { currentOrganization, permissions, simulatedRole } = useOrganization();
+  const isSuperowner =
+    user?.email === "osofficesupport@gmail.com" ||
+    user?.email === "officeos@gmail.com" ||
+    permissions.includes("saas.view" as any) ||
+    simulatedRole === "superowner";
   const [unreadCount, setUnreadCount] = React.useState<number>(0);
   const [isWakingUp, setIsWakingUp] = React.useState<boolean>(false);
 
@@ -78,7 +85,7 @@ export function AppHeader() {
 
           <OrgSwitcher />
 
-          <RoleSwitcher />
+          {isSuperowner && <RoleSwitcher />}
 
           {isWakingUp && (
             <div

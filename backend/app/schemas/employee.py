@@ -151,6 +151,7 @@ class EmployeeCreate(BaseModel):
     emergency_contact_name: str | None = Field(None, max_length=100)
     emergency_contact_relationship: str | None = Field(None, max_length=50)
     emergency_contact_phone: str | None = Field(None, max_length=32)
+    role: str = Field("employee", pattern=r"^(employee|director|hr_manager)$")
     is_active: bool = True
 
     @model_validator(mode="after")
@@ -200,3 +201,30 @@ class EmployeeUpdate(BaseModel):
         ):
             raise ValueError("date_of_exit cannot precede date_of_joining")
         return self
+
+
+# --- Employee Permissions & Module Toggles ---
+
+
+class ModulePermissionState(BaseModel):
+    module: str
+    label: str
+    description: str
+    granted: bool
+    is_base_role: bool
+    permission_codes: list[str]
+
+
+class EmployeePermissionsResponse(BaseModel):
+    employee_id: UUID
+    employee_name: str
+    membership_id: UUID | None
+    role: str
+    modules: list[ModulePermissionState]
+    all_effective_permissions: list[str]
+    can_edit: bool
+
+
+class EmployeePermissionsUpdate(BaseModel):
+    custom_permissions: list[str]
+

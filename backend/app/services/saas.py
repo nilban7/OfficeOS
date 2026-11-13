@@ -346,6 +346,9 @@ class SaaSAdminService:
         slug: str | None,
         timezone: str = "UTC",
         currency: str = "USD",
+        owner_email: str | None = None,
+        owner_first_name: str | None = None,
+        owner_last_name: str | None = None,
         actor_id: UUID | None = None,
         ip_address: str | None = None,
     ) -> OrganizationDetailResponse:
@@ -384,8 +387,49 @@ class SaaSAdminService:
         )
         session.add(hq_branch)
 
-        # If actor exists, add them as organization owner
-        if actor_id:
+        # Retrieve system organization_owner role
+        owner_role = await session.scalar(
+            select(Role).where(Role.name == "organization_owner", Role.is_system.is_(True))
+        )
+
+        owner_profile_id: UUID | None = None
+        if owner_email and owner_email.strip():
+            clean_email = owner_email.strip().lower()
+            owner_profile = await session.scalar(
+                select(Profile).where(func.lower(Profile.email) == clean_email)
+            )
+            now = datetime.now(UTC)
+            if owner_profile is None:
+                owner_profile = Profile(
+                    id=uuid.uuid4(),
+                    auth_user_id=uuid.uuid4(),
+                    email=clean_email,
+                    first_name=owner_first_name.strip() if owner_first_name else "Organization",
+                    last_name=owner_last_name.strip() if owner_last_name else "Owner",
+                    is_active=True,
+                    created_at=now,
+                    updated_at=now,
+                )
+                session.add(owner_profile)
+                await session.flush()
+
+            owner_profile_id = owner_profile.id
+            owner_membership = OrganizationMembership(
+                id=uuid.uuid4(),
+                organization_id=new_org.id,
+                profile_id=owner_profile.id,
+                status="active",
+                created_at=now,
+                updated_at=now,
+            )
+            session.add(owner_membership)
+            await session.flush()
+
+            if owner_role:
+                session.add(MembershipRole(membership_id=owner_membership.id, role_id=owner_role.id))
+
+        # If actor exists and is distinct from owner, grant actor access as well
+        if actor_id and actor_id != owner_profile_id:
             membership = OrganizationMembership(
                 id=uuid.uuid4(),
                 organization_id=new_org.id,
@@ -393,6 +437,9 @@ class SaaSAdminService:
                 status="active",
             )
             session.add(membership)
+            await session.flush()
+            if owner_role:
+                session.add(MembershipRole(membership_id=membership.id, role_id=owner_role.id))
 
         await AuditLogService.record_audit_log(
             session=session,
@@ -401,7 +448,7 @@ class SaaSAdminService:
             action="organization.created",
             entity_type="organization",
             entity_id=new_org.id,
-            details={"name": name, "slug": clean_slug},
+            details={"name": name, "slug": clean_slug, "owner_email": owner_email},
             ip_address=ip_address,
         )
         await session.commit()

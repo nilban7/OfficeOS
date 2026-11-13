@@ -125,6 +125,7 @@ export interface EmployeeCreate {
   emergency_contact_name?: string | null;
   emergency_contact_relationship?: string | null;
   emergency_contact_phone?: string | null;
+  role?: "employee" | "director" | "hr_manager" | string;
   is_active?: boolean;
 }
 
@@ -165,4 +166,27 @@ export interface PaginatedEmployees {
 }
 
 export type EmployeeListResponse = PaginatedEmployees;
+
+export interface ModulePermissionState {
+  module: string;
+  label: string;
+  description: string;
+  granted: boolean;
+  is_base_role: boolean;
+  permission_codes: string[];
+}
+
+export interface EmployeePermissionsResponse {
+  employee_id: string;
+  employee_name: string;
+  membership_id?: string | null;
+  role: string;
+  modules: ModulePermissionState[];
+  all_effective_permissions: string[];
+  can_edit: boolean;
+}
+
+export interface EmployeePermissionsUpdate {
+  custom_permissions: string[];
+}
 
