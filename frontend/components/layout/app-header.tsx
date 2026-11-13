@@ -13,6 +13,7 @@ import { OrgSwitcher } from "./org-switcher";
 import { UserNav } from "./user-nav";
 import { MobileNav } from "./mobile-nav";
 import { ThemeSwitch } from "./theme-switch";
+import { RoleSwitcher } from "@/components/testing/role-switcher";
 
 export function AppHeader() {
   const [isMobileOpen, setIsMobileOpen] = React.useState(false);
@@ -76,6 +77,8 @@ export function AppHeader() {
           </button>
 
           <OrgSwitcher />
+
+          <RoleSwitcher />
 
           {isWakingUp && (
             <div

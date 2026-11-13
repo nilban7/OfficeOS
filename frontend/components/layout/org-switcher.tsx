@@ -6,9 +6,12 @@ import { useOrganization } from "@/hooks/use-organization";
 import { cn } from "@/lib/utils/cn";
 
 export function OrgSwitcher() {
-  const { organizations, currentOrganization, selectOrganization } = useOrganization();
+  const { organizations, currentOrganization, selectOrganization, permissions, simulatedRole } = useOrganization();
   const [isOpen, setIsOpen] = React.useState(false);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  // Multi-tenant isolation: Only Superowner has multi-tenant organization switching options
+  const isSuperowner = permissions.includes("saas.view" as any) || simulatedRole === "superowner";
 
   React.useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -20,22 +23,41 @@ export function OrgSwitcher() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // For non-superowners (Company Owner, Director, HR, Employee): show static organization badge
+  if (!isSuperowner) {
+    return (
+      <div
+        className="flex items-center space-x-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 shadow-xs select-none"
+        title="Active Organization"
+      >
+        <div className="flex h-5 w-5 items-center justify-center rounded bg-primary-100 dark:bg-primary-950/70 text-primary-700 dark:text-primary-300">
+          <Building2 className="h-3 w-3" />
+        </div>
+        <span className="max-w-[130px] truncate text-slate-800 dark:text-slate-100 font-semibold">
+          {currentOrganization?.name || "OsOffice"}
+        </span>
+      </div>
+    );
+  }
+
+  // Superowner view: interactive multi-tenant organization switcher
   return (
     <div className="relative" ref={dropdownRef}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center space-x-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+        className="flex items-center space-x-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 shadow-xs hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
         aria-expanded={isOpen}
         aria-haspopup="listbox"
+        title="Switch Organization (Superowner Only)"
       >
-        <div className="flex h-6 w-6 items-center justify-center rounded bg-primary-100 dark:bg-primary-950/70 text-primary-700 dark:text-primary-300">
-          <Building2 className="h-3.5 w-3.5" />
+        <div className="flex h-5 w-5 items-center justify-center rounded bg-primary-100 dark:bg-primary-950/70 text-primary-700 dark:text-primary-300">
+          <Building2 className="h-3 w-3" />
         </div>
-        <span className="max-w-[140px] truncate text-slate-900 dark:text-slate-100">
+        <span className="max-w-[130px] truncate text-slate-800 dark:text-slate-100 font-semibold">
           {currentOrganization?.name || "Select Organization"}
         </span>
-        <ChevronsUpDown className="h-4 w-4 text-slate-400" />
+        <ChevronsUpDown className="h-3.5 w-3.5 text-slate-400" />
       </button>
 
       {isOpen && (
@@ -58,14 +80,14 @@ export function OrgSwitcher() {
                       setIsOpen(false);
                     }}
                     className={cn(
-                      "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors",
+                      "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-xs transition-colors",
                       isSelected
                         ? "bg-primary-50 dark:bg-primary-950/60 text-primary-700 dark:text-primary-300 font-medium"
                         : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                     )}
                   >
                     <span className="truncate">{org.name}</span>
-                    {isSelected && <Check className="h-4 w-4 text-primary-600 dark:text-primary-400" />}
+                    {isSelected && <Check className="h-3.5 w-3.5 text-primary-600 dark:text-primary-400" />}
                   </button>
                 );
               })
