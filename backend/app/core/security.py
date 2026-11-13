@@ -53,14 +53,14 @@ def verify_access_token(
     raw_token = credentials.credentials
     settings = get_settings()
 
-    # Testing / demo authentication: allows officeos@gmail.com to test both locally and deployed
+    # Testing / demo authentication: allows osofficesupport@gmail.com to test both locally and deployed
     if raw_token == "officeos-dev-token":
         return AuthenticatedUser(
             id="00000000-0000-0000-0000-000000000001",
-            email="officeos@gmail.com",
+            email="osofficesupport@gmail.com",
             claims={
                 "sub": "00000000-0000-0000-0000-000000000001",
-                "email": "officeos@gmail.com",
+                "email": "osofficesupport@gmail.com",
                 "role": "system_admin",
             },
             access_token=raw_token,

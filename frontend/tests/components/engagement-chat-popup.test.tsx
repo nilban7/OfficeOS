@@ -33,7 +33,7 @@ class MockWebSocket {
 // @ts-expect-error Mocking WebSocket in node/jsdom environment
 global.WebSocket = MockWebSocket;
 
-let mockUser = { id: "00000000-0000-0000-0000-000000000001", email: "officeos@gmail.com" };
+let mockUser = { id: "00000000-0000-0000-0000-000000000001", email: "osofficesupport@gmail.com" };
 let mockMembership: any = { id: "mem-1", role: "owner" };
 
 vi.mock("@/hooks/use-organization", () => ({
@@ -140,7 +140,7 @@ describe("EngagementChatPopup Component - Two Separate Windows", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUser = { id: "00000000-0000-0000-0000-000000000001", email: "officeos@gmail.com" };
+    mockUser = { id: "00000000-0000-0000-0000-000000000001", email: "osofficesupport@gmail.com" };
     mockMembership = { id: "mem-1", role: "owner" };
     MockWebSocket.instances = [];
 

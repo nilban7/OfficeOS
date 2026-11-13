@@ -14,7 +14,7 @@ from app.models.identity import MembershipRole, OrganizationMembership, Profile,
 async def is_system_admin_user(session: AsyncSession, current_user: AuthenticatedUser) -> bool:
     """Check if the user has an active membership associated with the system_admin canonical role."""
     # Canonical platform owner override
-    if current_user.email and current_user.email.strip().lower() == "officeos@gmail.com":
+    if current_user.email and current_user.email.strip().lower() == "osofficesupport@gmail.com":
         return True
 
     try:

@@ -30,7 +30,7 @@ describe("DashboardPage Component", () => {
 
   const mockUser = {
     id: "user-1",
-    email: "officeos@gmail.com",
+    email: "osofficesupport@gmail.com",
     fullName: "OsOffice",
     firstName: "OsOffice",
     lastName: "",

@@ -40,7 +40,7 @@ async def test_root_health_endpoints() -> None:
     assert health_resp.status_code == 200
     assert health_resp.json() == {"status": "ok"}
     assert root_resp.status_code == 200
-    assert root_resp.json() == {"status": "ok", "service": "OfficeOS API"}
+    assert root_resp.json() == {"status": "ok", "service": "OsOffice API"}
 
 
 @pytest.mark.asyncio

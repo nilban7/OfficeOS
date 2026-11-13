@@ -55,7 +55,7 @@ export function EngagementChatPopup({
   // Testing account: officeos@gmail.com, auth user 00000000-0000-0000-0000-000000000001, or organization owner/admin
   const isTestingAccount = React.useMemo(() => {
     if (!user) return false;
-    const testEmails = ["officeos@gmail.com", "aritra@example.com", "admin@officeos.com"];
+    const testEmails = ["osofficesupport@gmail.com", "officeos@gmail.com", "aritra@example.com", "admin@officeos.com"];
     const testIds = ["00000000-0000-0000-0000-000000000001"];
     const isOwnerOrAdmin = membership?.role === "owner" || membership?.role === "admin";
     return (

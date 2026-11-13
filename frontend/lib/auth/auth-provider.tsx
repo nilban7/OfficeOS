@@ -71,7 +71,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 ? [profile.first_name, profile.last_name].filter(Boolean).join(" ")
                 : prev.fullName;
 
-            if (fullName?.toLowerCase().includes("niladri") || prev.email === "officeos@gmail.com") {
+            if (
+              fullName?.toLowerCase().includes("niladri") ||
+              prev.email === "osofficesupport@gmail.com" ||
+              prev.email === "officeos@gmail.com"
+            ) {
               fullName = "OsOffice";
             }
 
@@ -111,11 +115,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               if (
                 parsed.user.fullName?.toLowerCase().includes("niladri") ||
                 parsed.user.firstName?.toLowerCase().includes("niladri") ||
-                parsed.user.email === "officeos@gmail.com"
+                parsed.user.email === "officeos@gmail.com" ||
+                parsed.user.email === "osofficesupport@gmail.com"
               ) {
                 parsed.user.fullName = "OsOffice";
                 parsed.user.firstName = "OsOffice";
                 parsed.user.lastName = "";
+                parsed.user.email = "osofficesupport@gmail.com";
                 localStorage.setItem("officeos_dev_session", JSON.stringify(parsed));
               }
               if (isMounted) {
@@ -177,10 +183,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithPassword = async ({ email, password }: SignInCredentials) => {
     const trimmedEmail = email.trim().toLowerCase();
-    if (trimmedEmail === "officeos@gmail.com") {
+    if (trimmedEmail === "osofficesupport@gmail.com" || trimmedEmail === "officeos@gmail.com") {
       const devUser: AuthUser = {
         id: "00000000-0000-0000-0000-000000000001",
-        email: "officeos@gmail.com",
+        email: "osofficesupport@gmail.com",
         fullName: "OsOffice",
         firstName: "OsOffice",
         lastName: "",

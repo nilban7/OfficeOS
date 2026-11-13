@@ -449,10 +449,20 @@ async def add_member_by_email(
         select(Profile).where(func.lower(Profile.email) == email_clean)
     )
     if profile is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User with email '{data.email}' has not registered in OfficeOS",
+        # Pre-provision invited profile so members can be invited before first login
+        now = datetime.now(UTC)
+        profile = Profile(
+            id=uuid.uuid4(),
+            auth_user_id=uuid.uuid4(),
+            email=email_clean,
+            first_name="Invited",
+            last_name="Member",
+            is_active=True,
+            created_at=now,
+            updated_at=now,
         )
+        session.add(profile)
+        await session.flush()
 
     existing = await session.scalar(
         select(OrganizationMembership).where(

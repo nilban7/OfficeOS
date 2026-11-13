@@ -47,13 +47,13 @@ export function LoginForm() {
   };
 
   const handleQuickSignIn = async () => {
-    setEmail("officeos@gmail.com");
+    setEmail("osofficesupport@gmail.com");
     setPassword("password123");
     setIsLoading(true);
     setError(null);
     try {
       const { error: signInError } = await signInWithPassword({
-        email: "officeos@gmail.com",
+        email: "osofficesupport@gmail.com",
         password: "password123",
       });
       if (signInError) {

@@ -82,13 +82,13 @@ export const MAIN_NAVIGATION: NavSection[] = [
         title: "Attendance",
         href: ROUTES.ATTENDANCE,
         icon: Clock,
-        requiredPermissions: ["attendance.view", "attendance:read"],
+        requiredPermissions: ["attendance.view", "attendance:read", "attendance.view_own"],
       },
       {
         title: "Leave Management",
         href: ROUTES.LEAVE,
         icon: CalendarDays,
-        requiredPermissions: ["leave.view", "leave:read"],
+        requiredPermissions: ["leave.view", "leave:read", "leave.view_own"],
       },
       {
         title: "Payroll & Salary",
@@ -100,19 +100,19 @@ export const MAIN_NAVIGATION: NavSection[] = [
         title: "Reimbursements",
         href: ROUTES.REIMBURSEMENTS,
         icon: Receipt,
-        requiredPermissions: ["reimbursements.view", "reimbursements.create", "reimbursements:read"],
+        requiredPermissions: ["reimbursements.view", "reimbursements.create", "reimbursements:read", "reimbursements.view_own"],
       },
       {
         title: "Travel Management",
         href: ROUTES.TRAVEL,
         icon: Plane,
-        requiredPermissions: ["travel.view", "travel.create"],
+        requiredPermissions: ["travel.view", "travel.create", "travel.view_own"],
       },
       {
         title: "Training",
         href: ROUTES.TRAINING,
         icon: GraduationCap,
-        requiredPermissions: ["training.view", "training.enroll", "training.create", "training.manage"],
+        requiredPermissions: ["training.view", "training.enroll", "training.create", "training.manage", "training.view_own"],
       },
       {
         title: "Internships",
@@ -154,7 +154,7 @@ export const MAIN_NAVIGATION: NavSection[] = [
         title: "Assets",
         href: ROUTES.ASSETS,
         icon: Box,
-        requiredPermissions: ["assets.view", "assets.create", "assets.assign"],
+        requiredPermissions: ["assets.view", "assets.create", "assets.assign", "assets.view_own"],
       },
       {
         title: "Maintenance",

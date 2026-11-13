@@ -61,8 +61,8 @@ export default function LeavePage() {
   const canManageHolidays = permissions.includes("holidays.manage");
 
   const searchParams = useSearchParams();
-  const tabParam = searchParams.get("tab");
-  const requestIdParam = searchParams.get("request_id");
+  const tabParam = searchParams?.get("tab");
+  const requestIdParam = searchParams?.get("request_id");
 
   // Tabs: 'my-leave' | 'approvals' | 'types' | 'holidays'
   const [activeTab, setActiveTab] = React.useState<"my-leave" | "approvals" | "types" | "holidays">(
