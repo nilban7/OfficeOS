@@ -1685,7 +1685,7 @@ export default function EngagementDetailPage() {
         onClose={() => setReportModalOpen(false)}
         reportType={reportType}
         data={reportData}
-        organizationName={currentOrganization?.name || "OfficeOS Enterprise"}
+        organizationName={currentOrganization?.name || "OsOffice Enterprise"}
         engagementTitle={engagement?.title || "Client Engagement"}
         clientName={engagement?.client_name || "Client"}
       />

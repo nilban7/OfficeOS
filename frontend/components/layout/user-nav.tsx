@@ -31,11 +31,17 @@ export function UserNav() {
     router.push(ROUTES.LOGIN);
   };
 
-  const displayName =
+  const rawName =
     user?.fullName ||
     [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
     user?.email?.split("@")[0] ||
-    "User";
+    "OsOffice";
+
+  const displayName =
+    rawName && !rawName.toLowerCase().includes("niladri") && rawName.toLowerCase() !== "officeos"
+      ? rawName
+      : "OsOffice";
+
   const userInitial = displayName.charAt(0).toUpperCase();
 
   return (

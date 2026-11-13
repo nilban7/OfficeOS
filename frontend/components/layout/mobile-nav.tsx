@@ -67,7 +67,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
               <Building2 className="h-5 w-5" />
             </div>
             <div className="flex flex-col">
-              <span className="font-bold text-base text-slate-900 leading-tight">OfficeOS</span>
+              <span className="font-bold text-base text-slate-900 leading-tight">OsOffice</span>
               <span className="text-[10px] text-primary-600 font-semibold uppercase tracking-wider">Enterprise</span>
             </div>
           </Link>

@@ -72,7 +72,7 @@ export function LoginForm() {
     <Card className="w-full max-w-md shadow-lg border-slate-200/80 rounded-2xl">
       <CardHeader className="space-y-2 text-center pb-5 pt-6 px-6">
         <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-          Sign In to OfficeOS
+          Sign In to OsOffice
         </CardTitle>
         <CardDescription className="text-xs sm:text-sm">
           Enter your organization email and password to access your workspace.

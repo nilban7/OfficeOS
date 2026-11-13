@@ -114,7 +114,7 @@ describe("AIAssistantPage Component", () => {
 
     render(<AIAssistantPage />);
 
-    expect(screen.getByText("OfficeOS AI Assistant")).toBeInTheDocument();
+    expect(screen.getByText("OsOffice AI Assistant")).toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getAllByText("Headcount Strategy")[0]).toBeInTheDocument();
@@ -177,7 +177,7 @@ describe("AIAssistantPage Component", () => {
       expect(screen.getAllByText("Headcount Strategy")[0]).toBeInTheDocument();
     });
 
-    const input = screen.getByPlaceholderText("Ask OfficeOS Assistant...");
+    const input = screen.getByPlaceholderText("Ask OsOffice Assistant...");
     await user.type(input, "Show engineering department count");
 
     const sendBtn = screen.getByRole("button", { name: /Send/i });
@@ -203,6 +203,6 @@ describe("AIAssistantPage Component", () => {
     render(<AIAssistantPage />);
 
     expect(screen.getByText("Access Restricted")).toBeInTheDocument();
-    expect(screen.getByText(/You do not have permission to access the OfficeOS AI Assistant/i)).toBeInTheDocument();
+    expect(screen.getByText(/You do not have permission to access the OsOffice AI Assistant/i)).toBeInTheDocument();
   });
 });

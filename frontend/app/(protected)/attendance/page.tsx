@@ -629,13 +629,13 @@ export default function AttendancePage() {
               publicKey: {
                 challenge,
                 rp: {
-                  name: "OfficeOS Biometrics",
+                  name: "OsOffice Biometrics",
                   id: window.location.hostname || "localhost",
                 },
                 user: {
                   id: userId,
                   name: currentOrganization.name || "Employee",
-                  displayName: "OfficeOS Attendance",
+                  displayName: "OsOffice Attendance",
                 },
                 pubKeyCredParams: [
                   { alg: -7, type: "public-key" }, // ES256

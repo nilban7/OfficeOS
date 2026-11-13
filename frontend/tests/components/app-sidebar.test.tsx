@@ -23,7 +23,7 @@ describe("AppSidebar Component", () => {
 
     render(<AppSidebar />);
 
-    expect(screen.getByText("OfficeOS")).toBeInTheDocument();
+    expect(screen.getByText("OsOffice")).toBeInTheDocument();
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
     expect(screen.getByText("Reports & Analytics")).toBeInTheDocument();
     expect(screen.getByText("Organization")).toBeInTheDocument();

@@ -256,7 +256,7 @@ export default function SaaSAdminOverviewPage() {
               Recently Provisioned Organizations
             </CardTitle>
             <CardDescription className="text-sm text-slate-500">
-              Latest tenants onboarded to the OfficeOS SaaS platform.
+              Latest tenants onboarded to the OsOffice SaaS platform.
             </CardDescription>
           </div>
           <Link href="/admin/organizations">

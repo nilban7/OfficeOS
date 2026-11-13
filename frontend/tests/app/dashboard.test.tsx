@@ -23,17 +23,17 @@ vi.mock("@/lib/api/client", () => ({
 describe("DashboardPage Component", () => {
   const mockOrg = {
     id: "org-1",
-    name: "Niladri Organization Workflow",
-    slug: "niladri-org",
+    name: "OsOffice Organization Workflow",
+    slug: "osoffice-org",
     createdAt: "2026-01-01T00:00:00Z",
   };
 
   const mockUser = {
     id: "user-1",
     email: "officeos@gmail.com",
-    fullName: "Niladri Banerjee",
-    firstName: "Niladri",
-    lastName: "Banerjee",
+    fullName: "OsOffice",
+    firstName: "OsOffice",
+    lastName: "",
     createdAt: "2026-01-01T00:00:00Z",
   };
 
@@ -84,12 +84,12 @@ describe("DashboardPage Component", () => {
     });
   });
 
-  it("renders welcome header with branded Niladri greeting and organization workflow pill", async () => {
+  it("renders welcome header with branded OsOffice greeting and organization workflow pill", async () => {
     render(<DashboardPage />);
 
     expect(screen.getByRole("heading", { name: /Welcome back/i })).toBeInTheDocument();
-    expect(screen.getByText("Niladri")).toBeInTheDocument();
-    expect(screen.getByText("Niladri Organization Workflow")).toBeInTheDocument();
+    expect(screen.getByText("OsOffice")).toBeInTheDocument();
+    expect(screen.getByText("OsOffice Organization Workflow")).toBeInTheDocument();
   });
 
   it("renders 4 executive KPI metric cards and analytical sections", async () => {

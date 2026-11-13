@@ -255,7 +255,7 @@ export default function AIAssistantPage() {
             <ShieldAlert className="h-10 w-10 text-rose-600 mx-auto" />
             <h2 className="text-lg font-bold text-rose-900">Access Restricted</h2>
             <p className="text-sm text-rose-700 max-w-md mx-auto">
-              You do not have permission to access the OfficeOS AI Assistant. Contact your organization administrator.
+              You do not have permission to access the OsOffice AI Assistant. Contact your organization administrator.
             </p>
           </CardContent>
         </Card>
@@ -279,7 +279,7 @@ export default function AIAssistantPage() {
             <Bot className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-slate-900">OfficeOS AI Assistant</h1>
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">OsOffice AI Assistant</h1>
             <p className="text-xs text-slate-500">
               Live database-level organizational intelligence
             </p>
@@ -486,7 +486,7 @@ export default function AIAssistantPage() {
               <Input
                 value={inputPrompt}
                 onChange={(e) => setInputPrompt(e.target.value)}
-                placeholder={canUseAI ? "Ask OfficeOS Assistant..." : "You lack permission to query AI"}
+                placeholder={canUseAI ? "Ask OsOffice Assistant..." : "You lack permission to query AI"}
                 disabled={isSending || !canUseAI}
                 className="flex-1 text-xs"
               />

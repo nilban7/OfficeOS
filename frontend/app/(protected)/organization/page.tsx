@@ -304,7 +304,7 @@ export default function OrganizationPage() {
       if (err instanceof ApiException) {
         setModalError(err.message);
       } else {
-        setModalError("Failed to add member. Ensure the user has registered in OfficeOS.");
+        setModalError("Failed to add member. Ensure the user has registered in OsOffice.");
       }
     } finally {
       setIsSubmitting(false);
@@ -1016,7 +1016,7 @@ export default function OrganizationPage() {
         isOpen={isAddMemberOpen}
         onClose={() => setIsAddMemberOpen(false)}
         title="Add Organization Member"
-        description="Add an existing registered OfficeOS user to this organization."
+        description="Add an existing registered OsOffice user to this organization."
       >
         <form onSubmit={handleAddMember} className="space-y-4">
           {modalError && (

@@ -34,7 +34,7 @@ export function AppSidebar() {
             "flex items-center space-x-3 overflow-hidden rounded-lg p-1 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors",
             isCollapsed && "justify-center w-full space-x-0"
           )}
-          title="OfficeOS Enterprise"
+          title="OsOffice Enterprise"
         >
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary-600 to-indigo-700 text-white shadow-subtle">
             <Building2 className="h-4.5 w-4.5" />
@@ -42,7 +42,7 @@ export function AppSidebar() {
           {!isCollapsed && (
             <div className="flex flex-col truncate">
               <span className="font-bold text-base text-slate-900 dark:text-slate-100 tracking-tight leading-tight">
-                OfficeOS
+                OsOffice
               </span>
               <span className="text-[10px] text-primary-600 font-semibold uppercase tracking-wider">
                 Enterprise
@@ -155,7 +155,7 @@ export function AppSidebar() {
           </button>
         ) : (
           <div className="w-full rounded-lg bg-slate-50/80 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 p-2 text-center">
-            <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">OfficeOS Platform</p>
+            <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">OsOffice Platform</p>
             <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Enterprise Cloud • v1.0</p>
           </div>
         )}

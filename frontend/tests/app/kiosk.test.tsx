@@ -22,7 +22,7 @@ describe("KioskPage Component", () => {
     render(<KioskPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("OfficeOS Kiosk Terminal")).toBeDefined();
+      expect(screen.getByText("OsOffice Kiosk Terminal")).toBeDefined();
       expect(screen.getAllByText("Secret Activation Code").length).toBeGreaterThan(0);
       expect(screen.getByRole("button", { name: /Pair.*Activate Tablet/i })).toBeDefined();
     });
@@ -121,7 +121,7 @@ describe("KioskPage Component", () => {
 
     await waitFor(() => {
       expect(localStorage.getItem("officeos_kiosk_token")).toBe("kiosk_demo_token_master_2026");
-      expect(screen.getByText(/OfficeOS Demo Workspace/)).toBeDefined();
+      expect(screen.getByText(/OsOffice Demo Workspace/)).toBeDefined();
       expect(screen.getByText(/Organization Employees/i)).toBeDefined();
       expect(screen.getByPlaceholderText(/Search by code/i)).toBeDefined();
     });

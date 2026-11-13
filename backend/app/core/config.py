@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "OfficeOS API"
+    app_name: str = "OsOffice API"
     app_env: str = "local"
     log_level: str = "INFO"
     database_url: str = Field(..., description="Async SQLAlchemy PostgreSQL URL")
@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_username: str | None = None
     smtp_password: str | None = None
-    email_from_name: str = "OfficeOS Notifications"
+    email_from_name: str = "OsOffice Notifications"
     email_from_address: str | None = None
     email_enabled: bool = True
     frontend_base_url: str = Field("http://localhost:3000", validation_alias="FRONTEND_BASE_URL")

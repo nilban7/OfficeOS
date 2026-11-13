@@ -226,7 +226,7 @@ export default function KioskPage() {
 
   // Kiosk Session State
   const [kioskToken, setKioskToken] = React.useState<string | null>(null);
-  const [orgName, setOrgName] = React.useState<string>("OfficeOS Workspace");
+  const [orgName, setOrgName] = React.useState<string>("OsOffice Workspace");
   const [deviceName, setDeviceName] = React.useState<string>("Front Desk Mobile PWA");
   const [exitPin, setExitPin] = React.useState<string>("9999");
   const [, setAllowedModes] = React.useState<string[]>(["fingerprint", "pin", "face", "qr"]);
@@ -701,7 +701,7 @@ export default function KioskPage() {
         (data as unknown as { device_token?: string }).device_token ||
         "kiosk_demo_token_master_2026";
       const devName = data.device_name || payload.device_name;
-      const org = data.organization_name || "OfficeOS Workspace";
+      const org = data.organization_name || "OsOffice Workspace";
       const pin = data.exit_pin || "9999";
       const modes = data.allowed_modes || ["fingerprint", "pin", "face", "qr"];
 
@@ -723,7 +723,7 @@ export default function KioskPage() {
       if (isHardcodedTestCode) {
         const demoToken = "kiosk_demo_token_master_2026";
         const devName = customDeviceName.trim() || "Samsung Galaxy Kiosk Tab";
-        const org = "OfficeOS Demo Workspace";
+        const org = "OsOffice Demo Workspace";
         const pin = "9999";
         const modes = ["fingerprint", "pin", "face", "qr"];
 
@@ -1015,7 +1015,7 @@ export default function KioskPage() {
         const isIpAddress =
           typeof window !== "undefined" && /^(\d{1,3}\.){3}\d{1,3}$/.test(window.location.hostname);
         const rpEntity: PublicKeyCredentialRpEntity = {
-          name: "OfficeOS Attendance Terminal",
+          name: "OsOffice Attendance Terminal",
           ...(isIpAddress || !window.location.hostname ? {} : { id: window.location.hostname }),
         };
 
@@ -1387,7 +1387,7 @@ export default function KioskPage() {
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-slate-500">
         <div className="flex flex-col items-center space-y-3">
           <RefreshCw className="h-7 w-7 animate-spin text-primary-600" />
-          <p className="text-sm font-semibold tracking-wide">Loading OfficeOS Terminal...</p>
+          <p className="text-sm font-semibold tracking-wide">Loading OsOffice Terminal...</p>
         </div>
       </div>
     );
@@ -1404,7 +1404,7 @@ export default function KioskPage() {
             </div>
             <div className="text-left">
               <span className="font-bold text-2xl text-slate-900 dark:text-white tracking-tight block leading-tight">
-                OfficeOS
+                OsOffice
               </span>
               <span className="text-[11px] text-primary-600 dark:text-primary-400 font-semibold uppercase tracking-wider block">
                 Attendance Kiosk Terminal
@@ -1416,7 +1416,7 @@ export default function KioskPage() {
         <Card className="w-full max-w-md shadow-card border-slate-200/80 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 overflow-hidden">
           <CardHeader className="space-y-1.5 text-center pb-4 pt-6 px-6 border-b border-slate-100 dark:border-slate-800">
             <CardTitle className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-              OfficeOS Kiosk Terminal
+              OsOffice Kiosk Terminal
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
               Bind this mobile phone or tablet to your organization workspace.
@@ -1548,7 +1548,7 @@ export default function KioskPage() {
               </div>
               <div className="min-w-0">
                 <h1 className="font-extrabold text-base text-slate-900 dark:text-white tracking-tight leading-tight">
-                  OfficeOS
+                  OsOffice
                 </h1>
                 <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[150px] sm:max-w-xs font-medium leading-tight">
                   {orgName} • {deviceName}

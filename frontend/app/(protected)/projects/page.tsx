@@ -500,7 +500,7 @@ export default function ProjectsPage() {
           description={
             searchTerm || statusFilter !== "all"
               ? "No projects match your search criteria or status filter."
-              : "Get started by adding your first project to OfficeOS."
+              : "Get started by adding your first project to OsOffice."
           }
           actionLabel={canCreateProjects && !searchTerm && statusFilter === "all" ? "Add Project" : undefined}
           onAction={canCreateProjects && !searchTerm && statusFilter === "all" ? () => setIsAddModalOpen(true) : undefined}

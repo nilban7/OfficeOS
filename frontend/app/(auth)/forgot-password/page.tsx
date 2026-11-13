@@ -10,7 +10,7 @@ export default function ForgotPasswordPage() {
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-600 text-white shadow-md">
             <Building2 className="h-6 w-6" />
           </div>
-          <span className="font-bold text-2xl text-slate-900 tracking-tight">OfficeOS</span>
+          <span className="font-bold text-2xl text-slate-900 tracking-tight">OsOffice</span>
         </Link>
       </div>
 
