@@ -18,6 +18,29 @@ export function AppSidebar() {
     return new Set([...(membership?.permissions || []), ...(permissions || [])]);
   }, [membership, permissions]);
 
+  const isEmployeeOnly = React.useMemo(() => {
+    return (
+      !userPermissions.has("saas.view") &&
+      !userPermissions.has("organizations.view") &&
+      !userPermissions.has("employees.view")
+    );
+  }, [userPermissions]);
+
+  const getItemTitle = React.useCallback(
+    (item: { title: string; href: string }) => {
+      if (!isEmployeeOnly) return item.title;
+      if (item.href.startsWith("/attendance")) return "My Attendance";
+      if (item.href.startsWith("/leave")) return "My Leaves";
+      if (item.href.startsWith("/payroll")) return "My Payslips";
+      if (item.href.startsWith("/reimbursements")) return "My Claims";
+      if (item.href.startsWith("/travel")) return "My Travel";
+      if (item.href.startsWith("/training")) return "My Training";
+      if (item.href.startsWith("/assets")) return "My Assets";
+      return item.title;
+    },
+    [isEmployeeOnly]
+  );
+
   return (
     <aside
       className={cn(
@@ -80,7 +103,7 @@ export function AppSidebar() {
             <div key={section.title || idx} className="space-y-0.5">
               {!isCollapsed && section.title && (
                 <div className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 select-none">
-                  {section.title}
+                  {isEmployeeOnly && section.title === "People & HR" ? "Self Service" : section.title}
                 </div>
               )}
               {isCollapsed && (
@@ -91,12 +114,13 @@ export function AppSidebar() {
                   pathname === item.href ||
                   (item.href !== "/dashboard" && pathname.startsWith(item.href));
                 const Icon = item.icon;
+                const displayTitle = getItemTitle(item);
 
                 return (
                   <Link
                     key={item.href}
                     href={item.disabled ? "#" : item.href}
-                    title={isCollapsed ? item.title : undefined}
+                    title={isCollapsed ? displayTitle : undefined}
                     className={cn(
                       "group relative flex items-center rounded-lg text-xs sm:text-sm font-medium transition-all duration-150 ease-out",
                       isCollapsed
@@ -115,7 +139,7 @@ export function AppSidebar() {
                           isActive ? "text-primary-600 dark:text-primary-400" : "text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300"
                         )}
                       />
-                      {!isCollapsed && <span className="truncate">{item.title}</span>}
+                      {!isCollapsed && <span className="truncate">{displayTitle}</span>}
                     </div>
 
                     {!isCollapsed && item.badge && (

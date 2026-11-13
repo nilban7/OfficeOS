@@ -381,15 +381,17 @@ async def test_list_roles(auth_context) -> None:
 
 
 @pytest.mark.asyncio
-async def test_add_member_fails_when_user_not_registered(auth_context) -> None:
+async def test_add_member_auto_provisions_unregistered_user(auth_context) -> None:
     mock_session = AsyncMock()
     mock_session.execute = AsyncMock()
     mock_session.scalars.return_value = ["members.manage"]
 
     # 1. get_actor_profile_id -> auth_context profile
-    # 2. lookup profile by email -> None
+    # 2. lookup profile by email -> None (auto-provisions stub profile)
+    # 3. check existing membership -> None
     mock_session.scalar.side_effect = [
         auth_context["profile"],
+        None,
         None,
     ]
 
@@ -401,11 +403,11 @@ async def test_add_member_fails_when_user_not_registered(auth_context) -> None:
                 headers=auth_context["headers"],
                 json={"email": "nonexistent@example.com"},
             )
-        assert res.status_code == 404
+        assert res.status_code == 201
         body = res.json()
-        assert body["success"] is False
-        assert body["error"]["code"] == "NOT_FOUND"
-        assert "has not registered in OfficeOS" in body["error"]["message"]
+        assert body["success"] is True
+        assert body["data"]["profile"]["email"] == "nonexistent@example.com"
+        assert body["data"]["profile"]["first_name"] == "Invited"
     finally:
         app.dependency_overrides.pop(get_tenant_session, None)
 

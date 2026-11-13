@@ -1015,8 +1015,8 @@ export default function OrganizationPage() {
       <Modal
         isOpen={isAddMemberOpen}
         onClose={() => setIsAddMemberOpen(false)}
-        title="Add Organization Member"
-        description="Add an existing registered OsOffice user to this organization."
+        title="Invite Employee / Add Member"
+        description="Invite any staff member by email and assign their role. If they have not registered yet, an invitation will be pre-provisioned and will activate seamlessly upon their first login."
       >
         <form onSubmit={handleAddMember} className="space-y-4">
           {modalError && (
@@ -1025,16 +1025,19 @@ export default function OrganizationPage() {
             </div>
           )}
           <div>
-            <Label htmlFor="new-member-email">User Email</Label>
+            <Label htmlFor="new-member-email">Employee / User Email</Label>
             <Input
               id="new-member-email"
               type="email"
               value={newMemberEmail}
               onChange={(e) => setNewMemberEmail(e.target.value)}
-              placeholder="user@example.com"
+              placeholder="employee@company.com"
               required
               className="mt-1"
             />
+            <p className="text-[11px] text-slate-500 mt-1">
+              Supports both existing accounts and new email invitations.
+            </p>
           </div>
           <div>
             <Label htmlFor="new-member-role">Assign Role</Label>
@@ -1046,7 +1049,7 @@ export default function OrganizationPage() {
             >
               {roles.map((r) => (
                 <option key={r.id} value={r.id}>
-                  {r.name.replace("_", " ").toUpperCase()} {r.description ? `— ${r.description}` : ""}
+                  {r.name.replace(/_/g, " ").toUpperCase()} {r.description ? `— ${r.description}` : ""}
                 </option>
               ))}
             </select>
@@ -1056,7 +1059,7 @@ export default function OrganizationPage() {
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Adding..." : "Add Member"}
+              {isSubmitting ? "Inviting..." : "Send Invitation / Add Member"}
             </Button>
           </div>
         </form>

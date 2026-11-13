@@ -1,0 +1,377 @@
+"use client";
+
+import * as React from "react";
+import { ChevronDown, Check, Sparkles, RefreshCw } from "lucide-react";
+import { useOrganization } from "@/hooks/use-organization";
+import { cn } from "@/lib/utils/cn";
+
+export type RolePersona =
+  | "superowner"
+  | "organization_owner"
+  | "director"
+  | "hr_manager"
+  | "department_manager"
+  | "employee";
+
+interface PersonaConfig {
+  id: RolePersona;
+  name: string;
+  badge: string;
+  description: string;
+  permissions: string[];
+}
+
+const PERSONAS: PersonaConfig[] = [
+  {
+    id: "superowner",
+    name: "Superowner / System Admin",
+    badge: "👑 Superowner",
+    description: "SaaS Admin, Fleet, Multi-Tenant Onboarding, Full Platform Control",
+    permissions: [
+      "saas.view",
+      "saas.manage",
+      "organizations.view",
+      "organizations.update",
+      "organizations.settings_manage",
+      "branches.view",
+      "branches.manage",
+      "departments.view",
+      "departments.manage",
+      "roles.view",
+      "members.view",
+      "members.manage",
+      "employees.view",
+      "employees.create",
+      "employees.update",
+      "employees.delete",
+      "attendance.view",
+      "attendance.view_own",
+      "attendance.create",
+      "attendance.update",
+      "attendance.delete",
+      "leave.view",
+      "leave.view_own",
+      "leave.request",
+      "leave.approve",
+      "leave.cancel",
+      "leave.manage",
+      "payroll.view",
+      "payslips.view",
+      "payslips.view_own",
+      "reimbursements.view",
+      "reimbursements.view_own",
+      "reimbursements.create",
+      "travel.view",
+      "travel.view_own",
+      "travel.create",
+      "training.view",
+      "training.view_own",
+      "training.enroll",
+      "internships.view",
+      "clients.view",
+      "engagements.view",
+      "projects.view",
+      "procurement.view",
+      "assets.view",
+      "assets.view_own",
+      "maintenance.view",
+      "operations.view",
+      "finance.view",
+      "documents.view",
+      "notifications.view",
+      "audit_logs.view",
+      "automations.view",
+      "reports.view",
+      "ai.view",
+    ],
+  },
+  {
+    id: "organization_owner",
+    name: "Company Owner",
+    badge: "🏢 Company Owner",
+    description: "Full Tenant Authority: Settings, Billing, Members, All Org Modules",
+    permissions: [
+      "organizations.view",
+      "organizations.update",
+      "organizations.settings_manage",
+      "branches.view",
+      "branches.manage",
+      "departments.view",
+      "departments.manage",
+      "roles.view",
+      "members.view",
+      "members.manage",
+      "employees.view",
+      "employees.create",
+      "employees.update",
+      "employees.delete",
+      "attendance.view",
+      "attendance.view_own",
+      "attendance.create",
+      "attendance.update",
+      "leave.view",
+      "leave.view_own",
+      "leave.request",
+      "leave.approve",
+      "leave.manage",
+      "payroll.view",
+      "payslips.view",
+      "payslips.view_own",
+      "reimbursements.view",
+      "reimbursements.view_own",
+      "reimbursements.create",
+      "travel.view",
+      "travel.view_own",
+      "travel.create",
+      "training.view",
+      "training.view_own",
+      "training.enroll",
+      "internships.view",
+      "clients.view",
+      "engagements.view",
+      "projects.view",
+      "procurement.view",
+      "assets.view",
+      "assets.view_own",
+      "maintenance.view",
+      "operations.view",
+      "finance.view",
+      "documents.view",
+      "notifications.view",
+      "audit_logs.view",
+      "automations.view",
+      "reports.view",
+      "ai.view",
+    ],
+  },
+  {
+    id: "director",
+    name: "Executive Director",
+    badge: "👔 Director",
+    description: "Executive Reports, Strategic Approvals, Contracts, Finance",
+    permissions: [
+      "reports.view",
+      "ai.view",
+      "organizations.view",
+      "branches.view",
+      "departments.view",
+      "roles.view",
+      "members.view",
+      "employees.view",
+      "attendance.view",
+      "leave.view",
+      "leave.approve",
+      "payroll.view",
+      "payslips.view",
+      "reimbursements.view",
+      "travel.view",
+      "training.view",
+      "internships.view",
+      "clients.view",
+      "engagements.view",
+      "projects.view",
+      "procurement.view",
+      "assets.view",
+      "maintenance.view",
+      "operations.view",
+      "finance.view",
+      "documents.view",
+      "notifications.view",
+      "audit_logs.view",
+    ],
+  },
+  {
+    id: "hr_manager",
+    name: "HR Manager",
+    badge: "👥 HR Manager",
+    description: "Employee Directory, Attendance Feed, Leaves, Payroll, Internships",
+    permissions: [
+      "organizations.view",
+      "departments.view",
+      "members.view",
+      "members.manage",
+      "employees.view",
+      "employees.create",
+      "employees.update",
+      "attendance.view",
+      "attendance.create",
+      "attendance.update",
+      "leave.view",
+      "leave.request",
+      "leave.approve",
+      "leave.manage",
+      "payroll.view",
+      "payslips.view",
+      "reimbursements.view",
+      "training.view",
+      "training.enroll",
+      "training.manage",
+      "internships.view",
+      "internships.create",
+      "internships.manage",
+      "documents.view",
+      "notifications.view",
+      "reports.view",
+    ],
+  },
+  {
+    id: "department_manager",
+    name: "Department / Project Manager",
+    badge: "💼 Manager",
+    description: "Team Attendance, Task Delivery, Client Engagements, Operations",
+    permissions: [
+      "departments.view",
+      "employees.view",
+      "attendance.view",
+      "leave.view",
+      "leave.request",
+      "projects.view",
+      "clients.view",
+      "engagements.view",
+      "assets.view",
+      "maintenance.view",
+      "operations.view",
+      "notifications.view",
+      "documents.view",
+      "ai.view",
+    ],
+  },
+  {
+    id: "employee",
+    name: "Employee (Self-Service)",
+    badge: "👤 Employee",
+    description: "Self-Service Only: My Attendance, My Leaves, My Assets, My Payslips",
+    permissions: [
+      "attendance.view_own",
+      "attendance.create",
+      "attendance.update",
+      "leave.view_own",
+      "leave.request",
+      "leave.cancel",
+      "assets.view_own",
+      "payslips.view_own",
+      "reimbursements.view_own",
+      "reimbursements.create",
+      "travel.view_own",
+      "travel.create",
+      "training.view_own",
+      "training.enroll",
+      "notifications.view",
+      "notifications.mark_read",
+      "documents.view",
+    ],
+  },
+];
+
+export function RoleSwitcher() {
+  const { permissions } = useOrganization();
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [activePersonaId, setActivePersonaId] = React.useState<RolePersona>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("osoffice_simulated_role");
+      if (saved && PERSONAS.some((p) => p.id === saved)) {
+        return saved as RolePersona;
+      }
+    }
+    // Default check
+    if (permissions.includes("saas.view" as any)) return "superowner";
+    if (permissions.includes("organizations.settings_manage" as any)) return "organization_owner";
+    if (permissions.includes("payroll.view" as any) && permissions.includes("employees.create" as any)) return "hr_manager";
+    if (!permissions.includes("employees.view" as any)) return "employee";
+    return "organization_owner";
+  });
+
+  const activePersona: PersonaConfig = PERSONAS.find((p) => p.id === activePersonaId) ?? PERSONAS[0]!;
+
+  const handleSelectPersona = (persona: PersonaConfig) => {
+    setActivePersonaId(persona.id);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("osoffice_simulated_role", persona.id);
+      localStorage.setItem("officeos_active_perms", JSON.stringify(persona.permissions));
+      // Reload to apply immediately across entire client context
+      window.location.reload();
+    }
+  };
+
+  const handleResetToBackend = () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("osoffice_simulated_role");
+      localStorage.removeItem("officeos_active_perms");
+      window.location.reload();
+    }
+  };
+
+  return (
+    <div className="fixed bottom-4 right-4 z-50 font-sans">
+      <div className="relative">
+        {/* Toggle Button */}
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className={cn(
+            "flex items-center gap-2 rounded-full border border-slate-700/80 bg-slate-900/90 text-white shadow-xl backdrop-blur-md px-3.5 py-2 text-xs font-semibold hover:bg-slate-800 transition-all",
+            isOpen && "ring-2 ring-primary-500"
+          )}
+          title="Testing Role Simulator"
+        >
+          <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
+          <span>Role View:</span>
+          <span className="text-primary-300 font-bold">{activePersona.badge}</span>
+          <ChevronDown className={cn("h-3 w-3 text-slate-400 transition-transform", isOpen && "rotate-180")} />
+        </button>
+
+        {/* Dropdown Menu */}
+        {isOpen && (
+          <div className="absolute bottom-12 right-0 w-80 rounded-xl border border-slate-700/90 bg-slate-900/95 text-slate-100 shadow-2xl backdrop-blur-lg p-2.5 space-y-1 animate-in fade-in zoom-in-95">
+            <div className="px-2 py-1.5 border-b border-slate-800">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                <span>Production Role Preview</span>
+                <button
+                  type="button"
+                  onClick={handleResetToBackend}
+                  className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1 transition-colors"
+                  title="Reset to live database permissions"
+                >
+                  <RefreshCw className="h-2.5 w-2.5" />
+                  Reset
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                Switch perspective to verify that navigation, self-service scopes, and dashboard modules strictly adapt per role.
+              </p>
+            </div>
+
+            <div className="max-h-72 overflow-y-auto space-y-1 py-1">
+              {PERSONAS.map((p) => {
+                const isSelected = p.id === activePersonaId;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => handleSelectPersona(p)}
+                    className={cn(
+                      "w-full text-left rounded-lg p-2 transition-colors flex items-start justify-between gap-2",
+                      isSelected
+                        ? "bg-primary-600/25 border border-primary-500/50 text-white"
+                        : "hover:bg-slate-800/80 text-slate-300 hover:text-white"
+                    )}
+                  >
+                    <div className="space-y-0.5">
+                      <div className="text-xs font-semibold flex items-center gap-1.5">
+                        <span>{p.badge}</span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 leading-tight">
+                        {p.description}
+                      </div>
+                    </div>
+                    {isSelected && <Check className="h-4 w-4 text-primary-400 flex-shrink-0 mt-0.5" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
