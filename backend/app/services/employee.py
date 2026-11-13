@@ -8,8 +8,18 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.security import AuthenticatedUser
 from app.models.employee import Department, Employee
-from app.models.identity import Branch, OrganizationMembership, Profile
+from app.models.identity import (
+    Branch,
+    MembershipPermission,
+    MembershipRole,
+    OrganizationMembership,
+    Permission,
+    Profile,
+    Role,
+    RolePermission,
+)
 from app.schemas.common import PaginatedData, PaginationMeta
 from app.schemas.employee import (
     BranchBrief,
@@ -20,10 +30,14 @@ from app.schemas.employee import (
     EmployeeCreate,
     EmployeeDetailResponse,
     EmployeeListItemResponse,
+    EmployeePermissionsResponse,
+    EmployeePermissionsUpdate,
     EmployeeUpdate,
     ManagerBrief,
     ManagerOptionResponse,
+    ModulePermissionState,
 )
+from app.services.identity import get_profile, get_user_permissions, get_user_roles
 from app.services.organization import record_audit_log
 
 
@@ -35,6 +49,118 @@ def _to_list(result: Any) -> list[Any]:
     if hasattr(result, "all"):
         return list(result.all())
     return list(result)
+
+
+MODULE_PERMISSIONS_CONFIG: list[dict[str, Any]] = [
+    {
+        "module": "attendance",
+        "label": "Attendance Management",
+        "description": "View own attendance logs, punch in/out, and manage organization live attendance",
+        "codes": ["attendance.view", "attendance.view_own", "attendance.create", "attendance.update", "attendance.manage"],
+    },
+    {
+        "module": "leave",
+        "label": "Leave Management",
+        "description": "View balances, request time-off, approve requests, and manage leave allocations",
+        "codes": ["leave.view", "leave.view_own", "leave.request", "leave.approve", "leave.cancel", "leave.manage"],
+    },
+    {
+        "module": "payroll",
+        "label": "Payroll & Payslips",
+        "description": "View salary slips, compute payroll runs, and manage organization salary structures",
+        "codes": ["payroll.view", "payroll.manage", "payslips.view", "payslips.view_own", "payroll.runs"],
+    },
+    {
+        "module": "projects",
+        "label": "Projects & Tasks",
+        "description": "Access active project boards, task tracking, budgets, and milestones",
+        "codes": ["projects.view", "projects.create", "projects.manage", "projects.update"],
+    },
+    {
+        "module": "procurement",
+        "label": "Procurement & Orders",
+        "description": "Create purchase requests, manage vendors, and approve purchase orders",
+        "codes": ["procurement.view", "procurement.create", "procurement.approve", "purchase_orders.view"],
+    },
+    {
+        "module": "assets",
+        "label": "Assets & Hardware",
+        "description": "View allocated company hardware and manage organization equipment inventory",
+        "codes": ["assets.view", "assets.view_own", "assets.create", "assets.assign", "assets.manage"],
+    },
+    {
+        "module": "maintenance",
+        "label": "Maintenance & Work Orders",
+        "description": "Submit facility maintenance requests and manage repair tickets",
+        "codes": ["maintenance.view", "maintenance.create", "maintenance.update", "maintenance.manage"],
+    },
+    {
+        "module": "operations",
+        "label": "Operations & Checklists",
+        "description": "Manage standard operational procedures, task checklists, and execution logs",
+        "codes": ["operations.view", "operations.create", "operations.manage", "operations.complete"],
+    },
+    {
+        "module": "internships",
+        "label": "Internship Management",
+        "description": "Track interns, reviews, supervisors, and stipend disbursement",
+        "codes": ["internships.view", "internships.create", "internships.manage"],
+    },
+    {
+        "module": "clients",
+        "label": "Clients & Engagements",
+        "description": "CRM client accounts, proposals, agreements, and weekly status tracking",
+        "codes": ["clients.view", "clients.create", "clients.manage", "engagements.view", "engagements.create", "engagements.manage"],
+    },
+    {
+        "module": "reports",
+        "label": "Reports & Analytics",
+        "description": "Access executive dashboards, workforce analytics, and financial reporting",
+        "codes": ["reports.view", "reports.workforce", "reports.attendance", "reports.leave", "reports.procurement", "reports.maintenance", "reports.finance", "reports.audit"],
+    },
+    {
+        "module": "ai",
+        "label": "AI Assistant & Simulator",
+        "description": "Ask AI about company policies and run What-If strategic simulations",
+        "codes": ["ai.view", "ai.use"],
+    },
+    {
+        "module": "reimbursements",
+        "label": "Reimbursements",
+        "description": "Submit personal expense claims and manage approval workflows",
+        "codes": ["reimbursements.view", "reimbursements.view_own", "reimbursements.create", "reimbursements.approve"],
+    },
+    {
+        "module": "travel",
+        "label": "Travel Management",
+        "description": "Request travel bookings, itineraries, and trip advances",
+        "codes": ["travel.view", "travel.view_own", "travel.create", "travel.approve"],
+    },
+    {
+        "module": "training",
+        "label": "Training & Courses",
+        "description": "Enroll in employee development courses and manage training programs",
+        "codes": ["training.view", "training.view_own", "training.enroll", "training.create", "training.manage"],
+    },
+    {
+        "module": "finance",
+        "label": "Finance & Ledgers",
+        "description": "Access company financial ledgers, vendor bills, and transactions",
+        "codes": ["finance.view", "finance.manage", "finance.approve"],
+    },
+    {
+        "module": "documents",
+        "label": "Documents & Policies",
+        "description": "View official company policies, templates, and compliance uploads",
+        "codes": ["documents.view", "documents.upload", "documents.download", "documents.manage"],
+    },
+    {
+        "module": "settings",
+        "label": "Organization Settings",
+        "description": "Configure company branches, departments, and corporate preferences",
+        "codes": ["organizations.view", "organizations.settings_manage", "branches.view", "branches.manage", "departments.view", "departments.manage"],
+    },
+]
 
 
 # --- Department Service ---
@@ -701,13 +827,67 @@ async def create_employee(
             detail=f"Employee with code '{code_upper}' already exists in this organization",
         )
 
+    profile_id = data.profile_id
+    membership_id = data.membership_id
+    now = datetime.now(UTC)
+
+    # Auto-link or provision Profile and OrganizationMembership when work_email is provided
+    if data.work_email and data.work_email.strip():
+        clean_email = data.work_email.strip().lower()
+        if not profile_id:
+            prof = await session.scalar(
+                select(Profile).where(func.lower(Profile.email) == clean_email)
+            )
+            if not prof:
+                prof = Profile(
+                    id=uuid.uuid4(),
+                    auth_user_id=uuid.uuid4(),
+                    email=clean_email,
+                    first_name=data.first_name.strip(),
+                    last_name=data.last_name.strip(),
+                    is_active=True,
+                    created_at=now,
+                    updated_at=now,
+                )
+                session.add(prof)
+                await session.flush()
+            profile_id = prof.id
+
+        if profile_id and not membership_id:
+            m = await session.scalar(
+                select(OrganizationMembership).where(
+                    OrganizationMembership.organization_id == organization_id,
+                    OrganizationMembership.profile_id == profile_id,
+                )
+            )
+            if not m:
+                m = OrganizationMembership(
+                    id=uuid.uuid4(),
+                    organization_id=organization_id,
+                    profile_id=profile_id,
+                    status="invited",
+                    created_at=now,
+                    updated_at=now,
+                )
+                session.add(m)
+                await session.flush()
+
+                target_role = getattr(data, "role", "employee") or "employee"
+                role_obj = await session.scalar(
+                    select(Role).where(Role.name == target_role, Role.is_system.is_(True))
+                )
+                if role_obj:
+                    session.add(MembershipRole(membership_id=m.id, role_id=role_obj.id))
+                    await session.flush()
+            membership_id = m.id
+
     await _validate_related_entities(
         session=session,
         organization_id=organization_id,
         department_id=data.department_id,
         branch_id=data.branch_id,
-        profile_id=data.profile_id,
-        membership_id=data.membership_id,
+        profile_id=profile_id,
+        membership_id=membership_id,
     )
 
     if data.reporting_manager_id is not None:
@@ -722,7 +902,6 @@ async def create_employee(
     if data.status == "terminated":
         is_active = False
 
-    now = datetime.now(UTC)
     emp = Employee(
         id=uuid.uuid4(),
         organization_id=organization_id,
@@ -737,8 +916,8 @@ async def create_employee(
         department_id=data.department_id,
         branch_id=data.branch_id,
         reporting_manager_id=data.reporting_manager_id,
-        profile_id=data.profile_id,
-        membership_id=data.membership_id,
+        profile_id=profile_id,
+        membership_id=membership_id,
         work_email=data.work_email.strip().lower() if data.work_email else None,
         personal_email=data.personal_email.strip().lower() if data.personal_email else None,
         phone_number=data.phone_number.strip() if data.phone_number else None,
@@ -1058,3 +1237,199 @@ async def list_manager_options(
         )
         for r in rows
     ]
+
+
+async def get_employee_permissions(
+    session: AsyncSession,
+    organization_id: UUID,
+    employee_id: UUID,
+    current_user: AuthenticatedUser,
+) -> EmployeePermissionsResponse:
+    emp = await session.scalar(
+        select(Employee).where(Employee.id == employee_id, Employee.organization_id == organization_id)
+    )
+    if not emp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Employee '{employee_id}' not found in this organization",
+        )
+
+    requester_roles = await get_user_roles(session, current_user, organization_id)
+    requester_perms = await get_user_permissions(session, current_user, organization_id)
+    is_superowner = (
+        current_user.email in ("osofficesupport@gmail.com", "officeos@gmail.com")
+        or "saas.view" in requester_perms
+        or "system_admin" in requester_roles
+    )
+    is_company_owner = "organization_owner" in requester_roles
+    can_edit = is_superowner or is_company_owner
+
+    employee_role = "employee"
+    role_perms: set[str] = set()
+    custom_perms: set[str] = set()
+
+    if emp.membership_id:
+        roles_res = await session.scalars(
+            select(Role.name)
+            .join(MembershipRole, MembershipRole.role_id == Role.id)
+            .where(MembershipRole.membership_id == emp.membership_id)
+        )
+        emp_roles = _to_list(roles_res)
+        if emp_roles:
+            employee_role = emp_roles[0]
+
+        r_perms_res = await session.scalars(
+            select(Permission.code)
+            .join(RolePermission, RolePermission.permission_id == Permission.id)
+            .join(MembershipRole, MembershipRole.role_id == RolePermission.role_id)
+            .where(MembershipRole.membership_id == emp.membership_id)
+        )
+        role_perms = set(_to_list(r_perms_res))
+
+        c_perms_res = await session.scalars(
+            select(Permission.code)
+            .join(MembershipPermission, MembershipPermission.permission_id == Permission.id)
+            .where(MembershipPermission.membership_id == emp.membership_id)
+        )
+        custom_perms = set(_to_list(c_perms_res))
+
+    effective_perms = role_perms.union(custom_perms)
+
+    modules_out: list[ModulePermissionState] = []
+    for mod in MODULE_PERMISSIONS_CONFIG:
+        mod_codes = set(mod["codes"])
+        is_granted = bool(mod_codes.intersection(effective_perms))
+        is_base = bool(mod_codes.intersection(role_perms))
+        modules_out.append(
+            ModulePermissionState(
+                module=mod["module"],
+                label=mod["label"],
+                description=mod["description"],
+                granted=is_granted,
+                is_base_role=is_base,
+                permission_codes=mod["codes"],
+            )
+        )
+
+    return EmployeePermissionsResponse(
+        employee_id=emp.id,
+        employee_name=f"{emp.first_name} {emp.last_name}",
+        membership_id=emp.membership_id,
+        role=employee_role,
+        modules=modules_out,
+        all_effective_permissions=sorted(list(effective_perms)),
+        can_edit=can_edit,
+    )
+
+
+async def update_employee_permissions(
+    session: AsyncSession,
+    organization_id: UUID,
+    employee_id: UUID,
+    data: EmployeePermissionsUpdate,
+    current_user: AuthenticatedUser,
+    ip_address: str | None = None,
+) -> EmployeePermissionsResponse:
+    from sqlalchemy import delete
+
+    emp = await session.scalar(
+        select(Employee).where(Employee.id == employee_id, Employee.organization_id == organization_id)
+    )
+    if not emp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Employee '{employee_id}' not found in this organization",
+        )
+
+    requester_roles = await get_user_roles(session, current_user, organization_id)
+    requester_perms = await get_user_permissions(session, current_user, organization_id)
+    is_superowner = (
+        current_user.email in ("osofficesupport@gmail.com", "officeos@gmail.com")
+        or "saas.view" in requester_perms
+        or "system_admin" in requester_roles
+    )
+    is_company_owner = "organization_owner" in requester_roles
+
+    if not (is_superowner or is_company_owner):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the Organization Owner and Superowner can modify module access permissions.",
+        )
+
+    if not emp.membership_id:
+        if emp.profile_id or emp.work_email:
+            now_dt = datetime.now(UTC)
+            profile_id = emp.profile_id
+            if not profile_id and emp.work_email:
+                prof = await session.scalar(
+                    select(Profile).where(func.lower(Profile.email) == emp.work_email.strip().lower())
+                )
+                if not prof:
+                    prof = Profile(
+                        id=uuid.uuid4(),
+                        auth_user_id=uuid.uuid4(),
+                        email=emp.work_email.strip().lower(),
+                        first_name=emp.first_name,
+                        last_name=emp.last_name,
+                        is_active=True,
+                        created_at=now_dt,
+                        updated_at=now_dt,
+                    )
+                    session.add(prof)
+                    await session.flush()
+                profile_id = prof.id
+                emp.profile_id = profile_id
+
+            m = OrganizationMembership(
+                id=uuid.uuid4(),
+                organization_id=organization_id,
+                profile_id=profile_id,
+                status="invited",
+                created_at=now_dt,
+                updated_at=now_dt,
+            )
+            session.add(m)
+            await session.flush()
+            role_obj = await session.scalar(
+                select(Role).where(Role.name == "employee", Role.is_system.is_(True))
+            )
+            if role_obj:
+                session.add(MembershipRole(membership_id=m.id, role_id=role_obj.id))
+            emp.membership_id = m.id
+            await session.flush()
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Employee has no associated user profile or email to grant permissions.",
+            )
+
+    target_codes = set(data.custom_permissions)
+    target_permissions = _to_list(
+        await session.scalars(select(Permission).where(Permission.code.in_(target_codes)))
+    )
+
+    await session.execute(
+        delete(MembershipPermission).where(MembershipPermission.membership_id == emp.membership_id)
+    )
+
+    for p in target_permissions:
+        session.add(MembershipPermission(membership_id=emp.membership_id, permission_id=p.id))
+
+    actor_profile = await get_profile(session, current_user)
+    await record_audit_log(
+        session=session,
+        organization_id=organization_id,
+        actor_id=actor_profile.id if actor_profile else None,
+        action="employees.permissions_update",
+        entity_type="employee",
+        entity_id=emp.id,
+        details={
+            "employee_id": str(emp.id),
+            "custom_permissions": list(target_codes),
+        },
+        ip_address=ip_address,
+    )
+    await session.flush()
+
+    return await get_employee_permissions(session, organization_id, employee_id, current_user)
+

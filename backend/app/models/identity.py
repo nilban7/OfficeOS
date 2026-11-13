@@ -108,3 +108,14 @@ class MembershipRole(Base):
     role_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True
     )
+
+
+class MembershipPermission(Base):
+    __tablename__ = "membership_permissions"
+
+    membership_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organization_memberships.id", ondelete="CASCADE"), primary_key=True
+    )
+    permission_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("permissions.id", ondelete="CASCADE"), primary_key=True
+    )

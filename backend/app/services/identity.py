@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import AuthenticatedUser
 from app.models.identity import (
+    MembershipPermission,
     MembershipRole,
     Organization,
     OrganizationMembership,
@@ -85,7 +86,7 @@ async def get_user_permissions(
     if not conditions:
         return []
 
-    stmt = (
+    stmt_roles = (
         select(Permission.code)
         .join(RolePermission, RolePermission.permission_id == Permission.id)
         .join(Role, Role.id == RolePermission.role_id)
@@ -97,9 +98,23 @@ async def get_user_permissions(
             OrganizationMembership.status == "active",
         )
     )
+    stmt_direct = (
+        select(Permission.code)
+        .join(MembershipPermission, MembershipPermission.permission_id == Permission.id)
+        .join(OrganizationMembership, OrganizationMembership.id == MembershipPermission.membership_id)
+        .join(Profile, Profile.id == OrganizationMembership.profile_id)
+        .where(
+            or_(*conditions),
+            OrganizationMembership.status == "active",
+        )
+    )
     if organization_id is not None:
-        stmt = stmt.where(OrganizationMembership.organization_id == UUID(str(organization_id)))
-    result = await session.scalars(stmt.distinct().order_by(Permission.code))
+        org_uuid = UUID(str(organization_id))
+        stmt_roles = stmt_roles.where(OrganizationMembership.organization_id == org_uuid)
+        stmt_direct = stmt_direct.where(OrganizationMembership.organization_id == org_uuid)
+
+    union_query = stmt_roles.union(stmt_direct).subquery()
+    result = await session.scalars(select(union_query.c.code).order_by(union_query.c.code))
     return list(result)
 
 

@@ -12,6 +12,8 @@ from app.schemas.employee import (
     EmployeeCreate,
     EmployeeDetailResponse,
     EmployeeListItemResponse,
+    EmployeePermissionsResponse,
+    EmployeePermissionsUpdate,
     EmployeeUpdate,
     ManagerOptionResponse,
 )
@@ -19,9 +21,11 @@ from app.services.employee import (
     create_employee,
     deactivate_employee,
     get_employee,
+    get_employee_permissions,
     list_employees,
     list_manager_options,
     update_employee,
+    update_employee_permissions,
 )
 from app.services.identity import get_profile
 
@@ -163,3 +167,39 @@ async def delete_org_employee(
         data=emp,
         message="Employee deactivated successfully",
     )
+
+
+@router.get(
+    "/{employee_id}/permissions",
+    response_model=ApiSuccess[EmployeePermissionsResponse],
+    summary="Get employee module permissions",
+)
+async def get_employee_module_permissions(
+    employee_id: UUID,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(require_permission("employees.view"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
+) -> ApiSuccess[EmployeePermissionsResponse]:
+    org_id = UUID(organization_header)
+    data = await get_employee_permissions(session, org_id, employee_id, current_user)
+    return ApiSuccess(data=data)
+
+
+@router.put(
+    "/{employee_id}/permissions",
+    response_model=ApiSuccess[EmployeePermissionsResponse],
+    summary="Update employee custom module permissions",
+)
+async def set_employee_module_permissions(
+    employee_id: UUID,
+    data: EmployeePermissionsUpdate,
+    request: Request,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(require_permission("employees.view"))],
+    organization_header: Annotated[str, Header(alias="X-Organization-Id")],
+) -> ApiSuccess[EmployeePermissionsResponse]:
+    org_id = UUID(organization_header)
+    ip = get_ip_address(request)
+    result = await update_employee_permissions(session, org_id, employee_id, data, current_user, ip)
+    return ApiSuccess(data=result, message="Employee module permissions updated successfully")
+

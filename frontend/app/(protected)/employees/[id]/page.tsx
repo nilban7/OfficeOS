@@ -15,6 +15,9 @@ import {
   Users,
   AlertCircle,
   Briefcase,
+  Shield,
+  Lock,
+  Check,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,11 +31,13 @@ import { useOrganization } from "@/hooks/use-organization";
 import { apiClient } from "@/lib/api/client";
 import { API_ENDPOINTS } from "@/lib/api/endpoints";
 import { ROUTES } from "@/constants/routes";
+import { cn } from "@/lib/utils/cn";
 import { ApiException } from "@/types/api";
 import type { BranchResponse } from "@/types/organization";
 import type {
   Department,
   Employee,
+  EmployeePermissionsResponse,
   EmployeeUpdate,
   ManagerOption,
 } from "@/types/employee";
@@ -86,6 +91,14 @@ export default function EmployeeDetailPage() {
   const [isTerminateOpen, setIsTerminateOpen] = React.useState(false);
   const [isTerminating, setIsTerminating] = React.useState(false);
 
+  // Module Permissions State
+  const [permissionsData, setPermissionsData] = React.useState<EmployeePermissionsResponse | null>(null);
+  const [isLoadingPermissions, setIsLoadingPermissions] = React.useState(false);
+  const [permissionsError, setPermissionsError] = React.useState<string | null>(null);
+  const [isSavingPermissions, setIsSavingPermissions] = React.useState(false);
+  const [moduleToggles, setModuleToggles] = React.useState<Record<string, boolean>>({});
+  const [hasPermissionChanges, setHasPermissionChanges] = React.useState(false);
+
   // Fetch Employee Details
   const fetchEmployee = React.useCallback(async () => {
     if (!currentOrganization || !employeeId || !canView) return;
@@ -106,6 +119,71 @@ export default function EmployeeDetailPage() {
       setIsLoading(false);
     }
   }, [currentOrganization, employeeId, canView]);
+
+  // Fetch Employee Module Permissions
+  const fetchPermissions = React.useCallback(async () => {
+    if (!currentOrganization || !employeeId || !canView) return;
+    setIsLoadingPermissions(true);
+    setPermissionsError(null);
+    try {
+      const data = await apiClient.get<EmployeePermissionsResponse>(
+        API_ENDPOINTS.employees.permissions(employeeId),
+        {
+          organizationId: currentOrganization.id,
+        }
+      );
+      if (data) {
+        setPermissionsData(data);
+        const toggles: Record<string, boolean> = {};
+        data.modules.forEach((mod) => {
+          toggles[mod.module] = mod.granted;
+        });
+        setModuleToggles(toggles);
+        setHasPermissionChanges(false);
+      }
+    } catch {
+      // Best-effort permissions loading
+    } finally {
+      setIsLoadingPermissions(false);
+    }
+  }, [currentOrganization, employeeId, canView]);
+
+  // Save Employee Module Permissions
+  const handleSavePermissions = async () => {
+    if (!currentOrganization || !permissionsData) return;
+    setIsSavingPermissions(true);
+    setPermissionsError(null);
+    try {
+      const selectedCodes: string[] = [];
+      permissionsData.modules.forEach((mod) => {
+        if (moduleToggles[mod.module]) {
+          selectedCodes.push(...mod.permission_codes);
+        }
+      });
+      const updated = await apiClient.put<EmployeePermissionsResponse>(
+        API_ENDPOINTS.employees.permissions(employeeId),
+        { custom_permissions: Array.from(new Set(selectedCodes)) },
+        {
+          organizationId: currentOrganization.id,
+        }
+      );
+      if (updated) {
+        setPermissionsData(updated);
+        const toggles: Record<string, boolean> = {};
+        updated.modules.forEach((mod) => {
+          toggles[mod.module] = mod.granted;
+        });
+        setModuleToggles(toggles);
+        setHasPermissionChanges(false);
+        setSuccessMessage("Module access permissions updated successfully.");
+      }
+    } catch (err) {
+      const msg = err instanceof ApiException ? err.message : "Failed to update module permissions.";
+      setPermissionsError(msg);
+    } finally {
+      setIsSavingPermissions(false);
+    }
+  };
 
   // Fetch Reference Data for Edit Modal
   const fetchReferenceData = React.useCallback(async () => {
@@ -139,8 +217,9 @@ export default function EmployeeDetailPage() {
 
   React.useEffect(() => {
     void fetchEmployee();
+    void fetchPermissions();
     void fetchReferenceData();
-  }, [fetchEmployee, fetchReferenceData]);
+  }, [fetchEmployee, fetchPermissions, fetchReferenceData]);
 
   const openEditModal = () => {
     if (!employee) return;
@@ -570,6 +649,132 @@ export default function EmployeeDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ========================================================================= */}
+      {/* SECTION: MODULE ACCESS & SPECIAL PERMISSIONS */}
+      {/* ========================================================================= */}
+      <Card className="border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-200/80 dark:border-slate-800 py-4 px-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="space-y-1">
+              <CardTitle className="text-base font-semibold flex items-center gap-2 text-slate-900 dark:text-slate-100">
+                <Shield className="h-4 w-4 text-primary-600" />
+                Module Access & Special Permissions
+              </CardTitle>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Manage module access for this employee. Base roles define initial access; Company Owners and Superowners can toggle special overrides.
+              </p>
+            </div>
+            {permissionsData?.can_edit ? (
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={handleSavePermissions}
+                  disabled={isSavingPermissions || !hasPermissionChanges}
+                  className="flex items-center gap-1.5 text-xs shadow-xs"
+                >
+                  {isSavingPermissions ? (
+                    <>Saving...</>
+                  ) : (
+                    <>
+                      <Check className="h-3.5 w-3.5" />
+                      Save Permissions
+                    </>
+                  )}
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-[11px] font-medium text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 select-none">
+                <Lock className="h-3 w-3 text-slate-400" />
+                Read-Only (Owner Access Required)
+              </div>
+            )}
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-6 space-y-4">
+          {permissionsError && (
+            <div role="alert" className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-rose-500 flex-shrink-0" />
+              <span>{permissionsError}</span>
+            </div>
+          )}
+
+          {isLoadingPermissions ? (
+            <div className="py-8 text-center text-xs text-slate-500">
+              Loading module permissions...
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              {permissionsData?.modules.map((mod) => {
+                const isChecked = !!moduleToggles[mod.module];
+                const canToggle = permissionsData.can_edit;
+
+                return (
+                  <div
+                    key={mod.module}
+                    className={cn(
+                      "flex items-start justify-between p-3.5 rounded-xl border transition-all",
+                      isChecked
+                        ? "border-primary-200 dark:border-primary-900/60 bg-primary-50/20 dark:bg-primary-950/20"
+                        : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700"
+                    )}
+                  >
+                    <div className="space-y-1 pr-3">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">
+                          {mod.label}
+                        </span>
+                        {mod.is_base_role && (
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0">
+                            Base Role
+                          </Badge>
+                        )}
+                        {!mod.is_base_role && isChecked && (
+                          <Badge variant="success" className="text-[9px] px-1.5 py-0">
+                            Custom Grant
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-tight">
+                        {mod.description}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={isChecked}
+                      disabled={!canToggle}
+                      onClick={() => {
+                        if (!canToggle) return;
+                        setModuleToggles((prev) => ({
+                          ...prev,
+                          [mod.module]: !prev[mod.module],
+                        }));
+                        setHasPermissionChanges(true);
+                      }}
+                      className={cn(
+                        "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50 mt-0.5",
+                        isChecked ? "bg-primary-600" : "bg-slate-200 dark:bg-slate-700"
+                      )}
+                      title={canToggle ? "Toggle module access" : "Owner access required to modify"}
+                    >
+                      <span
+                        className={cn(
+                          "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out",
+                          isChecked ? "translate-x-4" : "translate-x-0"
+                        )}
+                      />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* ========================================================================= */}
       {/* MODAL: EDIT EMPLOYEE */}
